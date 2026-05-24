@@ -1,26 +1,394 @@
 @import "tailwindcss";
+@import "@blocknote/shadcn/style.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@source "../node_modules/@blocknote/shadcn";
+@source "../components/blocknote-ui";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-hover: #2a2a2a;
+  --sidebar-active: #373737;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-inter);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.notion-page-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
-body {
-  background: var(--background);
+.notion-page-title::placeholder {
+  color: var(--muted-foreground);
+}
+
+.notion-editor .bn-root {
+  --bn-font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --bn-colors-editor-text: var(--foreground);
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-text: var(--popover-foreground);
+  --bn-colors-menu-background: var(--popover);
+  --bn-colors-tooltip-text: var(--popover-foreground);
+  --bn-colors-tooltip-background: var(--popover);
+  --bn-colors-hovered-text: var(--accent-foreground);
+  --bn-colors-hovered-background: var(--accent);
+  --bn-colors-selected-text: var(--primary-foreground);
+  --bn-colors-selected-background: var(--primary);
+  --bn-colors-disabled-text: var(--muted-foreground);
+  --bn-colors-disabled-background: var(--muted);
+  --bn-colors-shadow: var(--background);
+  --bn-colors-border: var(--border);
+  --bn-colors-side-menu: var(--muted-foreground);
+}
+
+.notion-editor .bn-editor {
+  background: transparent !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  border-radius: 0;
+}
+
+.notion-editor .bn-block-group {
+  margin-left: 0 !important;
+}
+
+.notion-editor .bn-block-outer {
+  margin: 2px 0;
+}
+
+/* Body text only — don't flatten headings/lists */
+.notion-editor .bn-block-content[data-content-type="paragraph"] .bn-inline-content {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.notion-editor .bn-block-content[data-content-type="heading"] {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.notion-editor .bn-block-content[data-content-type="heading"] .bn-inline-content {
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: inherit;
+}
+
+.notion-editor .bn-block-content[data-content-type="heading"]:not([data-level]),
+.notion-editor .bn-block-content[data-content-type="heading"][data-level="1"] {
+  font-size: 1.875rem;
+}
+
+.notion-editor .bn-block-content[data-content-type="heading"][data-level="2"] {
+  font-size: 1.5rem;
+}
+
+.notion-editor .bn-block-content[data-content-type="heading"][data-level="3"] {
+  font-size: 1.25rem;
+}
+
+/* Slash menu — not a Radix dropdown, so cap height explicitly */
+.bn-shadcn .bn-suggestion-menu,
+.notion-editor .bn-suggestion-menu {
+  max-height: min(20rem, 50vh) !important;
+  width: min(18rem, 92vw);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.bn-shadcn .bn-suggestion-menu::-webkit-scrollbar,
+.notion-editor .bn-suggestion-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.bn-shadcn .bn-suggestion-menu::-webkit-scrollbar-thumb,
+.notion-editor .bn-suggestion-menu::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+/* Toolbar / block-type dropdowns */
+.bn-shadcn .bn-menu-dropdown,
+.bn-shadcn .bn-select,
+.bn-shadcn [data-slot="dropdown-menu-content"],
+.bn-shadcn [data-slot="select-content"] {
+  max-height: min(18rem, 50vh) !important;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.bn-shadcn .bn-toolbar {
+  @apply gap-0.5 rounded-lg border border-border bg-popover p-1 shadow-md;
+}
+
+.bn-shadcn .text-gray-400 {
+  @apply text-muted-foreground;
+}
+
+/* Image & file blocks */
+.notion-editor [data-content-type="image"] .bn-visual-media,
+.notion-editor [data-content-type="video"] .bn-visual-media {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.notion-editor [data-file-block] .bn-file-caption {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  padding-top: 0.375rem;
+}
+
+.notion-editor [data-file-block] .bn-file-caption:empty {
+  display: none;
+}
+
+.notion-editor [data-file-block] .bn-add-file-button {
+  background: color-mix(in oklch, var(--muted) 80%, transparent);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--muted-foreground);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.notion-editor .bn-editor[contenteditable="true"] [data-file-block] .bn-add-file-button:hover {
+  background: var(--accent);
+  border-color: color-mix(in oklch, var(--border) 70%, var(--foreground));
+  color: var(--accent-foreground);
+}
+
+.notion-editor [data-file-block] .bn-resize-handle {
+  background: var(--foreground);
+  border-color: var(--background);
+  opacity: 0.85;
+}
+
+/* Code blocks */
+.notion-editor .bn-block-content[data-content-type="codeBlock"] {
+  background: color-mix(in oklch, var(--muted) 85%, transparent);
+  border: 1px solid var(--border);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  border-radius: var(--radius-md);
+  padding-top: 2rem;
+}
+
+.notion-editor .bn-block-content[data-content-type="codeBlock"] > pre {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  padding: 0.75rem 1rem 1rem !important;
+  background: transparent;
+}
+
+.notion-editor .bn-block-content[data-content-type="codeBlock"] > div > select {
+  color: var(--foreground);
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius-md) - 2px);
+  font-size: 0.75rem;
+  padding: 0.15rem 1.5rem 0.15rem 0.5rem;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+.notion-editor .bn-block-content[data-content-type="codeBlock"]:hover > div > select,
+.notion-editor .bn-block-content[data-content-type="codeBlock"] > div > select:focus {
+  opacity: 1;
+}
+
+.notion-editor .bn-block-content[data-content-type="codeBlock"] .prosemirror-highlight {
+  background: transparent !important;
+}
+
+/* Mermaid live preview under code block */
+.notion-editor .recall-mermaid-preview {
+  margin-top: 0.75rem;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: color-mix(in oklch, var(--muted) 60%, transparent);
+  padding: 1rem;
+}
+
+.notion-editor .recall-mermaid-preview[data-state="error"]::before {
+  content: attr(data-error);
+  display: block;
+  color: oklch(0.7 0.15 25);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+}
+
+.notion-editor .recall-mermaid-preview svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Quotes & dividers */
+.notion-editor [data-content-type="quote"] blockquote {
+  border-left: 3px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.notion-editor [data-content-type="divider"] hr {
+  border-top-color: var(--border);
+}
+
+/* Inline code */
+.notion-editor .bn-inline-content code {
+  background: color-mix(in oklch, var(--muted) 70%, transparent);
+  border-radius: 0.25rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.875em;
+  padding: 0.1em 0.35em;
+}
+
+.sidebar-item {
+  border-radius: 4px;
+  transition: background 0.1s ease;
+}
+
+.sidebar-item:hover {
+  background: var(--sidebar-hover);
+}
+
+.sidebar-item-active {
+  background: var(--sidebar-active);
+}
+
+.dark {
+  --background: oklch(0.22 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.585 0.233 293.789);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.19 0 0);
+  --sidebar-hover: oklch(0.24 0 0);
+  --sidebar-active: oklch(0.28 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  .bn-shadcn * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }
