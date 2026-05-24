@@ -78,6 +78,45 @@ Users upgrade from **Settings → Plans** (`/settings/plan`). Cancellations are 
 
 Use Lemon Squeezy **test mode** while developing.
 
+## Email (Resend)
+
+All app emails — auth (confirm, reset, magic link) and workspace invites — go through **Resend** with matching templates.
+
+### 1. Resend + env vars
+
+1. Create a [Resend](https://resend.com) account and verify your sending domain.
+2. Add to `.env.local`:
+
+```bash
+RESEND_API_KEY=re_...
+EMAIL_FROM=recall <invites@yourdomain.com>
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Optional subject overrides
+INVITE_EMAIL_SUBJECT={{inviter}} invited you to {{library}} on recall
+AUTH_EMAIL_SUBJECT_SIGNUP=Confirm your recall account
+AUTH_EMAIL_SUBJECT_RECOVERY=Reset your recall password
+```
+
+### 2. Supabase Send Email hook
+
+Route auth emails through the same Resend setup (instead of Supabase’s default mailer):
+
+1. Supabase Dashboard → **Authentication** → **Hooks**
+2. Create a **Send Email** hook (HTTPS)
+3. URL: `https://YOUR_DOMAIN/api/webhooks/supabase-auth-email`
+4. Generate a secret and add to `.env.local`:
+
+```bash
+SEND_EMAIL_HOOK_SECRET=v1,whsec_...
+```
+
+5. Enable the hook. Supabase will call your app for confirm/reset/magic-link emails; your app sends them via Resend.
+
+In dev, expose localhost with ngrok/cloudflared and use that URL for the hook.
+
+Without the hook configured, Supabase still sends its own auth emails — invites still use Resend when `RESEND_API_KEY` is set.
+
 ## Usage
 
 | Action | How |

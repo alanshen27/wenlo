@@ -34,6 +34,10 @@ export function mindMapRoute(libraryId: string) {
   return `/library/${libraryId}/map`;
 }
 
+export function inviteRoute(token: string) {
+  return `/invite/${token}`;
+}
+
 export function settingsRoute() {
   return "/settings";
 }

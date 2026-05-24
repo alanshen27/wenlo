@@ -16,6 +16,7 @@ import { FolderModal } from "@/components/modals/folder-modal";
 import { LibraryModal } from "@/components/modals/library-modal";
 import { ConfirmModal } from "@/components/modals/confirm-modal";
 import { ShareLibraryModal } from "@/components/modals/share-library-modal";
+import { PendingInvitesBanner } from "@/components/library/pending-invites-banner";
 import { MainHeader, type SaveStatus } from "@/components/library/main-header";
 import { RecallChatProvider } from "@/components/recall/recall-chat-context";
 import { buildRouteBreadcrumbs } from "@/lib/route-breadcrumbs";
@@ -493,6 +494,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
         />
 
         <main className="flex flex-1 flex-col overflow-hidden">
+          <PendingInvitesBanner onAccepted={loadLibraries} />
           <MainHeader
             breadcrumbs={breadcrumbs}
             hrefFor={breadcrumbHref}

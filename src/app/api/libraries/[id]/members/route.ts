@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { createLibraryInvite } from "@/lib/invites";
 import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
 import { prisma } from "@/lib/prisma";
 
@@ -25,13 +26,22 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     select: { id: true, name: true, userId: true },
   });
 
-  const members = await prisma.libraryMember.findMany({
-    where: { libraryId },
-    include: {
-      user: { select: { id: true, email: true, name: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const [members, pendingInvites] = await Promise.all([
+    prisma.libraryMember.findMany({
+      where: { libraryId },
+      include: {
+        user: { select: { id: true, email: true, name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.libraryInvite.findMany({
+      where: { libraryId, status: "PENDING" },
+      include: {
+        invitedBy: { select: { id: true, email: true, name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
   const owner = await prisma.user.findUniqueOrThrow({
     where: { id: library.userId },
@@ -48,6 +58,14 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       role: m.role,
       createdAt: m.createdAt,
     })),
+    pendingInvites: pendingInvites.map((invite) => ({
+      id: invite.id,
+      email: invite.email,
+      role: invite.role,
+      message: invite.message,
+      invitedBy: invite.invitedBy,
+      createdAt: invite.createdAt,
+    })),
     canManage: library.userId === user.id,
   });
 }
@@ -57,18 +75,21 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: libraryId } = await params;
-  const { email, role } = await req.json();
+  const { email, role, message } = await req.json();
 
   if (!email?.trim()) {
     return NextResponse.json({ error: "Email required" }, { status: 400 });
   }
 
   const memberRole = role === "VIEWER" ? "VIEWER" : "EDITOR";
+  const customMessage = typeof message === "string" ? message.trim() : undefined;
 
   try {
     const { library } = await requireLibraryAccess(user.id, libraryId, "OWNER");
+    const normalizedEmail = email.trim().toLowerCase();
+
     const invitee = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
+      where: { email: normalizedEmail },
     });
 
     if (!invitee) {
@@ -82,22 +103,29 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Owner already has access" }, { status: 400 });
     }
 
-    const member = await prisma.libraryMember.upsert({
+    const existingMember = await prisma.libraryMember.findUnique({
       where: { libraryId_userId: { libraryId, userId: invitee.id } },
-      create: { libraryId, userId: invitee.id, role: memberRole },
-      update: { role: memberRole },
-      include: {
-        user: { select: { id: true, email: true, name: true } },
-      },
+    });
+    if (existingMember) {
+      return NextResponse.json({ error: "User is already a member" }, { status: 400 });
+    }
+
+    const invite = await createLibraryInvite({
+      libraryId,
+      email: normalizedEmail,
+      role: memberRole,
+      message: customMessage,
+      invitedBy: { id: user.id, email: user.email, name: user.name },
+      libraryName: library.name,
     });
 
     return NextResponse.json({
-      id: member.id,
-      userId: member.userId,
-      email: member.user.email,
-      name: member.user.name,
-      role: member.role,
-      createdAt: member.createdAt,
+      id: invite.id,
+      email: invite.email,
+      role: invite.role,
+      message: invite.message,
+      status: invite.status,
+      createdAt: invite.createdAt,
     });
   } catch (error) {
     if (error instanceof LibraryAccessError) {

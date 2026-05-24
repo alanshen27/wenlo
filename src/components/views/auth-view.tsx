@@ -21,9 +21,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 type AuthViewProps = {
   defaultTab?: "signin" | "signup";
+  redirectTo?: string;
 };
 
-export function AuthView({ defaultTab = "signin" }: AuthViewProps) {
+export function AuthView({ defaultTab = "signin", redirectTo = "/" }: AuthViewProps) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -53,7 +54,7 @@ export function AuthView({ defaultTab = "signin" }: AuthViewProps) {
       return;
     }
 
-    router.push("/");
+    router.push(redirectTo);
     router.refresh();
   }
 
@@ -77,7 +78,7 @@ export function AuthView({ defaultTab = "signin" }: AuthViewProps) {
     }
 
     if (data.session) {
-      router.push("/");
+      router.push(redirectTo);
       router.refresh();
       return;
     }

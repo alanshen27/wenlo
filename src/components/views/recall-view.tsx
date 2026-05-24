@@ -15,6 +15,7 @@ import { documentRoute, pageRoute, searchRoute } from "@/lib/routes";
 import { apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
 import type { RecallChatSessionSummary, RecallTurn } from "@/lib/recall-chat";
 import { cn } from "@/lib/utils";
+import MarkdownRenderer from "../recall/markdown-renderer";
 
 const EXAMPLE_PROMPTS = [
   "Summarize what I have on dynamic programming",
@@ -213,9 +214,7 @@ export function RecallView() {
               </div>
               <div className="space-y-3">
                 <div className="max-w-[95%] rounded-2xl rounded-bl-sm bg-muted/60 px-4 py-3">
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                    {turn.answer}
-                  </p>
+                  <MarkdownRenderer content={turn.answer} />
                 </div>
                 {turn.sources.length > 0 && (
                   <div className="space-y-2 pl-1">

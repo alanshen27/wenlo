@@ -29,6 +29,8 @@ model User {
 
   libraries Library[]
   libraryMemberships LibraryMember[]
+  sentLibraryInvites LibraryInvite[] @relation("InvitedBy")
+  receivedLibraryInvites LibraryInvite[] @relation("Invitee")
   folders   Folder[]
   pages     Page[]
   documents Document[]
@@ -52,6 +54,7 @@ model Library {
   documents Document[]
   apiKeys   ApiKey[]
   members   LibraryMember[]
+  invites   LibraryInvite[]
   recallChatSessions RecallChatSession[]
 
   @@index([userId])
@@ -75,6 +78,35 @@ model LibraryMember {
   @@unique([libraryId, userId])
   @@index([userId])
   @@index([libraryId])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model LibraryInvite {
+  id          String       @id @default(cuid())
+  libraryId   String
+  email       String
+  userId      String?
+  role        LibraryRole  @default(EDITOR)
+  status      InviteStatus @default(PENDING)
+  token       String       @unique @default(cuid())
+  message     String?
+  invitedById String
+  createdAt   DateTime     @default(now())
+  respondedAt DateTime?
+
+  library   Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  user      User?   @relation("Invitee", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User    @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([libraryId, email])
+  @@index([userId, status])
+  @@index([email, status])
+  @@index([libraryId, status])
 }
 
 model Folder {

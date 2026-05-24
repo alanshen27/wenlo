@@ -35,6 +35,14 @@ type Member = {
   role: "EDITOR" | "VIEWER";
 };
 
+type PendingInvite = {
+  id: string;
+  email: string;
+  role: "EDITOR" | "VIEWER";
+  message: string | null;
+  createdAt: string;
+};
+
 type Props = {
   open: boolean;
   libraryId: string;
@@ -46,9 +54,11 @@ export function ShareLibraryModal({ open, libraryId, libraryName, onOpenChange }
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
   const [role, setRole] = useState<"EDITOR" | "VIEWER">("EDITOR");
   const [owner, setOwner] = useState<{ email: string; name: string | null } | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -58,9 +68,11 @@ export function ShareLibraryModal({ open, libraryId, libraryName, onOpenChange }
       const data = await apiGet<{
         owner: { email: string; name: string | null } | null;
         members?: Member[];
+        pendingInvites?: PendingInvite[];
       }>(`/api/libraries/${libraryId}/members`);
       setOwner(data.owner);
       setMembers(data.members ?? []);
+      setPendingInvites(data.pendingInvites ?? []);
     } catch (e) {
       setError(getApiErrorMessage(e, "Failed to load members"));
     } finally {
@@ -78,8 +90,13 @@ export function ShareLibraryModal({ open, libraryId, libraryName, onOpenChange }
     setInviting(true);
     setError(null);
     try {
-      await apiPost(`/api/libraries/${libraryId}/members`, { email: email.trim(), role });
+      await apiPost(`/api/libraries/${libraryId}/members`, {
+        email: email.trim(),
+        role,
+        message: message.trim() || undefined,
+      });
       setEmail("");
+      setMessage("");
       await load();
     } catch (e) {
       setError(getApiErrorMessage(e, "Failed to invite"));
@@ -90,6 +107,11 @@ export function ShareLibraryModal({ open, libraryId, libraryName, onOpenChange }
 
   async function removeMember(userId: string) {
     await apiDelete(`/api/libraries/${libraryId}/members/${userId}`);
+    await load();
+  }
+
+  async function cancelInvite(inviteId: string) {
+    await apiDelete(`/api/libraries/${libraryId}/invites/${inviteId}`);
     await load();
   }
 
@@ -105,7 +127,7 @@ export function ShareLibraryModal({ open, libraryId, libraryName, onOpenChange }
           <DialogTitle>Share workspace</DialogTitle>
           <DialogDescription>
             Invite people to <span className="font-medium text-foreground">{libraryName}</span>.
-            They must already have a recall account.
+            They&apos;ll get an email and must accept before joining.
           </DialogDescription>
         </DialogHeader>
 
@@ -138,10 +160,21 @@ export function ShareLibraryModal({ open, libraryId, libraryName, onOpenChange }
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="share-message">Message (optional)</Label>
+                <textarea
+                  id="share-message"
+                  rows={3}
+                  placeholder="Add a personal note to the invite email…"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                />
+              </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button type="submit" disabled={inviting || !email.trim()} className="gap-2">
                 {inviting && <Loader2 className="size-4 animate-spin" />}
-                {inviting ? "Inviting…" : "Invite"}
+                {inviting ? "Sending invite…" : "Send invite"}
               </Button>
             </form>
 
@@ -181,6 +214,25 @@ export function ShareLibraryModal({ open, libraryId, libraryName, onOpenChange }
                       size="icon-sm"
                       onClick={() => removeMember(member.userId)}
                       aria-label={`Remove ${member.email}`}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </li>
+                ))}
+                {pendingInvites.map((invite) => (
+                  <li key={invite.id} className="flex items-center gap-2 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{invite.email}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Invite pending · {invite.role === "EDITOR" ? "Editor" : "Viewer"}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => cancelInvite(invite.id)}
+                      aria-label={`Cancel invite for ${invite.email}`}
                     >
                       <Trash2 className="size-4" />
                     </Button>

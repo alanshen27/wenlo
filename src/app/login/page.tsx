@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { AuthView } from "@/components/views/auth-view";
 
 type LoginPageProps = {
-  searchParams: Promise<{ mode?: string }>;
+  searchParams: Promise<{ mode?: string; redirect?: string }>;
 };
 
 function LoginFallback() {
@@ -14,10 +14,11 @@ function LoginFallback() {
 }
 
 async function LoginContent({ searchParams }: LoginPageProps) {
-  const { mode } = await searchParams;
+  const { mode, redirect } = await searchParams;
   const defaultTab = mode === "signup" ? "signup" : "signin";
+  const redirectTo = redirect?.startsWith("/") ? redirect : "/";
 
-  return <AuthView defaultTab={defaultTab} />;
+  return <AuthView defaultTab={defaultTab} redirectTo={redirectTo} />;
 }
 
 export default function LoginPage(props: LoginPageProps) {
