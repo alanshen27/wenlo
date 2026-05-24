@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/client";
+import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 type AuthViewProps = {
@@ -95,7 +96,7 @@ export function AuthView({ defaultTab = "signin" }: AuthViewProps) {
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,oklch(1_0_0/0.03)_1px,transparent_1px),linear-gradient(to_bottom,oklch(1_0_0/0.03)_1px,transparent_1px)] bg-size-[4rem_4rem] mask-[radial-gradient(ellipse_at_center,black_20%,transparent_75%)]"
       />
 
-      <div className="relative z-10 w-full max-w-sm">
+      <div className="relative z-10 w-full max-w-lg">
         <Link
           href="/"
           className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -104,12 +105,9 @@ export function AuthView({ defaultTab = "signin" }: AuthViewProps) {
           Back to home
         </Link>
 
-        <div className="mb-6 text-center">
-          <Link href="/" className="text-2xl font-semibold tracking-tight">
-            <span className="text-primary">recall</span>
-            <span className="text-muted-foreground">.sh</span>
-          </Link>
-          <p className="mt-2 text-sm text-muted-foreground">Personal coding knowledge base</p>
+        <div className="mb-6 flex flex-col items-center text-center">
+          <Logo size="lg" />
+          <p className="mt-3 text-sm text-muted-foreground">Personal coding knowledge base</p>
         </div>
 
         <Card>

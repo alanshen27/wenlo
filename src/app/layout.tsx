@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "recall — personal knowledge base",
+  title: "recalls — personal knowledge base",
   description: "Obsidian + grep + semantic search for your notes, PDFs, slides, and code.",
 };
 

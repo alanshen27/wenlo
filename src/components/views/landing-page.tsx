@@ -8,6 +8,7 @@ import {
   Terminal,
   Upload,
 } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { buttonVariants } from "@/components/ui/button";
 import { PLAN_LIST } from "@/lib/plans";
@@ -78,10 +79,7 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
       />
 
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-6 py-5 md:px-8">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
-          <span className="text-primary">recall</span>
-          <span className="text-muted-foreground">.sh</span>
-        </Link>
+        <Logo size="sm" />
         <nav className="flex items-center gap-1">
           <ThemeToggle />
           {!isLoggedIn && (
@@ -282,7 +280,7 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
       <footer className="relative z-10 border-t border-border/60 py-6">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 px-6 text-sm text-muted-foreground sm:flex-row md:px-8">
           <p>
-            <span className="text-foreground">recall</span>.sh — MIT License
+            <span className="text-foreground">recalls</span>.sh — MIT License
           </p>
           {!isLoggedIn && (
             <Link href="/login" className="transition-colors hover:text-foreground">
