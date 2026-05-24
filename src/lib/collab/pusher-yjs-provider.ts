@@ -11,7 +11,7 @@ import {
 import { collabPageChannel, YJS_ORIGIN_REMOTE } from "@/lib/collab/config";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/collab/encoding";
 import type { PageCollaborator } from "@/lib/page-presence";
-import { apiGet, apiPostSilent } from "@/lib/api";
+import { apiClient, apiGet, apiPostSilent } from "@/lib/api";
 
 export type CollabUser = {
   id: string;
@@ -24,6 +24,7 @@ type AwarenessUser = {
 };
 
 const FLUSH_MS = 40;
+const POST_MAX_ATTEMPTS = 8;
 
 export class PusherYjsProvider {
   readonly awareness: Awareness;
@@ -149,11 +150,23 @@ export class PusherYjsProvider {
     });
   }
 
-  private async postUpdate(update: Uint8Array) {
-    await apiPostSilent(`/api/pages/${this.pageId}/yjs`, {
-      update: uint8ToBase64(update),
-      clientId: this.doc.clientID,
-    });
+  private async postUpdate(update: Uint8Array, attempt = 0) {
+    if (this.destroyed) return;
+
+    try {
+      await apiClient.post(`/api/pages/${this.pageId}/yjs`, {
+        update: uint8ToBase64(update),
+        clientId: this.doc.clientID,
+      });
+    } catch (error) {
+      if (this.destroyed || attempt >= POST_MAX_ATTEMPTS - 1) {
+        console.error("[yjs] failed to persist update", error);
+        return;
+      }
+      const delay = Math.min(2000, 80 * 2 ** attempt);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (!this.destroyed) await this.postUpdate(update, attempt + 1);
+    }
   }
 
   private async postAwareness(update: Uint8Array) {
