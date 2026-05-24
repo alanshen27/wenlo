@@ -68,7 +68,7 @@ export function LandingView() {
           <Link href="/login" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
             Sign in
           </Link>
-          <Link href="/login" className={cn(buttonVariants({ size: "sm" }))}>
+          <Link href="/login?mode=signup" className={cn(buttonVariants({ size: "sm" }))}>
             Get started
           </Link>
         </nav>
@@ -89,7 +89,7 @@ export function LandingView() {
               lecture slides, and code. Query it from the web or your terminal.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/login" className={cn(buttonVariants({ size: "lg" }), "gap-2 px-5")}>
+              <Link href="/login?mode=signup" className={cn(buttonVariants({ size: "lg" }), "gap-2 px-5")}>
                 Start for free
                 <ArrowRight className="size-4" />
               </Link>
@@ -215,7 +215,7 @@ export function LandingView() {
               Sign up in seconds. Create a library, upload your first PDF, and ask your first question.
             </p>
             <Link
-              href="/login"
+              href="/login?mode=signup"
               className={cn(buttonVariants({ size: "lg" }), "mt-8 gap-2 px-5")}
             >
               Create your library
