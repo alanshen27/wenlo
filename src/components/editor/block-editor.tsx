@@ -9,10 +9,16 @@ import { blockNoteSchema } from "@/lib/blocknote-schema";
 import { blocksToPlainText, normalizeEditorContent } from "@/lib/editor-content";
 import { apiUpload, getApiErrorMessage } from "@/lib/api";
 import { debounce } from "@/lib/utils";
-import type { PartialBlock } from "@blocknote/core";
+import type { RecallPartialBlock } from "@/lib/editor-content";
+import type { FolderNode } from "@/lib/folders";
 
 type Props = {
   pageId: string;
+  pageLink?: {
+    libraryId: string;
+    tree: FolderNode[];
+    currentPageId: string;
+  };
   content: unknown;
   onChange: (content: unknown, plainText: string) => void;
   onLocalEdit?: () => void;
@@ -22,6 +28,7 @@ type Props = {
 
 export function BlockEditor({
   pageId,
+  pageLink,
   content,
   onChange,
   onLocalEdit,
@@ -38,7 +45,7 @@ export function BlockEditor({
 
   const debouncedSave = useMemo(
     () =>
-      debounce((blocks: PartialBlock[]) => {
+      debounce((blocks: RecallPartialBlock[]) => {
         onChangeRef.current(blocks, blocksToPlainText(blocks));
       }, 800),
     []
@@ -81,6 +88,7 @@ export function BlockEditor({
     <div className="notion-editor min-h-[50vh] w-full">
       <BlockNoteEditorView
         editor={editor}
+        pageLink={pageLink}
         onChange={() => {
           if (applyingRemoteRef.current) return;
           onLocalEditRef.current?.();

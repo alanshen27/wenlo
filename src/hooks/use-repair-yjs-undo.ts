@@ -1,6 +1,11 @@
 "use client";
 
 import type { BlockNoteEditor } from "@blocknote/core";
+import type {
+  RecallBlockSchema,
+  RecallInlineSchema,
+  RecallStyleSchema,
+} from "@/lib/blocknote-schema";
 import { useEffect } from "react";
 import type * as Y from "yjs";
 import { ySyncPluginKey, yUndoPluginKey } from "y-prosemirror";
@@ -10,7 +15,10 @@ import { ySyncPluginKey, yUndoPluginKey } from "y-prosemirror";
  * down (React Strict Mode, late plugin registration). Re-wire the handler so
  * Cmd+Z works again. See yjs/y-prosemirror#114 and BlockNote#2244.
  */
-export function repairYjsUndoManager(doc: Y.Doc, editor: BlockNoteEditor): boolean {
+export function repairYjsUndoManager(
+  doc: Y.Doc,
+  editor: BlockNoteEditor<RecallBlockSchema, RecallInlineSchema, RecallStyleSchema>
+): boolean {
   const tiptap = editor._tiptapEditor;
   if (!tiptap?.view) return false;
 
@@ -29,7 +37,10 @@ export function repairYjsUndoManager(doc: Y.Doc, editor: BlockNoteEditor): boole
   return true;
 }
 
-export function useRepairYjsUndo(doc: Y.Doc, editor: BlockNoteEditor) {
+export function useRepairYjsUndo(
+  doc: Y.Doc,
+  editor: BlockNoteEditor<RecallBlockSchema, RecallInlineSchema, RecallStyleSchema>
+) {
   useEffect(() => {
     const tiptap = editor._tiptapEditor;
     if (!tiptap) return;

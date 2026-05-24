@@ -103,8 +103,8 @@ export function MindMapView() {
         <Network className="size-10 text-muted-foreground/50" />
         <p className="text-sm font-medium">No notes yet</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Create pages in your library to see them connected here. Link between notes using page
-          URLs to draw cross-references.
+          Create pages in your library to see them connected here. Type @ in a note to link to
+          another page, or use page URLs in hyperlinks.
         </p>
       </div>
     );

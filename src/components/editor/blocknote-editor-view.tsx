@@ -5,7 +5,10 @@ import { BlockNoteView } from "@blocknote/shadcn";
 import { useTheme } from "next-themes";
 import type { ComponentProps, ReactNode } from "react";
 import { blocknoteShadCNComponents } from "@/components/editor/blocknote-shadcn-components";
+import { PageLinkLibraryProvider } from "@/components/editor/page-link-context";
+import { PageLinkMenu } from "@/components/editor/page-link-menu";
 import { BlockNoteSideMenuController } from "@/components/editor/blocknote-side-menu";
+import type { FolderNode } from "@/lib/folders";
 
 type Props<
   BSchema extends BlockSchema,
@@ -16,24 +19,40 @@ type Props<
   "shadCNComponents" | "sideMenu" | "theme"
 > & {
   children?: ReactNode;
+  pageLink?: {
+    libraryId: string;
+    tree: FolderNode[];
+    currentPageId: string;
+  };
 };
 
 export function BlockNoteEditorView<
   BSchema extends BlockSchema,
   ISchema extends InlineContentSchema,
   SSchema extends StyleSchema,
->({ children, ...props }: Props<BSchema, ISchema, SSchema>) {
+>({ children, pageLink, editable, ...props }: Props<BSchema, ISchema, SSchema>) {
   const { resolvedTheme } = useTheme();
+  const showPageLinkMenu = editable !== false && pageLink != null;
 
   return (
-    <BlockNoteView
-      theme={resolvedTheme === "dark" ? "dark" : "light"}
-      sideMenu={false}
-      shadCNComponents={blocknoteShadCNComponents}
-      {...props}
-    >
-      <BlockNoteSideMenuController />
-      {children}
-    </BlockNoteView>
+    <PageLinkLibraryProvider libraryId={pageLink?.libraryId ?? ""}>
+      <BlockNoteView
+        theme={resolvedTheme === "dark" ? "dark" : "light"}
+        sideMenu={false}
+        shadCNComponents={blocknoteShadCNComponents}
+        editable={editable}
+        {...props}
+      >
+        {showPageLinkMenu && (
+          <PageLinkMenu
+            libraryId={pageLink.libraryId}
+            tree={pageLink.tree}
+            currentPageId={pageLink.currentPageId}
+          />
+        )}
+        <BlockNoteSideMenuController />
+        {children}
+      </BlockNoteView>
+    </PageLinkLibraryProvider>
   );
 }

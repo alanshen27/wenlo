@@ -167,15 +167,35 @@
   font-size: 1.25rem;
 }
 
-/* Slash menu — not a Radix dropdown, so cap height explicitly */
+/* Slash / @ menus — not a Radix dropdown, so cap height explicitly */
 .bn-shadcn .bn-suggestion-menu,
 .notion-editor .bn-suggestion-menu {
   max-height: min(20rem, 50vh) !important;
   width: min(18rem, 92vw);
   overflow-x: hidden;
   overflow-y: auto;
+  padding: 0.25rem;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+}
+
+/* BlockNote shadcn wraps menu icons in p-3 by default — too tall for simple lists */
+.bn-shadcn .bn-suggestion-menu .bn-suggestion-menu-item,
+.notion-editor .bn-suggestion-menu .bn-suggestion-menu-item {
+  gap: 0.5rem !important;
+  padding: 0.25rem 0.5rem !important;
+  min-height: 0;
+}
+
+.bn-shadcn .bn-suggestion-menu .bn-suggestion-menu-item [data-position="left"],
+.notion-editor .bn-suggestion-menu .bn-suggestion-menu-item [data-position="left"] {
+  padding: 0 !important;
+}
+
+.bn-shadcn .bn-suggestion-menu .bn-suggestion-menu-item .flex-1 > div:first-child,
+.notion-editor .bn-suggestion-menu .bn-suggestion-menu-item .flex-1 > div:first-child {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .bn-shadcn .bn-suggestion-menu::-webkit-scrollbar,

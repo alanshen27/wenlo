@@ -5,6 +5,11 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BlockNoteEditor } from "@blocknote/core";
+import type {
+  RecallBlockSchema,
+  RecallInlineSchema,
+  RecallStyleSchema,
+} from "@/lib/blocknote-schema";
 import type * as Y from "yjs";
 import { BlockNoteEditorView } from "@/components/editor/blocknote-editor-view";
 import { useRepairYjsUndo } from "@/hooks/use-repair-yjs-undo";
@@ -17,9 +22,15 @@ import { blockNoteSchema } from "@/lib/blocknote-schema";
 import { blocksToPlainText } from "@/lib/editor-content";
 import { apiUpload, getApiErrorMessage } from "@/lib/api";
 import { debounce } from "@/lib/utils";
+import type { FolderNode } from "@/lib/folders";
 
 type Props = {
   pageId: string;
+  pageLink?: {
+    libraryId: string;
+    tree: FolderNode[];
+    currentPageId: string;
+  };
   doc: Y.Doc;
   provider: PusherYjsProvider;
   user: { name: string; color: string };
@@ -61,6 +72,7 @@ export function CollaborativeBlockEditor(props: Props) {
 
 function CollaborativeBlockEditorMounted({
   pageId,
+  pageLink,
   doc,
   provider,
   user,
@@ -77,10 +89,13 @@ function CollaborativeBlockEditorMounted({
 
   const debouncedSave = useMemo(
     () =>
-      debounce((editor: BlockNoteEditor) => {
+      debounce(
+        (editor: BlockNoteEditor<RecallBlockSchema, RecallInlineSchema, RecallStyleSchema>) => {
         const blocks = editor.document;
         onChangeRef.current(blocks, blocksToPlainText(blocks));
-      }, 1200),
+      },
+      1200
+      ),
     []
   );
 
@@ -131,6 +146,7 @@ function CollaborativeBlockEditorMounted({
     <div className="notion-editor min-h-[50vh] w-full">
       <BlockNoteEditorView
         editor={editor}
+        pageLink={pageLink}
         editable={!readOnly}
         onChange={() => {
           onLocalEditRef.current?.();

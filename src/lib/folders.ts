@@ -68,6 +68,18 @@ export function buildFolderTree(
   return roots;
 }
 
+export function flattenPagesFromTree(tree: FolderNode[]): { id: string; title: string }[] {
+  const pages: { id: string; title: string }[] = [];
+  function walk(nodes: FolderNode[]) {
+    for (const node of nodes) {
+      pages.push(...node.pages);
+      walk(node.children);
+    }
+  }
+  walk(tree);
+  return pages;
+}
+
 export function collectFolderIds(folderId: string, folders: FlatFolder[]): string[] {
   const ids = [folderId];
   const children = folders.filter((f) => f.parentId === folderId);

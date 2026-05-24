@@ -1,4 +1,5 @@
-import { BlockNoteSchema, createCodeBlockSpec } from "@blocknote/core";
+import { BlockNoteSchema, createCodeBlockSpec, defaultInlineContentSpecs } from "@blocknote/core";
+import { PageLink } from "@/components/editor/page-link-inline";
 import { codeBlockOptions as baseCodeBlockOptions } from "@blocknote/code-block";
 import { createParser } from "prosemirror-highlight/shiki";
 
@@ -24,8 +25,17 @@ export const codeBlockOptions = {
     }),
 };
 
-export const blockNoteSchema = BlockNoteSchema.create().extend({
+export const blockNoteSchema = BlockNoteSchema.create({
+  inlineContentSpecs: {
+    ...defaultInlineContentSpecs,
+    pageLink: PageLink,
+  },
+}).extend({
   blockSpecs: {
     codeBlock: createCodeBlockSpec(codeBlockOptions),
   },
 });
+
+export type RecallBlockSchema = typeof blockNoteSchema.blockSchema;
+export type RecallInlineSchema = typeof blockNoteSchema.inlineContentSchema;
+export type RecallStyleSchema = typeof blockNoteSchema.styleSchema;

@@ -1,4 +1,15 @@
 import type { PartialBlock } from "@blocknote/core";
+import type {
+  RecallBlockSchema,
+  RecallInlineSchema,
+  RecallStyleSchema,
+} from "@/lib/blocknote-schema";
+
+type RecallPartialBlock = PartialBlock<
+  RecallBlockSchema,
+  RecallInlineSchema,
+  RecallStyleSchema
+>;
 import type { FolderNode } from "@/lib/folders";
 import { normalizeEditorContent } from "@/lib/editor-content";
 
@@ -42,7 +53,15 @@ export function extractLinkedPageIds(content: unknown, libraryId: string): strin
     if (!Array.isArray(content)) return;
     for (const item of content) {
       if (!item || typeof item !== "object") continue;
-      const node = item as { type?: string; href?: string; content?: unknown };
+      const node = item as {
+        type?: string;
+        href?: string;
+        props?: { pageId?: string };
+        content?: unknown;
+      };
+      if (node.type === "pageLink" && typeof node.props?.pageId === "string") {
+        ids.add(node.props.pageId);
+      }
       if (node.type === "link" && typeof node.href === "string") {
         for (const match of node.href.matchAll(pagePath)) {
           if (match[1]) ids.add(match[1]);
@@ -52,7 +71,7 @@ export function extractLinkedPageIds(content: unknown, libraryId: string): strin
     }
   }
 
-  function walkBlocks(blockList: PartialBlock[]) {
+  function walkBlocks(blockList: RecallPartialBlock[]) {
     for (const block of blockList) {
       if (block.content) walkInline(block.content);
       if (block.children?.length) walkBlocks(block.children);

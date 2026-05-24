@@ -1,8 +1,7 @@
-import type { PartialBlock } from "@blocknote/core";
-import { extractPlainText, EMPTY_BLOCKS } from "@/lib/editor-content";
+import { extractPlainText, EMPTY_BLOCKS, type RecallPartialBlock } from "@/lib/editor-content";
 
 export function normalizeIngestPageContent(content: unknown): {
-  blocks: PartialBlock[];
+  blocks: RecallPartialBlock[];
   plainText: string;
 } {
   if (typeof content === "string") {
@@ -10,7 +9,7 @@ export function normalizeIngestPageContent(content: unknown): {
     if (!trimmed) {
       return { blocks: EMPTY_BLOCKS, plainText: "" };
     }
-    const blocks: PartialBlock[] = trimmed.split("\n").map((line) => ({
+    const blocks: RecallPartialBlock[] = trimmed.split("\n").map((line) => ({
       type: "paragraph",
       content: line,
     }));
@@ -18,7 +17,7 @@ export function normalizeIngestPageContent(content: unknown): {
   }
 
   if (Array.isArray(content)) {
-    const blocks = content as PartialBlock[];
+    const blocks = content as RecallPartialBlock[];
     return { blocks, plainText: extractPlainText(blocks) };
   }
 

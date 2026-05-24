@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { ComponentProps } from "react";
+import { useLibrary } from "@/components/library/library-shell";
 import type { CollabSession } from "@/hooks/use-collab-session";
 
 type BlockEditorProps = ComponentProps<
@@ -42,9 +43,17 @@ type PageEditorProps = BlockEditorProps & {
 };
 
 export function PageEditor({ readOnly, collab, ...props }: PageEditorProps) {
+  const { libraryId, tree } = useLibrary();
+  const pageLink = {
+    libraryId,
+    tree,
+    currentPageId: props.pageId,
+  };
+
   if (collab) {
     const collabProps: CollabEditorProps = {
       pageId: props.pageId,
+      pageLink,
       doc: collab.doc,
       provider: collab.provider,
       user: collab.user,
@@ -56,8 +65,10 @@ export function PageEditor({ readOnly, collab, ...props }: PageEditorProps) {
   }
 
   if (readOnly) {
-    return <BlockEditor {...props} onChange={() => {}} onLocalEdit={undefined} />;
+    return (
+      <BlockEditor {...props} pageLink={pageLink} onChange={() => {}} onLocalEdit={undefined} />
+    );
   }
 
-  return <BlockEditor {...props} />;
+  return <BlockEditor {...props} pageLink={pageLink} />;
 }

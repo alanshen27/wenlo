@@ -1,12 +1,19 @@
 import type { PartialBlock } from "@blocknote/core";
+import type { RecallBlockSchema, RecallInlineSchema, RecallStyleSchema } from "@/lib/blocknote-schema";
 
-export const EMPTY_BLOCKS: PartialBlock[] = [{ type: "paragraph" }];
+export type RecallPartialBlock = PartialBlock<
+  RecallBlockSchema,
+  RecallInlineSchema,
+  RecallStyleSchema
+>;
 
-export function normalizeEditorContent(content: unknown): PartialBlock[] {
+export const EMPTY_BLOCKS: RecallPartialBlock[] = [{ type: "paragraph" }];
+
+export function normalizeEditorContent(content: unknown): RecallPartialBlock[] {
   if (Array.isArray(content) && content.length > 0) {
     const first = content[0];
     if (first && typeof first === "object" && "type" in first && typeof first.type === "string") {
-      return content as PartialBlock[];
+      return content as RecallPartialBlock[];
     }
   }
 
@@ -38,7 +45,7 @@ function extractTipTapPlainText(nodes: unknown[]): string {
   return parts.join(" ");
 }
 
-export function blocksToPlainText(blocks: PartialBlock[]): string {
+export function blocksToPlainText(blocks: RecallPartialBlock[]): string {
   const lines: string[] = [];
 
   function inlineText(content: unknown): string {
@@ -46,15 +53,22 @@ export function blocksToPlainText(blocks: PartialBlock[]): string {
     return content
       .map((item) => {
         if (typeof item === "string") return item;
-        if (item && typeof item === "object" && "text" in item) {
-          return String((item as { text: string }).text);
+        if (item && typeof item === "object" && "type" in item) {
+          const typed = item as { type?: string; props?: { title?: string }; text?: string };
+          if (typed.type === "pageLink") {
+            const title = typed.props?.title?.trim() || "Untitled";
+            return `@${title}`;
+          }
+          if ("text" in typed && typed.text != null) {
+            return String(typed.text);
+          }
         }
         return "";
       })
       .join("");
   }
 
-  function walk(blockList: PartialBlock[]) {
+  function walk(blockList: RecallPartialBlock[]) {
     for (const block of blockList) {
       if (block.type === "image") {
         const props = block.props as { name?: string; caption?: string } | undefined;
