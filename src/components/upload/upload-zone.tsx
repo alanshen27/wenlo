@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { uploadFile } from "@/lib/upload";
@@ -10,6 +10,7 @@ type Props = {
   libraryId: string | null;
   folderId: string | null;
   folderName?: string | null;
+  disabled?: boolean;
   onUploaded?: () => void;
   onUpload?: (files: FileList | File[]) => void | Promise<void>;
 };
@@ -18,6 +19,7 @@ export function UploadZone({
   libraryId,
   folderId,
   folderName,
+  disabled,
   onUploaded,
   onUpload,
 }: Props) {
@@ -28,6 +30,8 @@ export function UploadZone({
 
   const upload = useCallback(
     async (files: FileList | File[]) => {
+      if (disabled) return;
+
       if (onUpload) {
         setUploading(true);
         setError(null);
@@ -56,26 +60,32 @@ export function UploadZone({
         setUploading(false);
       }
     },
-    [libraryId, folderId, onUpload, onUploaded]
+    [libraryId, folderId, onUpload, onUploaded, disabled]
   );
 
   return (
     <div
       className={cn(
-        "rounded-lg border border-dashed p-8 text-center transition-colors",
-        dragging ? "border-primary bg-primary/5" : "border-border bg-muted/30"
+        "relative rounded-lg border border-dashed p-8 text-center transition-colors",
+        dragging ? "border-primary bg-primary/5" : "border-border bg-muted/30",
+        uploading && "pointer-events-none opacity-80"
       )}
       onDragOver={(e) => {
         e.preventDefault();
-        setDragging(true);
+        if (!disabled) setDragging(true);
       }}
       onDragLeave={() => setDragging(false)}
       onDrop={(e) => {
         e.preventDefault();
         setDragging(false);
-        if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
+        if (!disabled && e.dataTransfer.files.length) upload(e.dataTransfer.files);
       }}
     >
+      {uploading && (
+        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-[1px]">
+          <Loader2 className="size-6 animate-spin text-primary" />
+        </div>
+      )}
       <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
       <p className="mb-1 text-sm">
         {folderName
@@ -86,17 +96,25 @@ export function UploadZone({
       <Button
         type="button"
         variant="secondary"
-        disabled={uploading || !libraryId}
+        disabled={uploading || !libraryId || disabled}
         onClick={() => inputRef.current?.click()}
+        className="gap-2"
       >
-        {uploading ? "Uploading…" : "Choose files"}
+        {uploading ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Uploading…
+          </>
+        ) : (
+          "Choose files"
+        )}
       </Button>
       <input
         ref={inputRef}
         type="file"
         multiple
         className="hidden"
-        disabled={uploading}
+        disabled={uploading || disabled}
         onChange={(e) => e.target.files && upload(e.target.files)}
       />
       {error && <p className="mt-3 text-xs text-red-400">{error}</p>}

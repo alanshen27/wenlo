@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, File, FileCode, FileText, Folder, Library, Search, Sparkles } from "lucide-react";
+import { ChevronRight, File, FileCode, FileText, Folder, Library, Network, Search, Sparkles } from "lucide-react";
+import { FolderIcon } from "@/components/icons/folder-icon";
 import { cn } from "@/lib/utils";
 import type { BreadcrumbItem } from "@/lib/folders";
 
@@ -19,8 +20,8 @@ export function NavBreadcrumb({ items, hrefFor, onNavigate }: Props) {
       <ol className="flex min-w-0 items-center gap-1">
         {items.map((item, index) => {
           const isLast = index === items.length - 1;
-          const Icon = iconFor(item.type);
           const href = !isLast ? hrefFor?.(item) : null;
+          const icon = <CrumbIcon item={item} />;
 
           return (
             <li key={`${item.type}-${item.id}`} className="flex min-w-0 items-center gap-1">
@@ -34,7 +35,7 @@ export function NavBreadcrumb({ items, hrefFor, onNavigate }: Props) {
                   )}
                   aria-current="page"
                 >
-                  <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  {icon}
                   <span className="truncate">{item.name}</span>
                 </span>
               ) : href ? (
@@ -42,7 +43,7 @@ export function NavBreadcrumb({ items, hrefFor, onNavigate }: Props) {
                   href={href}
                   className="flex min-w-0 items-center gap-1.5 truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  {icon}
                   <span className="truncate">{item.name}</span>
                 </Link>
               ) : (
@@ -51,7 +52,7 @@ export function NavBreadcrumb({ items, hrefFor, onNavigate }: Props) {
                   onClick={() => onNavigate?.(item)}
                   className="flex min-w-0 items-center gap-1.5 truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  {icon}
                   <span className="truncate">{item.name}</span>
                 </button>
               )}
@@ -63,21 +64,29 @@ export function NavBreadcrumb({ items, hrefFor, onNavigate }: Props) {
   );
 }
 
-function iconFor(type: BreadcrumbItem["type"]) {
-  switch (type) {
+function CrumbIcon({ item }: { item: BreadcrumbItem }) {
+  const className = "h-3.5 w-3.5 shrink-0 opacity-70";
+
+  if (item.type === "folder" && item.color) {
+    return <FolderIcon color={item.color} className="h-3.5 w-3.5 shrink-0" />;
+  }
+
+  switch (item.type) {
     case "library":
-      return Library;
+      return <Library className={className} />;
     case "folder":
-      return Folder;
+      return <Folder className={className} />;
     case "page":
-      return FileText;
+      return <FileText className={className} />;
     case "document":
-      return FileCode;
+      return <FileCode className={className} />;
     case "search":
-      return Search;
+      return <Search className={className} />;
     case "recall":
-      return Sparkles;
+      return <Sparkles className={className} />;
+    case "map":
+      return <Network className={className} />;
     default:
-      return File;
+      return <File className={className} />;
   }
 }

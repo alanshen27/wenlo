@@ -15,8 +15,11 @@ import type { Library } from "@/components/sidebar/library-switcher";
 import { FolderModal } from "@/components/modals/folder-modal";
 import { LibraryModal } from "@/components/modals/library-modal";
 import { ConfirmModal } from "@/components/modals/confirm-modal";
-import { MainHeader } from "@/components/library/main-header";
+import { ShareLibraryModal } from "@/components/modals/share-library-modal";
+import { MainHeader, type SaveStatus } from "@/components/library/main-header";
+import { RecallChatProvider } from "@/components/recall/recall-chat-context";
 import { buildRouteBreadcrumbs } from "@/lib/route-breadcrumbs";
+import type { PageCollaborator } from "@/lib/page-presence";
 import type { BreadcrumbItem, FolderNode } from "@/lib/folders";
 import type { FolderColorId } from "@/lib/folder-colors";
 import type { SidebarDragItem } from "@/lib/sidebar-dnd";
@@ -31,10 +34,17 @@ import {
 } from "@/lib/tree-mutations";
 import { uploadFile } from "@/lib/upload";
 import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+} from "@/lib/api";
+import {
   documentRoute,
   folderHome,
   libraryHome,
   pageRoute,
+  mindMapRoute,
   persistActiveLibrary,
   recallRoute,
   searchRoute,
@@ -54,19 +64,24 @@ type Modal =
   | { kind: "document-delete"; id: string; title: string };
 
 type HeaderState = {
-  saving?: boolean;
+  saveStatus?: SaveStatus;
   titleOverride?: string;
   folderIdFallback?: string | null;
+  collaborators?: PageCollaborator[];
+  remoteNotice?: string | null;
 };
 
 type LibraryContextValue = {
   libraryId: string;
   libraries: Library[];
   activeLibrary: Library | undefined;
+  libraryRole: Library["role"];
+  canEdit: boolean;
   tree: FolderNode[];
   folders: FlatFolder[];
   contextFolderId: string | null;
   refreshTree: () => Promise<void>;
+  uploadToFolder: (folderId: string | null, files: FileList | File[]) => Promise<void>;
   breadcrumbHref: (item: BreadcrumbItem) => string | null;
   setHeader: (state: HeaderState) => void;
 };
@@ -99,13 +114,17 @@ export function LibraryShell({ children }: { children: ReactNode }) {
   const [folders, setFolders] = useState<FlatFolder[]>([]);
   const [contextFolderId, setContextFolderId] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>({ kind: "none" });
+  const [shareOpen, setShareOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [header, setHeader] = useState<HeaderState>({});
 
   const activeLibrary = libraries.find((l) => l.id === libraryId);
+  const libraryRole = activeLibrary?.role ?? "OWNER";
+  const canEdit = libraryRole !== "VIEWER";
   const isSearchPage = pathname.endsWith("/search");
   const isRecallPage = pathname.endsWith("/recall");
-  const activeNav = isSearchPage ? "search" : isRecallPage ? "recall" : null;
+  const isMapPage = pathname.endsWith("/map");
+  const activeNav = isSearchPage ? "search" : isRecallPage ? "recall" : isMapPage ? "map" : null;
 
   useEffect(() => {
     if (selectedFolderId) {
@@ -125,18 +144,24 @@ export function LibraryShell({ children }: { children: ReactNode }) {
 
   const refreshTree = useCallback(async () => {
     if (!libraryId) return;
-    const res = await fetch(`/api/folders?libraryId=${libraryId}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setTree(data.tree);
-    setFolders(data.folders);
+    try {
+      const data = await apiGet<{ tree: FolderNode[]; folders: FlatFolder[] }>(
+        `/api/folders?libraryId=${libraryId}`
+      );
+      setTree(data.tree);
+      setFolders(data.folders);
+    } catch {
+      /* noop */
+    }
   }, [libraryId]);
 
   const loadLibraries = useCallback(async () => {
-    const res = await fetch("/api/libraries");
-    if (!res.ok) return;
-    const data = (await res.json()) as Library[];
-    setLibraries(data);
+    try {
+      const data = await apiGet<Library[]>("/api/libraries");
+      setLibraries(data);
+    } catch {
+      /* noop */
+    }
   }, []);
 
   useEffect(() => {
@@ -152,7 +177,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setHeader({});
-  }, [libraryId, selectedFolderId, selectedPageId, selectedDocumentId, isSearchPage, isRecallPage]);
+  }, [libraryId, selectedFolderId, selectedPageId, selectedDocumentId, isSearchPage, isRecallPage, isMapPage]);
 
   const breadcrumbs = useMemo(() => {
     const libraryName = activeLibrary?.name ?? "Library";
@@ -168,6 +193,13 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       return [
         { id: "__library__", name: libraryName, type: "library" as const },
         { id: "__recall__", name: "Recall", type: "recall" as const },
+      ];
+    }
+
+    if (isMapPage) {
+      return [
+        { id: "__library__", name: libraryName, type: "library" as const },
+        { id: "__map__", name: "Mind map", type: "map" as const },
       ];
     }
 
@@ -198,6 +230,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     header.folderIdFallback,
     isSearchPage,
     isRecallPage,
+    isMapPage,
   ]);
 
   useEffect(() => {
@@ -226,6 +259,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           return searchRoute(libraryId);
         case "recall":
           return recallRoute(libraryId);
+        case "map":
+          return mindMapRoute(libraryId);
         default:
           return null;
       }
@@ -243,12 +278,11 @@ export function LibraryShell({ children }: { children: ReactNode }) {
 
   const createPage = useCallback(
     async (folderId: string | null) => {
-      const res = await fetch("/api/pages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderId, libraryId, title: "Untitled" }),
+      const data = await apiPost<{ id: string }>("/api/pages", {
+        folderId,
+        libraryId,
+        title: "Untitled",
       });
-      const data = await res.json();
       await refreshTree();
       router.push(pageRoute(libraryId, data.id));
     },
@@ -280,12 +314,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
 
       const url = item.type === "page" ? `/api/pages/${item.id}` : `/api/documents/${item.id}`;
       try {
-        const res = await fetch(url, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folderId }),
-        });
-        if (!res.ok) throw new Error("Move failed");
+        await apiPatch(url, { folderId });
       } catch {
         setTree(previousTree);
       }
@@ -316,48 +345,36 @@ export function LibraryShell({ children }: { children: ReactNode }) {
   );
 
   async function handleFolderSubmit(data: { name: string; color: FolderColorId }) {
-    if (modal.kind === "folder-create") {
-      await fetch("/api/folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    try {
+      if (modal.kind === "folder-create") {
+        await apiPost("/api/folders", {
           name: data.name,
           color: data.color,
           parentId: modal.parentId,
           libraryId,
-        }),
-      });
-    } else if (modal.kind === "folder-edit") {
-      await fetch(`/api/folders/${modal.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.name, color: data.color }),
-      });
+        });
+      } else if (modal.kind === "folder-edit") {
+        await apiPatch(`/api/folders/${modal.id}`, { name: data.name, color: data.color });
+      }
+    } catch {
+      /* noop */
     }
     refreshTree();
   }
 
   async function handleLibrarySubmit(data: { name: string; icon: string }) {
-    if (modal.kind === "library-create") {
-      const res = await fetch("/api/libraries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) return;
-      const library = (await res.json()) as Library;
-      setLibraries((prev) => [...prev, library]);
-      persistActiveLibrary(library.id);
-      router.push(libraryHome(library.id));
-    } else if (modal.kind === "library-edit") {
-      const res = await fetch(`/api/libraries/${modal.library.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) return;
-      const updated = (await res.json()) as Library;
-      setLibraries((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    try {
+      if (modal.kind === "library-create") {
+        const library = await apiPost<Library>("/api/libraries", data);
+        setLibraries((prev) => [...prev, library]);
+        persistActiveLibrary(library.id);
+        router.push(libraryHome(library.id));
+      } else if (modal.kind === "library-edit") {
+        const updated = await apiPatch<Library>(`/api/libraries/${modal.library.id}`, data);
+        setLibraries((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      }
+    } catch {
+      /* noop */
     }
   }
 
@@ -365,20 +382,19 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     setDeleteLoading(true);
     try {
       if (modal.kind === "folder-delete") {
-        await fetch(`/api/folders/${modal.id}`, { method: "DELETE" });
+        await apiDelete(`/api/folders/${modal.id}`);
         if (selectedFolderId === modal.id) router.push(libraryHome(libraryId));
         refreshTree();
       } else if (modal.kind === "page-delete") {
-        await fetch(`/api/pages/${modal.id}`, { method: "DELETE" });
+        await apiDelete(`/api/pages/${modal.id}`);
         if (selectedPageId === modal.id) router.push(libraryHome(libraryId));
         refreshTree();
       } else if (modal.kind === "document-delete") {
-        await fetch(`/api/documents/${modal.id}`, { method: "DELETE" });
+        await apiDelete(`/api/documents/${modal.id}`);
         if (selectedDocumentId === modal.id) router.push(libraryHome(libraryId));
         refreshTree();
       } else if (modal.kind === "library-delete") {
-        const res = await fetch(`/api/libraries/${modal.library.id}`, { method: "DELETE" });
-        if (!res.ok) return;
+        await apiDelete(`/api/libraries/${modal.library.id}`);
         const remaining = libraries.filter((l) => l.id !== modal.library.id);
         setLibraries(remaining);
         const nextId = remaining[0]?.id ?? null;
@@ -400,10 +416,13 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       libraryId,
       libraries,
       activeLibrary,
+      libraryRole,
+      canEdit,
       tree,
       folders,
       contextFolderId,
       refreshTree,
+      uploadToFolder,
       breadcrumbHref,
       setHeader: setHeaderState,
     }),
@@ -411,10 +430,13 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       libraryId,
       libraries,
       activeLibrary,
+      libraryRole,
+      canEdit,
       tree,
       folders,
       contextFolderId,
       refreshTree,
+      uploadToFolder,
       breadcrumbHref,
       setHeaderState,
     ]
@@ -422,14 +444,21 @@ export function LibraryShell({ children }: { children: ReactNode }) {
 
   return (
     <LibraryContext.Provider value={contextValue}>
+      <RecallChatProvider
+        libraryId={libraryId}
+        isRecallPage={isRecallPage}
+        contextFolderId={contextFolderId}
+      >
       <div className="flex h-screen overflow-hidden bg-background text-foreground">
         <FolderSidebar
           libraries={libraries}
           activeLibraryId={libraryId}
           onSelectLibrary={selectLibrary}
           onCreateLibrary={() => setModal({ kind: "library-create" })}
+          onShareLibrary={() => setShareOpen(true)}
           onEditLibrary={(library) => setModal({ kind: "library-edit", library })}
           onDeleteLibrary={(library) => setModal({ kind: "library-delete", library })}
+          canEdit={canEdit}
           tree={tree}
           selectedFolderId={selectedFolderId}
           selectedPageId={selectedPageId}
@@ -460,10 +489,17 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           onUploadToFolder={uploadToFolder}
           onOpenSearch={() => router.push(searchRoute(libraryId))}
           onOpenRecall={() => router.push(recallRoute(libraryId))}
+          onOpenMindMap={() => router.push(mindMapRoute(libraryId))}
         />
 
         <main className="flex flex-1 flex-col overflow-hidden">
-          <MainHeader breadcrumbs={breadcrumbs} hrefFor={breadcrumbHref} saving={header.saving} />
+          <MainHeader
+            breadcrumbs={breadcrumbs}
+            hrefFor={breadcrumbHref}
+            saveStatus={header.saveStatus}
+            collaborators={header.collaborators}
+            remoteNotice={header.remoteNotice}
+          />
           {children}
         </main>
 
@@ -518,7 +554,17 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           onOpenChange={(open) => !open && setModal({ kind: "none" })}
           onConfirm={handleConfirmDelete}
         />
+
+        {activeLibrary && (
+          <ShareLibraryModal
+            open={shareOpen}
+            libraryId={libraryId}
+            libraryName={activeLibrary.name}
+            onOpenChange={setShareOpen}
+          />
+        )}
       </div>
+      </RecallChatProvider>
     </LibraryContext.Provider>
   );
 }

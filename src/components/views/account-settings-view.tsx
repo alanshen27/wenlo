@@ -8,6 +8,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { libraryHome, readStoredLibraryId, settingsIntegrationsRoute, settingsPlanRoute } from "@/lib/routes";
+import { apiGet, apiPatch, getApiErrorMessage } from "@/lib/api";
+import { ThemeSettingRow, ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 type MeResponse = {
@@ -25,15 +27,16 @@ export function AccountSettingsView() {
   const [error, setError] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
-    const res = await fetch("/api/me");
-    if (!res.ok) {
+    try {
+      const data = await apiGet<MeResponse>("/api/me");
+      setMe(data);
+      setName(data.name ?? "");
+    } catch {
       router.push("/login");
       return;
+    } finally {
+      setLoading(false);
     }
-    const data = (await res.json()) as MeResponse;
-    setMe(data);
-    setName(data.name ?? "");
-    setLoading(false);
   }, [router]);
 
   useEffect(() => {
@@ -49,18 +52,11 @@ export function AccountSettingsView() {
     setSaved(false);
 
     try {
-      const res = await fetch("/api/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save");
-
+      const data = await apiPatch<MeResponse>("/api/me", { name });
       setMe({ email: data.email, name: data.name });
       setSaved(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
+      setError(getApiErrorMessage(e, "Failed to save"));
     } finally {
       setSaving(false);
     }
@@ -84,7 +80,7 @@ export function AccountSettingsView() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border px-6 py-4 md:px-10">
-        <div className="mx-auto flex max-w-lg items-center gap-3">
+        <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
           <Link
             href={backHref}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -92,6 +88,7 @@ export function AccountSettingsView() {
             <ArrowLeft className="size-4" />
             Back
           </Link>
+          <ThemeToggle />
         </div>
       </header>
 
@@ -134,6 +131,16 @@ export function AccountSettingsView() {
               {saving ? "Saving…" : "Save changes"}
             </Button>
           </form>
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-sm font-medium">Appearance</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Choose light, dark, or match your system setting.
+            </p>
+            <div className="mt-4">
+              <ThemeSettingRow />
+            </div>
+          </div>
 
           <div className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-sm font-medium">CLI & API access</h2>

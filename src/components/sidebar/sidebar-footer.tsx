@@ -12,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatTokens } from "@/lib/plans";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { apiGet } from "@/lib/api";
 import { settingsPlanRoute, settingsRoute } from "@/lib/routes";
 import type { UsageSummary } from "@/lib/usage";
 import { USAGE_UPDATED_EVENT } from "@/lib/usage-events";
@@ -46,12 +48,10 @@ export function SidebarFooter() {
 
   const loadMe = useCallback(async () => {
     try {
-      const res = await fetch("/api/me");
-      if (!res.ok) {
-        setMe(null);
-        return;
-      }
-      setMe((await res.json()) as MeResponse);
+      const data = await apiGet<MeResponse>("/api/me");
+      setMe(data);
+    } catch {
+      setMe(null);
     } finally {
       setLoading(false);
     }
@@ -131,6 +131,7 @@ export function SidebarFooter() {
           </p>
           <p className="truncate text-[10px] text-muted-foreground">{me.email}</p>
         </div>
+        <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger
             render={

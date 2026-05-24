@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LIBRARY_ICONS } from "@/lib/folder-colors";
-import { cn } from "@/lib/utils";
+import { IconPicker } from "@/components/modals/icon-picker";
 
 type Props = {
   open: boolean;
@@ -78,20 +77,7 @@ export function LibraryModal({
             </div>
             <div className="grid gap-2">
               <Label>Icon</Label>
-              <div className="flex flex-wrap gap-2">
-                {LIBRARY_ICONS.map((emoji) => (
-                  <Button
-                    key={emoji}
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setIcon(emoji)}
-                    className={cn(icon === emoji && "border-primary bg-accent")}
-                  >
-                    {emoji}
-                  </Button>
-                ))}
-              </div>
+              <IconPicker value={icon} onChange={setIcon} />
             </div>
           </div>
           <DialogFooter>

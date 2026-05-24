@@ -1,14 +1,13 @@
 "use client";
 
 import { useCreateBlockNote } from "@blocknote/react";
-import { BlockNoteView } from "@blocknote/shadcn";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { blocknoteShadCNComponents } from "@/components/editor/blocknote-shadcn-components";
-import { MermaidPreviews } from "@/components/editor/mermaid-previews";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { BlockNoteEditorView } from "@/components/editor/blocknote-editor-view";
 import { blockNoteSchema } from "@/lib/blocknote-schema";
 import { blocksToPlainText, normalizeEditorContent } from "@/lib/editor-content";
+import { apiUpload, getApiErrorMessage } from "@/lib/api";
 import { debounce } from "@/lib/utils";
 import type { PartialBlock } from "@blocknote/core";
 
@@ -16,12 +15,24 @@ type Props = {
   pageId: string;
   content: unknown;
   onChange: (content: unknown, plainText: string) => void;
+  onLocalEdit?: () => void;
+  syncedContent?: unknown;
+  syncKey?: number;
 };
 
-export function BlockEditor({ pageId, content, onChange }: Props) {
+export function BlockEditor({
+  pageId,
+  content,
+  onChange,
+  onLocalEdit,
+  syncedContent,
+  syncKey = 0,
+}: Props) {
   const onChangeRef = useRef(onChange);
+  const onLocalEditRef = useRef(onLocalEdit);
   onChangeRef.current = onChange;
-  const [revision, setRevision] = useState(0);
+  onLocalEditRef.current = onLocalEdit;
+  const applyingRemoteRef = useRef(false);
 
   const initialBlocks = useMemo(() => normalizeEditorContent(content), [content]);
 
@@ -37,16 +48,12 @@ export function BlockEditor({ pageId, content, onChange }: Props) {
     async (file: File) => {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch(`/api/pages/${pageId}/assets`, {
-        method: "POST",
-        body: form,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Image upload failed");
+      try {
+        const { url } = await apiUpload<{ url: string }>(`/api/pages/${pageId}/assets`, form);
+        return url;
+      } catch (e) {
+        throw new Error(getApiErrorMessage(e, "Image upload failed"));
       }
-      const { url } = (await res.json()) as { url: string };
-      return url;
     },
     [pageId]
   );
@@ -60,18 +67,26 @@ export function BlockEditor({ pageId, content, onChange }: Props) {
     [pageId]
   );
 
+  useEffect(() => {
+    if (!syncKey || syncedContent === undefined) return;
+    applyingRemoteRef.current = true;
+    const blocks = normalizeEditorContent(syncedContent);
+    editor.replaceBlocks(editor.document, blocks);
+    window.setTimeout(() => {
+      applyingRemoteRef.current = false;
+    }, 0);
+  }, [syncKey, syncedContent, editor]);
+
   return (
     <div className="notion-editor min-h-[50vh] w-full">
-      <BlockNoteView
+      <BlockNoteEditorView
         editor={editor}
-        theme="dark"
-        shadCNComponents={blocknoteShadCNComponents}
         onChange={() => {
-          setRevision((n) => n + 1);
+          if (applyingRemoteRef.current) return;
+          onLocalEditRef.current?.();
           debouncedSave(editor.document);
         }}
       />
-      <MermaidPreviews editor={editor} revision={revision} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -12,8 +13,17 @@ export async function PATCH(
   const { id } = await params;
   const { name, parentId, color } = await req.json();
 
-  const folder = await prisma.folder.findFirst({ where: { id, userId: user.id } });
+  const folder = await prisma.folder.findFirst({ where: { id } });
   if (!folder) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  try {
+    await requireLibraryAccess(user.id, folder.libraryId, "EDITOR");
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
 
   const updated = await prisma.folder.update({
     where: { id },
@@ -35,8 +45,17 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const folder = await prisma.folder.findFirst({ where: { id, userId: user.id } });
+  const folder = await prisma.folder.findFirst({ where: { id } });
   if (!folder) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  try {
+    await requireLibraryAccess(user.id, folder.libraryId, "EDITOR");
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
 
   await prisma.folder.delete({ where: { id } });
   return NextResponse.json({ ok: true });

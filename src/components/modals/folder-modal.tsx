@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -87,8 +88,15 @@ export function FolderModal({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || loading}>
-              {mode === "create" ? "Create" : "Save"}
+            <Button type="submit" disabled={!name.trim() || loading} className="gap-2">
+              {loading && <Loader2 className="size-4 animate-spin" />}
+              {loading
+                ? mode === "create"
+                  ? "Creating…"
+                  : "Saving…"
+                : mode === "create"
+                  ? "Create"
+                  : "Save"}
             </Button>
           </DialogFooter>
         </form>

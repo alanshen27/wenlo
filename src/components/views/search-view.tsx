@@ -11,6 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { RecallResult } from "@/lib/types";
 import { documentRoute, pageRoute, recallRoute } from "@/lib/routes";
+import { apiPost, getApiErrorMessage } from "@/lib/api";
 
 export function SearchView() {
   const router = useRouter();
@@ -27,6 +28,9 @@ export function SearchView() {
   const folderName = contextFolderId
     ? folders.find((f) => f.id === contextFolderId)?.name
     : null;
+  const folderColor = contextFolderId
+    ? folders.find((f) => f.id === contextFolderId)?.color
+    : null;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -41,20 +45,14 @@ export function SearchView() {
     setSearchedQuery(trimmed);
 
     try {
-      const res = await fetch("/api/recall", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: trimmed,
-          libraryId,
-          folderId: scope === "folder" ? contextFolderId : null,
-        }),
+      const data = await apiPost<{ results: RecallResult[] }>("/api/recall", {
+        query: trimmed,
+        libraryId,
+        folderId: scope === "folder" ? contextFolderId : null,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Search failed");
-      setResults(data.results as RecallResult[]);
+      setResults(data.results);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
+      setError(getApiErrorMessage(e, "Search failed"));
       setResults([]);
     } finally {
       setLoading(false);
@@ -95,7 +93,9 @@ export function SearchView() {
               scope={scope}
               onScopeChange={setScope}
               libraryName={activeLibrary?.name}
+              libraryIcon={activeLibrary?.icon}
               folderName={folderName}
+              folderColor={folderColor}
               folderId={contextFolderId}
               size="sm"
             />

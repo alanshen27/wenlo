@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import type { BillingSummary } from "@/lib/billing";
 import { formatTokens, PLAN_LIST, type PlanDefinition, type PlanId } from "@/lib/plans";
 import { libraryHome, readStoredLibraryId } from "@/lib/routes";
+import { apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
 import type { UsageSummary } from "@/lib/usage";
 import { USAGE_UPDATED_EVENT } from "@/lib/usage-events";
 import { cn } from "@/lib/utils";
@@ -32,12 +33,13 @@ export function PlanSettingsView() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
-    const res = await fetch("/api/me");
-    if (!res.ok) {
+    try {
+      const data = await apiGet<MeResponse>("/api/me");
+      setMe(data);
+    } catch {
       router.push("/login");
       return;
     }
-    setMe((await res.json()) as MeResponse);
     setLoading(false);
   }, [router]);
 
@@ -58,12 +60,10 @@ export function PlanSettingsView() {
     setError(null);
 
     try {
-      const res = await fetch("/api/billing/checkout", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to start checkout");
-      window.location.href = data.checkoutUrl as string;
+      const data = await apiPost<{ checkoutUrl: string }>("/api/billing/checkout");
+      window.location.href = data.checkoutUrl;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start checkout");
+      setError(getApiErrorMessage(e, "Failed to start checkout"));
       setActing(null);
     }
   }
@@ -73,12 +73,10 @@ export function PlanSettingsView() {
     setError(null);
 
     try {
-      const res = await fetch("/api/billing/portal");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to open billing portal");
-      window.location.href = data.portalUrl as string;
+      const data = await apiGet<{ portalUrl: string }>("/api/billing/portal");
+      window.location.href = data.portalUrl;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to open billing portal");
+      setError(getApiErrorMessage(e, "Failed to open billing portal"));
       setActing(null);
     }
   }

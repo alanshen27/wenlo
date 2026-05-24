@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { libraryHome, readStoredLibraryId } from "@/lib/routes";
+import { apiDelete, apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
 
 type Library = { id: string; name: string; icon: string };
 
@@ -32,15 +33,16 @@ export function IntegrationsSettingsView() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [libsRes, keysRes] = await Promise.all([
-      fetch("/api/libraries"),
-      fetch("/api/api-keys"),
-    ]);
-
-    if (libsRes.ok) setLibraries(await libsRes.json());
-    if (keysRes.ok) {
-      const data = await keysRes.json();
+    try {
+      setLibraries(await apiGet<Library[]>("/api/libraries"));
+    } catch {
+      /* ignore */
+    }
+    try {
+      const data = await apiGet<{ keys?: ApiKeyRow[] }>("/api/api-keys");
       setKeys(data.keys ?? []);
+    } catch {
+      /* ignore */
     }
     setLoading(false);
   }, []);
@@ -56,28 +58,22 @@ export function IntegrationsSettingsView() {
     setError(null);
     setCreatedKey(null);
     try {
-      const res = await fetch("/api/api-keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newKeyName.trim(),
-          libraryId: newKeyLibraryId || null,
-        }),
+      const data = await apiPost<{ key: string }>("/api/api-keys", {
+        name: newKeyName.trim(),
+        libraryId: newKeyLibraryId || null,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create key");
       setCreatedKey(data.key);
       setNewKeyName("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create API key");
+      setError(getApiErrorMessage(e, "Failed to create API key"));
     } finally {
       setCreatingKey(false);
     }
   }
 
   async function revokeKey(id: string) {
-    await fetch(`/api/api-keys/${id}`, { method: "DELETE" });
+    await apiDelete(`/api/api-keys/${id}`);
     await load();
   }
 

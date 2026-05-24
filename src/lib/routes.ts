@@ -24,6 +24,16 @@ export function recallRoute(libraryId: string) {
   return `/library/${libraryId}/recall`;
 }
 
+export function recallChatRoute(libraryId: string, sessionId?: string | null) {
+  const base = recallRoute(libraryId);
+  if (!sessionId) return base;
+  return `${base}?session=${encodeURIComponent(sessionId)}`;
+}
+
+export function mindMapRoute(libraryId: string) {
+  return `/library/${libraryId}/map`;
+}
+
 export function settingsRoute() {
   return "/settings";
 }

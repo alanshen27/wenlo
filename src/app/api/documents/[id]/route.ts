@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
 import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -11,8 +12,17 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const document = await prisma.document.findFirst({ where: { id, userId: user.id } });
+  const document = await prisma.document.findFirst({ where: { id } });
   if (!document) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  try {
+    await requireLibraryAccess(user.id, document.libraryId, "VIEWER");
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
 
   return NextResponse.json(document);
 }
@@ -25,8 +35,17 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const document = await prisma.document.findFirst({ where: { id, userId: user.id } });
+  const document = await prisma.document.findFirst({ where: { id } });
   if (!document) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  try {
+    await requireLibraryAccess(user.id, document.libraryId, "EDITOR");
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
 
   if (document.storagePath) {
     try {
@@ -51,8 +70,17 @@ export async function PATCH(
   const { id } = await params;
   const { folderId, title } = await req.json();
 
-  const existing = await prisma.document.findFirst({ where: { id, userId: user.id } });
+  const existing = await prisma.document.findFirst({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  try {
+    await requireLibraryAccess(user.id, existing.libraryId, "EDITOR");
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
 
   const document = await prisma.document.update({
     where: { id },

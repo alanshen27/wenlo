@@ -1,3 +1,5 @@
+import { apiUpload, getApiErrorMessage } from "@/lib/api";
+
 export type UploadedDocument = {
   id: string;
   title: string;
@@ -14,12 +16,12 @@ export async function uploadFile(opts: {
   form.append("file", file);
   form.append("libraryId", libraryId);
   if (folderId) form.append("folderId", folderId);
-  const res = await fetch("/api/documents", { method: "POST", body: form });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Upload failed");
+  let document: { id: string; title: string; type: string };
+  try {
+    document = await apiUpload<{ id: string; title: string; type: string }>("/api/documents", form);
+  } catch (e) {
+    throw new Error(getApiErrorMessage(e, "Upload failed"));
   }
-  const document = await res.json();
   return { id: document.id, title: document.title, type: document.type };
 }
 

@@ -17,7 +17,11 @@ import {
   ChevronDown,
   ChevronRight,
   FolderPlus,
+  Loader2,
+  MessageSquare,
+  MessageSquarePlus,
   MoreHorizontal,
+  Network,
   Pencil,
   Plus,
   Search,
@@ -39,6 +43,8 @@ import type { FolderNode } from "@/lib/folders";
 import { getDocumentIcon, getDocumentIconClass, PageIcon } from "@/lib/file-icons";
 import { LibrarySwitcher, type Library } from "@/components/sidebar/library-switcher";
 import { SidebarFooter } from "@/components/sidebar/sidebar-footer";
+import { useRecallChat } from "@/components/recall/recall-chat-context";
+import { sessionLabel } from "@/lib/recall-chat-ui";
 import {
   folderDropId,
   itemDragId,
@@ -55,8 +61,10 @@ type Props = {
   activeLibraryId: string | null;
   onSelectLibrary: (id: string) => void;
   onCreateLibrary: () => void;
+  onShareLibrary?: () => void;
   onEditLibrary: (library: Library) => void;
   onDeleteLibrary: (library: Library) => void;
+  canEdit?: boolean;
   tree: FolderNode[];
   selectedFolderId: string | null;
   selectedPageId: string | null;
@@ -72,9 +80,10 @@ type Props = {
   onDeleteDocument: (doc: ItemRef) => void;
   onMoveItem: (item: SidebarDragItem, folderId: string | null) => void | Promise<void>;
   onUploadToFolder: (folderId: string | null, files: FileList | File[]) => void | Promise<void>;
-  activeNav: "search" | "recall" | null;
+  activeNav: "search" | "recall" | "map" | null;
   onOpenSearch: () => void;
   onOpenRecall: () => void;
+  onOpenMindMap: () => void;
 };
 
 export function FolderSidebar(props: Props) {
@@ -83,8 +92,10 @@ export function FolderSidebar(props: Props) {
     activeLibraryId,
     onSelectLibrary,
     onCreateLibrary,
+    onShareLibrary,
     onEditLibrary,
     onDeleteLibrary,
+    canEdit = true,
     tree,
     selectedFolderId,
     selectedPageId,
@@ -103,9 +114,11 @@ export function FolderSidebar(props: Props) {
     activeNav,
     onOpenSearch,
     onOpenRecall,
+    onOpenMindMap,
   } = props;
 
   const [activeDrag, setActiveDrag] = useState<SidebarDragItem | null>(null);
+  const recallChat = useRecallChat();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -151,7 +164,7 @@ export function FolderSidebar(props: Props) {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
-      <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
+      <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground border-r">
         <div className="flex shrink-0 items-center gap-1 px-2 py-2">
           <div className="min-w-0 flex-1">
             <LibrarySwitcher
@@ -159,9 +172,10 @@ export function FolderSidebar(props: Props) {
               activeLibraryId={activeLibraryId}
               onSelect={onSelectLibrary}
               onCreate={onCreateLibrary}
+              onShare={onShareLibrary}
             />
           </div>
-          {activeLibrary && (
+          {activeLibrary && activeLibrary.role === "OWNER" && (
             <ItemMenu
               items={[
                 {
@@ -207,6 +221,74 @@ export function FolderSidebar(props: Props) {
             <Sparkles className="size-4" />
             Recall
           </Button>
+          {activeNav === "recall" && (
+            <div className="ml-2 space-y-0.5 border-l border-border pl-2">
+              {recallChat.sessionError && (
+                <p className="px-2 py-1 text-[11px] leading-snug text-destructive">
+                  {recallChat.sessionError}
+                </p>
+              )}
+              {recallChat.loadingSessions && (
+                <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Loading…
+                </div>
+              )}
+              {!recallChat.loadingSessions && recallChat.sessions.length === 0 && (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">No chats yet</p>
+              )}
+              {recallChat.sessions.map((session) => (
+                <div key={session.id} className="group flex items-center gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className={cn(
+                      "h-8 min-w-0 flex-1 justify-start gap-2 px-2",
+                      recallChat.activeSessionId === session.id &&
+                        "sidebar-item-active font-medium text-sidebar-foreground"
+                    )}
+                    onClick={() => recallChat.selectSession(session.id)}
+                  >
+                    <MessageSquare className="size-3.5 shrink-0 opacity-60" />
+                    <span className="truncate text-sm">{sessionLabel(session)}</span>
+                    <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 opacity-0 group-hover:opacity-100"
+                    title="Delete chat"
+                    onClick={() => void recallChat.deleteSession(session.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                  </Button>
+                </div>
+              ))}
+                              <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-muted-foreground text-sm w-full"
+                  title="New chat"
+                  onClick={() => void recallChat.newChat()}
+                >
+                  New Chat
+                  <MessageSquarePlus className="size-4" />
+                </Button>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            className={cn(
+              "h-8 w-full justify-start gap-2 px-2",
+              activeNav === "map"
+                ? "sidebar-item-active font-medium text-sidebar-foreground"
+                : "text-muted-foreground"
+            )}
+            onClick={onOpenMindMap}
+          >
+            <Network className="size-4" />
+            Mind map
+          </Button>
         </div>
 
         <Separator className="shrink-0" />
@@ -217,26 +299,28 @@ export function FolderSidebar(props: Props) {
           onUpload={onUploadToFolder}
         >
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Private
+            {canEdit ? "Private" : "Shared"}
           </span>
-          <div className="flex gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="New folder"
-              onClick={() => onCreateFolder(selectedFolderId)}
-            >
-              <FolderPlus className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              title="New page"
-              onClick={() => onCreatePage(selectedFolderId)}
-            >
-              <Plus className="size-3.5" />
-            </Button>
-          </div>
+          {canEdit && (
+            <div className="flex gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="New folder"
+                onClick={() => onCreateFolder(selectedFolderId)}
+              >
+                <FolderPlus className="size-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="New page"
+                onClick={() => onCreatePage(selectedFolderId)}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </div>
+          )}
         </FolderDropTarget>
 
         <ScrollArea className="min-h-0 flex-1 px-1">
@@ -259,6 +343,7 @@ export function FolderSidebar(props: Props) {
                 onDeletePage={onDeletePage}
                 onDeleteDocument={onDeleteDocument}
                 onUploadToFolder={onUploadToFolder}
+                canEdit={canEdit}
               />
             ))}
           </nav>
@@ -391,6 +476,25 @@ function ItemMenu({
   );
 }
 
+function SidebarItemLabel({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"button">) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex min-w-0 flex-1 items-center gap-1.5 truncate rounded-sm px-1 py-0.5 text-left text-sm font-normal text-inherit outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
 function RowActions({
   children,
 }: {
@@ -432,6 +536,7 @@ function FolderTreeNode({
   onDeletePage,
   onDeleteDocument,
   onUploadToFolder,
+  canEdit = true,
 }: {
   node: FolderNode;
   depth: number;
@@ -448,6 +553,7 @@ function FolderTreeNode({
   onDeletePage: (page: ItemRef) => void;
   onDeleteDocument: (doc: ItemRef) => void;
   onUploadToFolder: (folderId: string | null, files: FileList | File[]) => void | Promise<void>;
+  canEdit?: boolean;
 }) {
   const [open, setOpen] = useState(true);
   const isRoot = node.id === "__root__";
@@ -477,53 +583,53 @@ function FolderTreeNode({
           >
             {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
           </Button>
-          <Button
-            variant="ghost"
-            className="h-auto min-w-0 flex-1 justify-start gap-1.5 truncate px-1 py-0.5 font-normal"
-            onClick={() => onSelectFolder(node.id)}
-          >
+          <SidebarItemLabel onClick={() => onSelectFolder(node.id)}>
             <FolderIcon color={node.color} />
             <span className="truncate">{node.name}</span>
-          </Button>
+          </SidebarItemLabel>
           <RowActions>
             {({ menuOpen, setMenuOpen }) => (
               <>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6"
-                  title="Add subfolder"
-                  onClick={() => onCreateFolder(node.id)}
-                >
-                  <FolderPlus className="size-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6"
-                  title="Add page"
-                  onClick={() => onCreatePage(node.id)}
-                >
-                  <Plus className="size-3" />
-                </Button>
-                <ItemMenu
-                  open={menuOpen}
-                  onOpenChange={setMenuOpen}
-                  items={[
-                    {
-                      label: "Edit",
-                      icon: Pencil,
-                      onClick: () =>
-                        onEditFolder({ id: node.id, name: node.name, color: node.color }),
-                    },
-                    {
-                      label: "Delete",
-                      icon: Trash2,
-                      variant: "destructive",
-                      onClick: () => onDeleteFolder({ id: node.id, title: node.name }),
-                    },
-                  ]}
-                />
+                {canEdit && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-6"
+                      title="Add subfolder"
+                      onClick={() => onCreateFolder(node.id)}
+                    >
+                      <FolderPlus className="size-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-6"
+                      title="Add page"
+                      onClick={() => onCreatePage(node.id)}
+                    >
+                      <Plus className="size-3" />
+                    </Button>
+                    <ItemMenu
+                      open={menuOpen}
+                      onOpenChange={setMenuOpen}
+                      items={[
+                        {
+                          label: "Edit",
+                          icon: Pencil,
+                          onClick: () =>
+                            onEditFolder({ id: node.id, name: node.name, color: node.color }),
+                        },
+                        {
+                          label: "Delete",
+                          icon: Trash2,
+                          variant: "destructive",
+                          onClick: () => onDeleteFolder({ id: node.id, title: node.name }),
+                        },
+                      ]}
+                    />
+                  </>
+                )}
               </>
             )}
           </RowActions>
@@ -542,29 +648,30 @@ function FolderTreeNode({
               )}
               style={{ paddingLeft: (isRoot ? depth : depth + 1) * 12 + 24 }}
             >
-              <Button
-                variant="ghost"
-                className="h-auto min-w-0 flex-1 justify-start gap-1.5 truncate px-1 py-1 font-normal"
+              <SidebarItemLabel
+                className="py-1 pl-2.5"
                 onClick={() => onSelectPage(page.id)}
               >
                 <PageIcon className="size-4 shrink-0 text-muted-foreground" />
                 <span className="truncate">{page.title}</span>
-              </Button>
+              </SidebarItemLabel>
               <RowActions>
-                {({ menuOpen, setMenuOpen }) => (
-                  <ItemMenu
-                    open={menuOpen}
-                    onOpenChange={setMenuOpen}
-                    items={[
-                      {
-                        label: "Delete",
-                        icon: Trash2,
-                        variant: "destructive",
-                        onClick: () => onDeletePage({ id: page.id, title: page.title }),
-                      },
-                    ]}
-                  />
-                )}
+                {({ menuOpen, setMenuOpen }) =>
+                  canEdit ? (
+                    <ItemMenu
+                      open={menuOpen}
+                      onOpenChange={setMenuOpen}
+                      items={[
+                        {
+                          label: "Delete",
+                          icon: Trash2,
+                          variant: "destructive",
+                          onClick: () => onDeletePage({ id: page.id, title: page.title }),
+                        },
+                      ]}
+                    />
+                  ) : null
+                }
               </RowActions>
             </DraggableItemRow>
           ))}
@@ -572,16 +679,21 @@ function FolderTreeNode({
             const DocIcon = getDocumentIcon(doc.type);
             const row = (
               <>
-                <Button
-                  variant="ghost"
+                <SidebarItemLabel
+                  className="py-1"
                   disabled={doc.pending}
-                  className="h-auto min-w-0 flex-1 justify-start gap-1.5 truncate px-1 py-1 font-normal"
                   onClick={() => !doc.pending && onSelectDocument(doc.id)}
                 >
-                  <DocIcon className={cn("size-4 shrink-0", getDocumentIconClass(doc.type))} />
-                  <span className="truncate">{doc.pending ? `Uploading ${doc.title}…` : doc.title}</span>
-                </Button>
-                {!doc.pending && (
+                  {doc.pending ? (
+                    <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                  ) : (
+                    <DocIcon className={cn("size-4 shrink-0", getDocumentIconClass(doc.type))} />
+                  )}
+                  <span className="truncate">
+                    {doc.pending ? `Uploading ${doc.title}…` : doc.title}
+                  </span>
+                </SidebarItemLabel>
+                {!doc.pending && canEdit && (
                   <RowActions>
                     {({ menuOpen, setMenuOpen }) => (
                       <ItemMenu
@@ -649,6 +761,7 @@ function FolderTreeNode({
               onDeletePage={onDeletePage}
               onDeleteDocument={onDeleteDocument}
               onUploadToFolder={onUploadToFolder}
+              canEdit={canEdit}
             />
           ))}
         </>

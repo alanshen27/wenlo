@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { requireLibrary } from "@/lib/libraries";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -12,9 +12,12 @@ export async function PATCH(
 
   const { id } = await params;
   try {
-    await requireLibrary(user.id, id);
-  } catch {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    await requireLibraryAccess(user.id, id, "OWNER");
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
   const { name, icon } = await req.json();
 
@@ -38,13 +41,16 @@ export async function DELETE(
 
   const { id } = await params;
   try {
-    await requireLibrary(user.id, id);
-  } catch {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    await requireLibraryAccess(user.id, id, "OWNER");
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
 
-  const count = await prisma.library.count({ where: { userId: user.id } });
-  if (count <= 1) {
+  const ownedCount = await prisma.library.count({ where: { userId: user.id } });
+  if (ownedCount <= 1) {
     return NextResponse.json({ error: "Cannot delete your only library" }, { status: 400 });
   }
 

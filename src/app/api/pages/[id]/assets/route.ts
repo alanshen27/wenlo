@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
 import {
   PAGE_ASSET_MAX_BYTES,
   PAGE_ASSET_MIME_TYPES,
@@ -11,17 +12,24 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-async function getOwnedPage(userId: string, pageId: string) {
-  return prisma.page.findFirst({ where: { id: pageId, userId } });
-}
-
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const user = await requireUser().catch(() => null);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: pageId } = await params;
-  const page = await getOwnedPage(user.id, pageId);
+  const page = await prisma.page.findFirst({ where: { id: pageId } });
   if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  try {
+    await requireLibraryAccess(user.id, page.libraryId, "EDITOR");
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+
+  const ownerId = page.userId;
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
@@ -39,7 +47,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const safeName = file.name.replace(/[^\w.\-()+ ]/g, "_").slice(0, 120);
   const filename = `${Date.now()}-${safeName || "image"}`;
-  const storagePath = pageAssetStoragePath(user.id, pageId, filename);
+  const storagePath = pageAssetStoragePath(ownerId, pageId, filename);
   const buffer = Buffer.from(await file.arrayBuffer());
 
   try {

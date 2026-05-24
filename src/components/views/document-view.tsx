@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useLibrary } from "@/components/library/library-shell";
 import { Badge } from "@/components/ui/badge";
 import { documentRoute, libraryHome } from "@/lib/routes";
+import { apiGet } from "@/lib/api";
 
 type Document = {
   id: string;
@@ -27,18 +28,17 @@ export function DocumentView() {
     let cancelled = false;
     setDocument(null);
     (async () => {
-      const res = await fetch(`/api/documents/${documentId}`);
-      if (!res.ok) {
-        router.replace(libraryHome(libraryId));
-        return;
+      try {
+        const data = await apiGet<Document>(`/api/documents/${documentId}`);
+        if (cancelled) return;
+        if (data.libraryId && data.libraryId !== libraryId) {
+          router.replace(documentRoute(data.libraryId, data.id));
+          return;
+        }
+        setDocument(data);
+      } catch {
+        if (!cancelled) router.replace(libraryHome(libraryId));
       }
-      const data = await res.json();
-      if (cancelled) return;
-      if (data.libraryId && data.libraryId !== libraryId) {
-        router.replace(documentRoute(data.libraryId, data.id));
-        return;
-      }
-      setDocument(data);
     })();
     return () => {
       cancelled = true;

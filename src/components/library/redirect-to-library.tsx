@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { libraryHome, readStoredLibraryId } from "@/lib/routes";
+import { apiGet } from "@/lib/api";
 
 export function RedirectToLibrary() {
   const router = useRouter();
@@ -10,14 +11,17 @@ export function RedirectToLibrary() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/libraries");
-      if (!res.ok || cancelled) return;
-      const libraries = (await res.json()) as { id: string }[];
-      const stored = readStoredLibraryId();
-      const match = libraries.find((l) => l.id === stored);
-      const id = match?.id ?? libraries[0]?.id;
-      if (cancelled) return;
-      if (id) router.replace(libraryHome(id));
+      try {
+        const libraries = await apiGet<{ id: string }[]>("/api/libraries");
+        if (cancelled) return;
+        const stored = readStoredLibraryId();
+        const match = libraries.find((l) => l.id === stored);
+        const id = match?.id ?? libraries[0]?.id;
+        if (cancelled) return;
+        if (id) router.replace(libraryHome(id));
+      } catch {
+        /* noop — same as !res.ok */
+      }
     })();
     return () => {
       cancelled = true;

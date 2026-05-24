@@ -90,7 +90,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         where: { id: existing.id },
         data: {
           ...(body.title !== undefined && { title: body.title.trim() || "Untitled" }),
-          ...(body.content !== undefined && { content: blocks, plainText }),
+          ...(body.content !== undefined && { content: blocks as object, plainText }),
           ...(body.folderId !== undefined && { folderId }),
         },
       });
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const page = await prisma.page.create({
       data: {
         title: body.title?.trim() || "Untitled",
-        content: blocks,
+        content: blocks as object,
         plainText,
         userId,
         libraryId,

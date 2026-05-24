@@ -1,18 +1,51 @@
 import { prisma } from "./prisma";
+import { getLibraryRole, requireLibraryAccess, type LibraryRole } from "./library-access";
 
-export async function listLibraries(userId: string) {
+export type LibrarySummary = {
+  id: string;
+  name: string;
+  icon: string;
+  userId: string;
+  role: LibraryRole;
+  isShared: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export async function listLibrariesWithRoles(userId: string): Promise<LibrarySummary[]> {
   await ensureDefaultLibrary(userId);
-  return prisma.library.findMany({
-    where: { userId },
+
+  const libraries = await prisma.library.findMany({
+    where: {
+      OR: [{ userId }, { members: { some: { userId } } }],
+    },
+    include: {
+      members: {
+        where: { userId },
+        select: { role: true },
+      },
+    },
     orderBy: { createdAt: "asc" },
+  });
+
+  return libraries.map((library) => {
+    const isOwner = library.userId === userId;
+    const role: LibraryRole = isOwner ? "OWNER" : (library.members[0]?.role ?? "VIEWER");
+    return {
+      id: library.id,
+      name: library.name,
+      icon: library.icon,
+      userId: library.userId,
+      role,
+      isShared: !isOwner,
+      createdAt: library.createdAt,
+      updatedAt: library.updatedAt,
+    };
   });
 }
 
 export async function requireLibrary(userId: string, libraryId: string) {
-  const library = await prisma.library.findFirst({
-    where: { id: libraryId, userId },
-  });
-  if (!library) throw new Error("Library not found");
+  const { library } = await requireLibraryAccess(userId, libraryId, "VIEWER");
   return library;
 }
 
@@ -39,8 +72,9 @@ export async function resolveLibraryId(
   libraryId: string | null | undefined
 ): Promise<string> {
   if (libraryId) {
-    const library = await requireLibrary(userId, libraryId);
-    return library.id;
+    const role = await getLibraryRole(userId, libraryId);
+    if (!role) throw new Error("Library not found");
+    return libraryId;
   }
   const library = await ensureDefaultLibrary(userId);
   return library.id;
@@ -53,7 +87,9 @@ export async function libraryIdFromFolder(
 ): Promise<string> {
   if (!folderId || folderId === "__root__") return fallbackLibraryId;
   const folder = await prisma.folder.findFirst({
-    where: { id: folderId, userId },
+    where: { id: folderId, libraryId: fallbackLibraryId },
   });
-  return folder?.libraryId ?? fallbackLibraryId;
+  if (!folder) throw new Error("Folder not found");
+  await requireLibraryAccess(userId, folder.libraryId, "VIEWER");
+  return folder.libraryId;
 }

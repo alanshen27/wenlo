@@ -2,10 +2,78 @@ import { randomUUID } from "crypto";
 import { prisma } from "./prisma";
 import { chunkText, embedText, embedTexts, embeddingToSql } from "./embeddings";
 import { Prisma } from "@prisma/client";
+import { getLibraryRole } from "./library-access";
 
 import type { RecallResult } from "./types";
 
 export type { RecallResult } from "./types";
+
+const EXCERPT_MAX = 1200;
+
+function isUsefulChunk(content: string, title: string): boolean {
+  const trimmed = content.replace(/\s+/g, " ").trim();
+  if (trimmed.length < 20) return false;
+  const normalizedTitle = title.replace(/\s+/g, " ").trim();
+  if (trimmed === normalizedTitle || trimmed === "Untitled") return false;
+  return true;
+}
+
+function buildExcerpt(content: string, query: string): string {
+  const highlighted = highlightSnippet(content, query, 400);
+  const body =
+    highlighted.length >= 60
+      ? highlighted
+      : content.slice(0, EXCERPT_MAX) + (content.length > EXCERPT_MAX ? "…" : "");
+  return body.slice(0, EXCERPT_MAX);
+}
+
+function upsertSearchResult(
+  results: Map<string, RecallResult>,
+  row: {
+    source_type: string;
+    source_id: string;
+    title: string;
+    content: string;
+    folder_id: string | null;
+  },
+  query: string,
+  score: number,
+  matchType: "keyword" | "semantic"
+) {
+  if (!isUsefulChunk(row.content, row.title)) return;
+
+  const key = `${row.source_type}-${row.source_id}`;
+  const existing = results.get(key);
+  const next: RecallResult = {
+    id: row.source_id,
+    sourceType: row.source_type === "PAGE" ? "page" : "document",
+    title: row.title,
+    snippet: highlightSnippet(row.content, query),
+    excerpt: buildExcerpt(row.content, query),
+    score,
+    folderId: row.folder_id,
+    matchType: existing && existing.matchType !== matchType ? "both" : matchType,
+  };
+
+  if (!existing || score >= existing.score) {
+    results.set(key, next);
+  } else if (existing.matchType !== matchType) {
+    existing.matchType = "both";
+    existing.score = Math.max(existing.score, score);
+  }
+}
+
+/** Chunks belong to libraries; members must see owner-uploaded content too. */
+function libraryAccessFilter(userId: string, libraryId?: string | null): Prisma.Sql {
+  if (libraryId) {
+    return Prisma.sql`COALESCE(p."libraryId", d."libraryId") = ${libraryId}`;
+  }
+  return Prisma.sql`COALESCE(p."libraryId", d."libraryId") IN (
+    SELECT l.id FROM "Library" l
+    LEFT JOIN "LibraryMember" m ON m."libraryId" = l.id AND m."userId" = ${userId}
+    WHERE l."userId" = ${userId} OR m."userId" IS NOT NULL
+  )`;
+}
 
 function highlightSnippet(content: string, query: string, radius = 120): string {
   const lower = content.toLowerCase();
@@ -30,9 +98,12 @@ export async function recallSearch(opts: {
   const q = query.trim();
   if (!q) return [];
 
-  const libraryFilter = libraryId
-    ? Prisma.sql`AND (p."libraryId" = ${libraryId} OR d."libraryId" = ${libraryId})`
-    : Prisma.empty;
+  if (libraryId) {
+    const role = await getLibraryRole(userId, libraryId);
+    if (!role) return [];
+  }
+
+  const accessFilter = libraryAccessFilter(userId, libraryId);
 
   const folderFilter = folderId
     ? Prisma.sql`AND (
@@ -65,10 +136,13 @@ export async function recallSearch(opts: {
     LEFT JOIN "Page" p ON c."pageId" = p.id
     LEFT JOIN "Document" d ON c."documentId" = d.id
     WHERE (
-      (p."userId" = ${userId} OR d."userId" = ${userId})
-      AND (c.content ILIKE ${"%" + q + "%"} OR c.content % ${q})
+      ${accessFilter}
+      AND (
+        c.content ILIKE ${"%" + q + "%"}
+        OR c.content % ${q}
+        OR COALESCE(p.title, d.title) ILIKE ${"%" + q + "%"}
+      )
     )
-    ${libraryFilter}
     ${folderFilter}
     ORDER BY rank DESC
     LIMIT ${limit}
@@ -97,10 +171,12 @@ export async function recallSearch(opts: {
       LEFT JOIN "Page" p ON c."pageId" = p.id
       LEFT JOIN "Document" d ON c."documentId" = d.id
       WHERE (
-        (p."userId" = ${userId} OR d."userId" = ${userId})
-        AND c.content ILIKE ${"%" + q + "%"}
+        ${accessFilter}
+        AND (
+          c.content ILIKE ${"%" + q + "%"}
+          OR COALESCE(p.title, d.title) ILIKE ${"%" + q + "%"}
+        )
       )
-      ${libraryFilter}
       ${folderFilter}
       LIMIT ${limit}
     `;
@@ -109,16 +185,7 @@ export async function recallSearch(opts: {
   const results = new Map<string, RecallResult>();
 
   for (const row of keywordRows) {
-    const key = `${row.source_type}-${row.source_id}`;
-    results.set(key, {
-      id: row.source_id,
-      sourceType: row.source_type === "PAGE" ? "page" : "document",
-      title: row.title,
-      snippet: highlightSnippet(row.content, q),
-      score: Number(row.rank) || 0.5,
-      folderId: row.folder_id,
-      matchType: "keyword",
-    });
+    upsertSearchResult(results, row, q, Number(row.rank) || 0.5, "keyword");
   }
 
   // Semantic search via pgvector
@@ -150,35 +217,18 @@ export async function recallSearch(opts: {
         LEFT JOIN "Page" p ON c."pageId" = p.id
         LEFT JOIN "Document" d ON c."documentId" = d.id
         WHERE (
-          (p."userId" = ${userId} OR d."userId" = ${userId})
+          ${accessFilter}
           AND c.embedding IS NOT NULL
         )
-        ${libraryFilter}
         ${folderFilter}
         ORDER BY distance ASC
         LIMIT ${limit}
       `;
 
       for (const row of semanticRows) {
-        const key = `${row.source_type}-${row.source_id}`;
         const score = 1 - Number(row.distance);
-        const existing = results.get(key);
-        if (existing) {
-          existing.score = Math.max(existing.score, score);
-          existing.matchType = "both";
-          if (score > existing.score) {
-            existing.snippet = row.content.slice(0, 240) + "…";
-          }
-        } else if (score > 0.3) {
-          results.set(key, {
-            id: row.source_id,
-            sourceType: row.source_type === "PAGE" ? "page" : "document",
-            title: row.title,
-            snippet: row.content.slice(0, 240) + "…",
-            score,
-            folderId: row.folder_id,
-            matchType: "semantic",
-          });
+        if (score > 0.3) {
+          upsertSearchResult(results, row, q, score, "semantic");
         }
       }
     } catch {
