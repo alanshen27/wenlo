@@ -659,7 +659,7 @@ function QuickActions({
   }
 
   const cardClass =
-    "group flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 text-left shadow-sm transition-colors hover:border-border hover:bg-accent/50 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+    "group flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-accent/50 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
