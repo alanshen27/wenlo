@@ -257,7 +257,7 @@ export function EntityCard({
           )}
         </span>
 
-        <p className="relative z-0 line-clamp-2 w-full px-1 text-[13px] font-medium leading-snug text-foreground wrap-break-word">
+        <p className="relative z-0 line-clamp-2 min-h-9 w-full px-1 text-[13px] font-medium leading-snug text-foreground wrap-break-word">
           {item.title}
         </p>
 
