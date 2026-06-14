@@ -15,7 +15,7 @@ import { apiDelete, apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
 import {
   recallChatQuery,
   type RecallChatSessionSummary,
-} from "@/lib/recall-chat";
+} from "@/lib/recall-chat-shared";
 import { recallChatRoute } from "@/lib/routes";
 
 type RecallChatContextValue = {

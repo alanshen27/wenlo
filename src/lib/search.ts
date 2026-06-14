@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "./prisma";
 import { chunkText, embedText, embedTexts, embeddingToSql } from "./embeddings";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { getLibraryRole } from "./library-access";
 
 import type { RecallResult } from "./types";

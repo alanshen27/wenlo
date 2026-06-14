@@ -1,33 +1,19 @@
-import type { RecallResult } from "@/lib/types";
 import { prisma } from "@/lib/prisma";
+import {
+  MAX_RECALL_TURNS,
+  recallChatQuery,
+  recallScopeKey,
+  type RecallChatSessionSummary,
+  type RecallTurn,
+} from "@/lib/recall-chat-shared";
 
-export type RecallTurn = {
-  question: string;
-  answer: string;
-  sources: RecallResult[];
-  createdAt: string;
+export {
+  MAX_RECALL_TURNS,
+  recallChatQuery,
+  recallScopeKey,
+  type RecallChatSessionSummary,
+  type RecallTurn,
 };
-
-export type RecallChatSessionSummary = {
-  id: string;
-  title: string | null;
-  turnCount: number;
-  updatedAt: string;
-  createdAt: string;
-};
-
-export const MAX_RECALL_TURNS = 50;
-
-export function recallScopeKey(scope: "all" | "folder", folderId: string | null): string {
-  if (scope === "folder" && folderId) return `folder:${folderId}`;
-  return "library";
-}
-
-export function recallChatQuery(scope: "all" | "folder", folderId: string | null) {
-  const params = new URLSearchParams({ scope });
-  if (scope === "folder" && folderId) params.set("folderId", folderId);
-  return params.toString();
-}
 
 function parseTurns(raw: unknown): RecallTurn[] {
   if (!Array.isArray(raw)) return [];

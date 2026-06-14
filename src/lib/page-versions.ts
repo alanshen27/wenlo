@@ -1,4 +1,4 @@
-import type { Page, User } from "@prisma/client";
+import type { Page, User } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const MAX_PAGE_VERSIONS = 100;

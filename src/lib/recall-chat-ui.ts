@@ -1,4 +1,4 @@
-import type { RecallChatSessionSummary } from "@/lib/recall-chat";
+import type { RecallChatSessionSummary } from "@/lib/recall-chat-shared";
 
 export function formatSessionWhen(iso: string) {
   const date = new Date(iso);

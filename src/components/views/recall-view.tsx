@@ -13,7 +13,7 @@ import type { RecallResult } from "@/lib/types";
 import { notifyUsageUpdated } from "@/lib/usage-events";
 import { documentRoute, pageRoute, searchRoute } from "@/lib/routes";
 import { apiGet, getApiErrorMessage } from "@/lib/api";
-import type { RecallChatSessionSummary, RecallTurn } from "@/lib/recall-chat";
+import type { RecallChatSessionSummary, RecallTurn } from "@/lib/recall-chat-shared";
 import { cn } from "@/lib/utils";
 import MarkdownRenderer from "../recall/markdown-renderer";
 

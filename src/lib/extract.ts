@@ -1,4 +1,4 @@
-import { DocumentType } from "@prisma/client";
+import { DocumentType } from "@/generated/prisma/client";
 
 /**
  * Postgres `text` columns reject NUL bytes (0x00), which binary-ish extractions

@@ -1,4 +1,4 @@
-import type { LibraryRole } from "@prisma/client";
+import type { LibraryRole } from "@/generated/prisma/client";
 import { prisma } from "./prisma";
 import { getAppUrl, sendLibraryInviteEmail } from "./email";
 
