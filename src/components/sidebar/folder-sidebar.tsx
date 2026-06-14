@@ -876,7 +876,7 @@ function SidebarItemLabel({
     <button
       type="button"
       className={cn(
-        "flex min-w-0 flex-1 items-center gap-1.5 truncate rounded-sm px-1 py-0.5 text-left text-sm font-normal text-inherit outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
+        "flex min-w-0 flex-1 select-none items-center gap-1.5 truncate rounded-sm px-1 py-0.5 text-left text-sm font-normal text-inherit outline-none focus-visible:ring-1 focus-visible:ring-ring/50",
         className
       )}
       {...props}

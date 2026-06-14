@@ -13,7 +13,7 @@
   --card-foreground: oklch(0.21 0.028 285);
   --popover: oklch(0.995 0.006 285);
   --popover-foreground: oklch(0.21 0.028 285);
-  --primary: oklch(0.52 0.24 293);
+  --primary: oklch(0.54 0.25 286);
   --primary-foreground: oklch(0.985 0.005 285);
   --secondary: oklch(0.962 0.014 285);
   --secondary-foreground: oklch(0.24 0.03 285);
@@ -23,7 +23,7 @@
   --accent-foreground: oklch(0.24 0.03 285);
   --border: oklch(0.905 0.018 285);
   --input: oklch(0.905 0.018 285);
-  --ring: oklch(0.58 0.2 293);
+  --ring: oklch(0.6 0.21 286);
   --sidebar: oklch(0.975 0.016 285);
   --sidebar-hover: oklch(0.945 0.024 287);
   --sidebar-active: oklch(0.925 0.032 288);
@@ -31,19 +31,19 @@
   --foreground: oklch(0.21 0.028 285);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --chart-1: oklch(0.55 0.22 293);
+  --chart-1: oklch(0.57 0.23 286);
   --chart-2: oklch(0.62 0.15 200);
   --chart-3: oklch(0.68 0.16 55);
   --chart-4: oklch(0.62 0.2 340);
   --chart-5: oklch(0.58 0.18 250);
   --radius: 0.625rem;
   --sidebar-foreground: oklch(0.21 0.028 285);
-  --sidebar-primary: oklch(0.52 0.24 293);
+  --sidebar-primary: oklch(0.54 0.25 286);
   --sidebar-primary-foreground: oklch(0.985 0.005 285);
   --sidebar-accent: oklch(0.948 0.022 288);
   --sidebar-accent-foreground: oklch(0.24 0.03 285);
   --sidebar-border: oklch(0.905 0.018 285);
-  --sidebar-ring: oklch(0.58 0.2 293);
+  --sidebar-ring: oklch(0.6 0.21 286);
 }
 
 @theme inline {
@@ -399,7 +399,7 @@ html.dark .notion-editor .bn-block-content[data-content-type="codeBlock"] .shiki
   --card-foreground: oklch(0.96 0.012 285);
   --popover: oklch(0.215 0.032 285);
   --popover-foreground: oklch(0.96 0.012 285);
-  --primary: oklch(0.66 0.22 293);
+  --primary: oklch(0.69 0.21 286);
   --primary-foreground: oklch(0.985 0.005 285);
   --secondary: oklch(0.26 0.034 285);
   --secondary-foreground: oklch(0.96 0.012 285);
@@ -411,8 +411,8 @@ html.dark .notion-editor .bn-block-content[data-content-type="codeBlock"] .shiki
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.94 0.025 285 / 14%);
   --input: oklch(0.94 0.025 285 / 18%);
-  --ring: oklch(0.66 0.2 293);
-  --chart-1: oklch(0.66 0.22 293);
+  --ring: oklch(0.69 0.2 286);
+  --chart-1: oklch(0.69 0.21 286);
   --chart-2: oklch(0.72 0.14 200);
   --chart-3: oklch(0.78 0.15 55);
   --chart-4: oklch(0.72 0.18 340);
@@ -421,12 +421,12 @@ html.dark .notion-editor .bn-block-content[data-content-type="codeBlock"] .shiki
   --sidebar-hover: oklch(0.22 0.038 285);
   --sidebar-active: oklch(0.28 0.045 288);
   --sidebar-foreground: oklch(0.96 0.012 285);
-  --sidebar-primary: oklch(0.66 0.22 293);
+  --sidebar-primary: oklch(0.69 0.21 286);
   --sidebar-primary-foreground: oklch(0.985 0.005 285);
   --sidebar-accent: oklch(0.3 0.04 288);
   --sidebar-accent-foreground: oklch(0.96 0.012 285);
   --sidebar-border: oklch(0.94 0.025 285 / 14%);
-  --sidebar-ring: oklch(0.66 0.2 293);
+  --sidebar-ring: oklch(0.69 0.2 286);
 }
 
 @keyframes landing-drift-1 {

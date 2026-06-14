@@ -17,14 +17,19 @@ import { cn } from "@/lib/utils";
 const features = [
   {
     icon: FolderTree,
-    title: "Libraries & folders",
+    title: "Cloud storage",
     description:
-      "Organize notes, PDFs, slides, and code the way you think — drag, nest, color-code.",
+      "Store any file — PDFs, images, docs, slides, code, audio, video — in libraries and folders.",
+  },
+  {
+    icon: Brain,
+    title: "Notes & rich pages",
+    description: "Write alongside your files with a block editor — code, diagrams, and images.",
   },
   {
     icon: Upload,
-    title: "Upload anything",
-    description: "Drop files in. Text is extracted and indexed automatically.",
+    title: "Indexed for agents",
+    description: "Every upload is extracted, OCR'd, and embedded — instantly answerable.",
   },
   {
     icon: Search,
@@ -34,24 +39,19 @@ const features = [
   {
     icon: Sparkles,
     title: "Recall agent",
-    description: "Ask questions scoped to a folder or your whole library — with sources.",
-  },
-  {
-    icon: Brain,
-    title: "Rich pages",
-    description: "BlockNote editor with code blocks, diagrams, and images.",
+    description: "Ask across a folder or your whole library — the agent reads your files and cites sources.",
   },
   {
     icon: Terminal,
     title: "CLI & API",
-    description: "Ingest, export, and query libraries from scripts and agents.",
+    description: "Pipe files in, query from scripts, and wire Recall into your own agents.",
   },
 ];
 
 const steps = [
-  { label: "Collect", detail: "Pages, PDFs, slides — one home for everything you learn." },
-  { label: "Find", detail: "Grep-fast keyword search or semantic recall when words fail." },
-  { label: "Ask", detail: "An agent that reads your library and cites where it looked." },
+  { label: "Store", detail: "Upload files and write notes — one home for everything." },
+  { label: "Index", detail: "Recall extracts, OCRs, and embeds it all automatically." },
+  { label: "Recall", detail: "Your agent searches, reads, and answers with sources." },
 ];
 
 type LandingPageProps = {
@@ -98,14 +98,14 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
           <div className="mx-auto max-w-2xl text-center">
             <p className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card/50 px-3 py-1 text-xs text-muted-foreground backdrop-blur-sm">
               <Sparkles className="size-3 text-primary" />
-              Personal coding knowledge base
+              Cloud storage + notes for the agentic era
             </p>
             <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl md:text-6xl">
-              Remember everything you&apos;ve read, written, and shipped
+              Storage your agent can actually think with
             </h1>
             <p className="mt-5 text-lg text-muted-foreground text-pretty md:text-xl">
-              Notes, PDFs, lecture slides, and code — organized like Obsidian, searchable like
-              grep, answerable by an AI that knows your library.
+              Keep your files and notes in one place — then let an agent search, read, and answer
+              across all of it. Recall turns everything you store into context.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link href={primaryHref} className={cn(buttonVariants({ size: "lg" }), "gap-2 px-5")}>
@@ -183,10 +183,10 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
           <div className="mx-auto max-w-5xl px-6 md:px-8">
             <div className="mx-auto max-w-xl text-center">
               <h2 className="text-3xl font-semibold tracking-tight">
-                Built for how you actually learn
+                Built for you and your agents
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Collect once. Search instantly. Ask when grep isn&apos;t enough.
+                Store once. Search instantly. Let an agent do the reading.
               </p>
             </div>
             <ul className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -215,7 +215,7 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
                 Simple pricing
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Free to start. Upgrade when you need more AI tokens.
+                Free to start. Upgrade when you need more storage and agent usage.
               </p>
             </div>
             <div className="mx-auto mt-10 grid max-w-2xl gap-4 sm:grid-cols-2">
@@ -259,12 +259,12 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
         <section className="py-16 md:py-20">
           <div className="mx-auto max-w-5xl px-6 text-center md:px-8">
             <h2 className="text-3xl font-semibold tracking-tight">
-              Your second brain, queryable
+              Storage your agent can think with
             </h2>
             <p className="mx-auto mt-3 max-w-md text-muted-foreground">
               {isLoggedIn
                 ? "Pick up where you left off — your library is waiting."
-                : "Sign up in seconds. Upload your first PDF. Ask your first question."}
+                : "Sign up in seconds. Upload your first file. Let your agent take it from there."}
             </p>
             <Link
               href={primaryHref}
@@ -280,7 +280,7 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
       <footer className="relative z-10 border-t border-border/60 py-6">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 px-6 text-sm text-muted-foreground sm:flex-row md:px-8">
           <p>
-            <span className="text-foreground">recalls</span>.sh — MIT License
+            <span className="text-foreground">Recall</span> · recalls.sh — MIT License
           </p>
           {!isLoggedIn && (
             <Link href="/login" className="transition-colors hover:text-foreground">

@@ -7,7 +7,7 @@ import {
   requireLibraryAccess,
 } from "@/lib/library-access";
 import { prisma } from "@/lib/prisma";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { sanitizeStorageName, uploadDocument } from "@/lib/storage";
 import {
   extractTextFromFile,
   extractWithOpenAI,
@@ -40,6 +40,33 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(documents);
 }
 
+// Splits a filename into its base name and extension (".pdf", ".tar.gz" stays
+// as a single trailing extension — good enough for display titles).
+function splitFileName(name: string): { base: string; ext: string } {
+  const dot = name.lastIndexOf(".");
+  if (dot > 0) return { base: name.slice(0, dot), ext: name.slice(dot) };
+  return { base: name, ext: "" };
+}
+
+// Returns a title that doesn't collide with an existing document in the same
+// folder, appending " (1)", " (2)", … before the extension when needed.
+async function uniqueDocumentTitle(
+  libraryId: string,
+  folderId: string | null,
+  desired: string
+): Promise<string> {
+  const { base, ext } = splitFileName(desired);
+  const existing = await prisma.document.findMany({
+    where: { libraryId, folderId, title: { startsWith: base } },
+    select: { title: true },
+  });
+  const taken = new Set(existing.map((d) => d.title));
+  if (!taken.has(desired)) return desired;
+  let n = 1;
+  while (taken.has(`${base} (${n})${ext}`)) n++;
+  return `${base} (${n})${ext}`;
+}
+
 export async function POST(req: NextRequest) {
   const user = await requireUser().catch(() => null);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -70,21 +97,23 @@ export async function POST(req: NextRequest) {
       file.name
     );
 
-    const title = titleOverride?.trim() || file.name;
+    const normalizedFolderId =
+      folderId && folderId !== "__root__" ? folderId : null;
+    const title = await uniqueDocumentTitle(
+      libraryId,
+      normalizedFolderId,
+      titleOverride?.trim() || file.name
+    );
     const docType = type === "OTHER" ? inferDocumentType(file.name, file.type) : type;
 
-    let storagePath: string | null = null;
-    try {
-      const supabase = createAdminClient();
-      const path = `${ownerId}/${libraryId}/${Date.now()}-${file.name}`;
-      const { error } = await supabase.storage.from("documents").upload(path, buffer, {
-        contentType: file.type,
-        upsert: false,
-      });
-      if (!error) storagePath = path;
-    } catch {
-      // Storage optional for dev
-    }
+    const storagePath = await uploadDocument(
+      `${ownerId}/${libraryId}/${Date.now()}-${sanitizeStorageName(file.name)}`,
+      buffer,
+      file.type
+    ).catch((error) => {
+      console.error("[documents] storage unavailable:", error);
+      return null;
+    });
 
     const document = await prisma.document.create({
       data: {
@@ -93,11 +122,12 @@ export async function POST(req: NextRequest) {
         status: "PROCESSING",
         mimeType: file.type,
         storagePath,
+        sizeBytes: buffer.length,
         content,
         language: language ?? null,
         userId: ownerId,
         libraryId,
-        folderId: folderId && folderId !== "__root__" ? folderId : null,
+        folderId: normalizedFolderId,
       },
     });
 

@@ -96,27 +96,27 @@ type AuthEmailInput = {
 };
 
 const authSubjects: Record<string, string> = {
-  signup: "Confirm your recall account",
-  recovery: "Reset your recall password",
-  magiclink: "Sign in to recall",
-  invite: "You've been invited to recall",
-  email_change: "Confirm your new email for recall",
-  reauthentication: "Your recall verification code",
-  email: "Confirm your recall account",
-  password_changed_notification: "Your recall password was changed",
-  email_changed_notification: "Your recall email was changed",
-  phone_changed_notification: "Your recall phone number was changed",
-  identity_linked_notification: "A sign-in method was linked to recall",
-  identity_unlinked_notification: "A sign-in method was removed from recall",
-  mfa_factor_enrolled_notification: "Two-factor authentication enabled on recall",
-  mfa_factor_unenrolled_notification: "Two-factor authentication disabled on recall",
+  signup: "Confirm your Recall account",
+  recovery: "Reset your Recall password",
+  magiclink: "Sign in to Recall",
+  invite: "You've been invited to Recall",
+  email_change: "Confirm your new email for Recall",
+  reauthentication: "Your Recall verification code",
+  email: "Confirm your Recall account",
+  password_changed_notification: "Your Recall password was changed",
+  email_changed_notification: "Your Recall email was changed",
+  phone_changed_notification: "Your Recall phone number was changed",
+  identity_linked_notification: "A sign-in method was linked to Recall",
+  identity_unlinked_notification: "A sign-in method was removed from Recall",
+  mfa_factor_enrolled_notification: "Two-factor authentication enabled on Recall",
+  mfa_factor_unenrolled_notification: "Two-factor authentication disabled on Recall",
 };
 
 export function buildAuthEmail(input: AuthEmailInput) {
   const subject =
     process.env[`AUTH_EMAIL_SUBJECT_${input.action.toUpperCase()}`] ??
     authSubjects[input.action] ??
-    "recall notification";
+    "Recall notification";
 
   switch (input.action) {
     case "signup":
@@ -125,7 +125,7 @@ export function buildAuthEmail(input: AuthEmailInput) {
         subject,
         ...buildEmailLayout({
           title: "Confirm your email",
-          bodyHtml: `<p>Thanks for signing up for recall. Confirm your email to finish creating your account.</p>`,
+          bodyHtml: `<p>Thanks for signing up for Recall. Confirm your email to finish creating your account.</p>`,
           actionUrl: input.confirmationUrl,
           actionLabel: "Confirm email",
           code: input.token,
@@ -137,7 +137,7 @@ export function buildAuthEmail(input: AuthEmailInput) {
         subject,
         ...buildEmailLayout({
           title: "Reset your password",
-          bodyHtml: `<p>We received a request to reset your recall password.</p>`,
+          bodyHtml: `<p>We received a request to reset your Recall password.</p>`,
           actionUrl: input.confirmationUrl,
           actionLabel: "Reset password",
           code: input.token,
@@ -148,7 +148,7 @@ export function buildAuthEmail(input: AuthEmailInput) {
       return {
         subject,
         ...buildEmailLayout({
-          title: "Sign in to recall",
+          title: "Sign in to Recall",
           bodyHtml: `<p>Use the link below to sign in. It expires shortly and works once.</p>`,
           actionUrl: input.confirmationUrl,
           actionLabel: "Sign in",
@@ -159,8 +159,8 @@ export function buildAuthEmail(input: AuthEmailInput) {
       return {
         subject,
         ...buildEmailLayout({
-          title: "You've been invited to recall",
-          bodyHtml: `<p>You've been invited to create a recall account.</p>`,
+          title: "You've been invited to Recall",
+          bodyHtml: `<p>You've been invited to create a Recall account.</p>`,
           actionUrl: input.confirmationUrl,
           actionLabel: "Accept invitation",
         }),
@@ -170,7 +170,7 @@ export function buildAuthEmail(input: AuthEmailInput) {
         subject,
         ...buildEmailLayout({
           title: "Confirm your new email",
-          bodyHtml: `<p>Confirm ${escapeHtml(input.newEmail ?? "your new email address")} for your recall account.</p>`,
+          bodyHtml: `<p>Confirm ${escapeHtml(input.newEmail ?? "your new email address")} for your Recall account.</p>`,
           actionUrl: input.confirmationUrl,
           actionLabel: "Confirm new email",
           code: input.token,
@@ -191,7 +191,7 @@ export function buildAuthEmail(input: AuthEmailInput) {
         subject,
         ...buildEmailLayout({
           title: "Account update",
-          bodyHtml: `<p>There was a security update on your recall account.</p>`,
+          bodyHtml: `<p>There was a security update on your Recall account.</p>`,
           footer: "If this wasn't you, sign in and review your account settings.",
         }),
       };
@@ -208,7 +208,7 @@ type LibraryInviteEmailInput = {
 
 export function renderInviteSubject(libraryName: string, inviterName: string) {
   const template =
-    process.env.INVITE_EMAIL_SUBJECT ?? "{{inviter}} invited you to {{library}} on recall";
+    process.env.INVITE_EMAIL_SUBJECT ?? "{{inviter}} invited you to {{library}} on Recall";
   return template
     .replace(/\{\{inviter\}\}/g, inviterName)
     .replace(/\{\{library\}\}/g, libraryName);
@@ -220,7 +220,7 @@ export function buildLibraryInviteEmail(input: LibraryInviteEmailInput) {
   const subject = renderInviteSubject(input.libraryName, input.inviterName);
 
   const bodyHtml = `
-    <p><strong>${escapeHtml(input.inviterName)}</strong> invited you to collaborate on <strong>${escapeHtml(input.libraryName)}</strong> on recall.</p>
+    <p><strong>${escapeHtml(input.inviterName)}</strong> invited you to collaborate on <strong>${escapeHtml(input.libraryName)}</strong> on Recall.</p>
     <p>Role: ${roleLabel}</p>
     ${
       customMessage

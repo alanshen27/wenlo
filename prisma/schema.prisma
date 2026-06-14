@@ -228,6 +228,7 @@ model Document {
   status       DocumentStatus @default(READY)
   mimeType     String?
   storagePath  String?
+  sizeBytes    Int?
   content      String         @default("") @db.Text
   language     String?
   userId       String

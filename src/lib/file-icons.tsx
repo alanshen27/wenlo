@@ -55,7 +55,7 @@ export function getDocumentIconClass(type: string): string {
     case "NOTE":
       return "text-yellow-400";
     case "IMAGE":
-      return "text-violet-400";
+      return "text-blue-400";
     case "SHEET":
       return "text-green-400";
     case "ARCHIVE":
@@ -83,7 +83,7 @@ export function getDocumentTileClass(type: string): string {
     case "NOTE":
       return "bg-yellow-500/10 text-yellow-600 dark:text-yellow-500";
     case "IMAGE":
-      return "bg-violet-500/10 text-violet-500 dark:text-violet-400";
+      return "bg-blue-500/10 text-blue-500 dark:text-blue-400";
     case "SHEET":
       return "bg-green-500/10 text-green-600 dark:text-green-400";
     case "ARCHIVE":
@@ -176,7 +176,7 @@ const FILE_ART: Record<string, ArtPalette> = {
   CODE: { accent: "#10b981", body: "#ecfdf5", fold: "#a7f3d0", line: "#6ee7b7" },
   NOTE: { accent: "#f59e0b", body: "#fffbeb", fold: "#fde68a", line: "#fcd34d" },
   PAGE: { accent: "#8b5cf6", body: "#f5f3ff", fold: "#ddd6fe", line: "#c4b5fd" },
-  IMAGE: { accent: "#8b5cf6", body: "#f5f3ff", fold: "#ddd6fe", line: "#c4b5fd" },
+  IMAGE: { accent: "#3b82f6", body: "#eff4ff", fold: "#bfdbfe", line: "#93c5fd" },
   SHEET: { accent: "#16a34a", body: "#f0fdf4", fold: "#bbf7d0", line: "#86efac" },
   ARCHIVE: { accent: "#d97706", body: "#fffbeb", fold: "#fde68a", line: "#fcd34d" },
   AUDIO: { accent: "#ec4899", body: "#fdf2f8", fold: "#fbcfe8", line: "#f9a8d4" },

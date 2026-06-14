@@ -1,6 +1,8 @@
 "use client";
 
+import { useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { FolderInput, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,28 @@ type ItemActions = {
   onDelete?: () => void;
   onMove?: () => void;
 };
+
+/**
+ * Single click opens the item in the preview sidebar; double click navigates to
+ * the full-page view. A short timer disambiguates the two so a single click
+ * doesn't also fire on the way to a double click.
+ */
+function useOpenInteraction(href: string, onOpen?: () => void) {
+  const router = useRouter();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  return useCallback(() => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+      router.push(href);
+      return;
+    }
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      onOpen?.();
+    }, 220);
+  }, [href, onOpen, router]);
+}
 
 /** A page or document can be dragged into a folder; folders are drop targets only. */
 function toDragItem(item: CloudItem): SidebarDragItem | null {
@@ -231,12 +255,13 @@ export function EntityCard({
   const processing = item.kind === "document" && item.processing && !pending;
   const busy = pending || processing;
   const hasActions = !pending && (onEdit || onDelete || onMove);
+  const handleOpen = useOpenInteraction(href, onOpen);
 
   return (
-    <DndShell item={item} enableDnd={enableDnd && !pending} className="rounded-2xl">
+    <DndShell item={item} enableDnd={enableDnd && !pending} className="rounded-xl">
       <div
         className={cn(
-          "group/card relative flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-card px-3 py-5 text-center shadow-sm transition-all",
+          "group/card relative flex select-none flex-col items-center gap-1.5 rounded-xl border border-border/60 bg-card px-1.5 py-2.5 text-center shadow-sm transition-all",
           pending
             ? "opacity-60"
             : "hover:-translate-y-0.5 hover:border-border hover:shadow-md has-[a:focus-visible]:border-primary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-primary/40 has-[button:focus-visible]:border-primary has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-primary/40"
@@ -246,34 +271,35 @@ export function EntityCard({
           (onOpen ? (
             <button
               type="button"
-              onClick={onOpen}
+              onClick={handleOpen}
               aria-label={item.title}
-              className="absolute inset-0 z-0 rounded-2xl outline-none"
+              title="Click to preview · double-click to open"
+              className="absolute inset-0 z-0 rounded-xl outline-none"
             />
           ) : (
             <Link
               href={href}
               aria-label={item.title}
-              className="absolute inset-0 z-0 rounded-2xl outline-none"
+              className="absolute inset-0 z-0 rounded-xl outline-none"
             />
           ))}
 
-        <span className={cn("relative", pending && "animate-pulse")}>
-          <EntityArtwork item={item} className="size-16" />
+        <span className={cn("pointer-events-none relative", pending && "animate-pulse")}>
+          <EntityArtwork item={item} className="size-11" />
           {busy && (
             <Loader2
-              className="absolute -bottom-0.5 -right-0.5 size-4 animate-spin rounded-full bg-background text-muted-foreground"
+              className="absolute -bottom-0.5 -right-0.5 size-3.5 animate-spin rounded-full bg-background text-muted-foreground"
               aria-label={pending ? "Uploading" : "Processing"}
             />
           )}
         </span>
 
-        <p className="relative z-0 line-clamp-2 min-h-9 w-full px-1 text-[13px] font-medium leading-snug text-foreground wrap-break-word">
+        <p className="pointer-events-none relative z-0 w-full truncate px-0.5 text-xs font-medium leading-tight text-foreground">
           {item.title}
         </p>
 
         {hasActions && (
-          <div className="absolute right-1.5 top-1.5 z-10 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100">
+          <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100">
             <ActionMenu onEdit={onEdit} onDelete={onDelete} onMove={onMove} />
           </div>
         )}
@@ -334,6 +360,7 @@ function EntityRow({
   const pending = item.kind === "document" && item.pending;
   const processing = item.kind === "document" && item.processing && !pending;
   const busy = pending || processing;
+  const handleOpen = useOpenInteraction(href, onOpen);
 
   const inner = (
     <>
@@ -353,7 +380,8 @@ function EntityRow({
     </>
   );
 
-  const base = "group/row flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors";
+  const base =
+    "group/row flex select-none items-center gap-3 rounded-md px-2 py-1 transition-colors";
 
   if (pending) {
     return (
@@ -370,7 +398,8 @@ function EntityRow({
         {onOpen ? (
           <button
             type="button"
-            onClick={onOpen}
+            onClick={handleOpen}
+            title="Click to preview · double-click to open"
             className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none"
           >
             {inner}

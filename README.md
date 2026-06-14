@@ -1,8 +1,8 @@
-# recall
+# Recall
 
-Personal coding knowledge base — Obsidian-style pages + grep + semantic search.
+Cloud storage + notes for the agentic era. Store your files and notes, then let an agent search, read, and answer across everything you keep.
 
-Upload notes, PDFs, lecture slides, docs, and code snippets. Query everything with:
+Upload PDFs, images, slides, docs, and code — then query everything with:
 
 ```bash
 recall "transformer positional encoding"
@@ -14,16 +14,16 @@ recall "transformer positional encoding"
 - **Supabase** (Auth + Storage + Postgres)
 - **Prisma** (ORM + pgvector)
 - **TipTap** (Notion-style editor)
-- **OpenAI** (embeddings + agent answers)
+- **OpenAI** (embeddings, vision/file extraction + agent answers)
 
 ## Features
 
-- Nested folders
-- Editable pages (rich text + code blocks)
-- File uploads with text extraction (PDF, DOCX, markdown, code)
+- Cloud storage with nested folders and libraries
+- File uploads with automatic text extraction & OCR (PDF, DOCX, PPTX, XLSX, images, code, …)
+- Editable notes / rich pages (rich text + code blocks)
 - Keyword search (ILIKE + pg_trgm)
 - Semantic search (pgvector + OpenAI embeddings)
-- Agent mode — ask questions scoped to a folder or your entire library
+- Recall agent — ask questions scoped to a folder or your entire library, with sources
 
 ## Setup
 
@@ -89,13 +89,13 @@ All app emails — auth (confirm, reset, magic link) and workspace invites — g
 
 ```bash
 RESEND_API_KEY=re_...
-EMAIL_FROM=recall <invites@yourdomain.com>
+EMAIL_FROM=Recall <invites@yourdomain.com>
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # Optional subject overrides
-INVITE_EMAIL_SUBJECT={{inviter}} invited you to {{library}} on recall
-AUTH_EMAIL_SUBJECT_SIGNUP=Confirm your recall account
-AUTH_EMAIL_SUBJECT_RECOVERY=Reset your recall password
+INVITE_EMAIL_SUBJECT={{inviter}} invited you to {{library}} on Recall
+AUTH_EMAIL_SUBJECT_SIGNUP=Confirm your Recall account
+AUTH_EMAIL_SUBJECT_RECOVERY=Reset your Recall password
 ```
 
 ### 2. Supabase Send Email hook
@@ -124,8 +124,8 @@ Without the hook configured, Supabase still sends its own auth emails — invite
 | New folder | Sidebar → folder icon |
 | New page | Sidebar → + |
 | Upload file | Drag onto home or use file picker |
-| Search | Click **recall** button → grep mode |
-| Ask agent | recall terminal → agent mode |
+| Search | Click **Recall** button → grep mode |
+| Ask agent | Recall terminal → agent mode |
 | Scope search | Choose "Entire app" or current folder |
 
 ## API

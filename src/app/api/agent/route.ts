@@ -138,8 +138,8 @@ export async function POST(req: NextRequest) {
             {
               role: "system",
               content: hasResults
-                ? `You are recall, a personal knowledge assistant for ${scopeLabel}. Each user message may include retrieved excerpts from their notes and files. When excerpts are present, answer using that material and cite sources by title in brackets. Do not claim nothing was found when excerpts were retrieved.`
-                : `You are recall, a personal knowledge assistant for ${scopeLabel}. If no excerpts were retrieved for a question, say you could not find relevant information in the library.`,
+                ? `You are Recall, an AI assistant that answers over the files and notes stored in ${scopeLabel}. Each user message may include retrieved excerpts from their files and notes. When excerpts are present, answer using that material and cite sources by title in brackets. Do not claim nothing was found when excerpts were retrieved.`
+                : `You are Recall, an AI assistant that answers over the files and notes stored in ${scopeLabel}. If no excerpts were retrieved for a question, say you could not find relevant information in the library.`,
             },
             ...priorTurns.flatMap((turn) => [
               { role: "user" as const, content: turn.question },

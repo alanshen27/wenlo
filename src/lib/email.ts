@@ -19,7 +19,7 @@ export function getAppUrl() {
 }
 
 export function getEmailFrom() {
-  return process.env.EMAIL_FROM ?? "recall <onboarding@resend.dev>";
+  return process.env.EMAIL_FROM ?? "Recall <onboarding@resend.dev>";
 }
 
 export async function sendEmail(input: SendEmailInput) {

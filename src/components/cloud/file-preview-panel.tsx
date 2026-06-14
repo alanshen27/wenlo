@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileArtwork, getDocumentLabel } from "@/lib/file-icons";
 import { apiGet } from "@/lib/api";
 import { documentRoute } from "@/lib/routes";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 
 export type PreviewTarget = { id: string; title: string; type: string };
 
@@ -20,6 +20,7 @@ type DocumentDetail = {
   content: string;
   language: string | null;
   storagePath: string | null;
+  sizeBytes: number | null;
   createdAt: string;
 };
 
@@ -148,6 +149,12 @@ export function FilePreviewPanel({
               <dd className="truncate font-medium" title={mime}>
                 {mime}
               </dd>
+            </div>
+          )}
+          {formatBytes(doc?.sizeBytes) && (
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-muted-foreground">Size</dt>
+              <dd className="font-medium">{formatBytes(doc?.sizeBytes)}</dd>
             </div>
           )}
           {doc?.language && (

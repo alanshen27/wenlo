@@ -9,6 +9,7 @@ export type FolderNode = {
     id: string;
     title: string;
     type: string;
+    sizeBytes?: number | null;
     pending?: boolean;
     processing?: boolean;
   }[];
@@ -28,6 +29,7 @@ type FlatDoc = {
   type: string;
   folderId: string | null;
   status?: string;
+  sizeBytes?: number | null;
 };
 
 export function buildFolderTree(
@@ -47,10 +49,11 @@ export function buildFolderTree(
       pages: pages.filter((p) => p.folderId === f.id).map(({ id, title }) => ({ id, title })),
       documents: documents
         .filter((d) => d.folderId === f.id)
-        .map(({ id, title, type, status }) => ({
+        .map(({ id, title, type, status, sizeBytes }) => ({
           id,
           title,
           type,
+          sizeBytes,
           processing: status === "PROCESSING",
         })),
     });
@@ -75,10 +78,11 @@ export function buildFolderTree(
     pages: pages.filter((p) => !p.folderId).map(({ id, title }) => ({ id, title })),
     documents: documents
       .filter((d) => !d.folderId)
-      .map(({ id, title, type, status }) => ({
+      .map(({ id, title, type, status, sizeBytes }) => ({
         id,
         title,
         type,
+        sizeBytes,
         processing: status === "PROCESSING",
       })),
   };

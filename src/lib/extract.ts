@@ -52,6 +52,83 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   return text;
 }
 
+const XML_ENTITIES: Record<string, string> = {
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&apos;": "'",
+};
+
+function decodeXmlText(value: string): string {
+  return value
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&(amp|lt|gt|quot|apos);/g, (m) => XML_ENTITIES[m] ?? m);
+}
+
+/** Pull the text inside every occurrence of a tag (e.g. `a:t`, `t`) from XML. */
+function textFromTag(xml: string, tag: string): string[] {
+  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`, "g");
+  const out: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml))) {
+    const text = decodeXmlText(match[1]).trim();
+    if (text) out.push(text);
+  }
+  return out;
+}
+
+/**
+ * PPTX / XLSX are OOXML zip archives. Extract their visible text directly so it
+ * can be embedded for RAG, instead of leaving a placeholder.
+ */
+async function extractPptxText(buffer: Buffer): Promise<string> {
+  const { default: JSZip } = await import("jszip");
+  const zip = await JSZip.loadAsync(buffer);
+
+  // Slides are ppt/slides/slide1.xml, slide2.xml, … — keep them in order.
+  const slidePaths = Object.keys(zip.files)
+    .filter((p) => /^ppt\/slides\/slide\d+\.xml$/.test(p))
+    .sort((a, b) => {
+      const n = (s: string) => Number(s.match(/slide(\d+)\.xml$/)?.[1] ?? 0);
+      return n(a) - n(b);
+    });
+
+  const slides: string[] = [];
+  for (let i = 0; i < slidePaths.length; i++) {
+    const xml = await zip.files[slidePaths[i]].async("string");
+    const runs = textFromTag(xml, "a:t");
+    if (runs.length) slides.push(`Slide ${i + 1}\n${runs.join("\n")}`);
+  }
+  return slides.join("\n\n");
+}
+
+async function extractXlsxText(buffer: Buffer): Promise<string> {
+  const { default: JSZip } = await import("jszip");
+  const zip = await JSZip.loadAsync(buffer);
+
+  // Most cell text lives in the shared-strings table; inline strings live in
+  // the sheets themselves. Grab both so search has the full vocabulary.
+  const parts: string[] = [];
+
+  const shared = zip.files["xl/sharedStrings.xml"];
+  if (shared) parts.push(...textFromTag(await shared.async("string"), "t"));
+
+  const sheetPaths = Object.keys(zip.files).filter((p) =>
+    /^xl\/worksheets\/sheet\d+\.xml$/.test(p)
+  );
+  for (const path of sheetPaths) {
+    const xml = await zip.files[path].async("string");
+    // Inline strings are wrapped in <is>…<t>…</t></is>; shared refs already covered.
+    for (const block of xml.match(/<is>[\s\S]*?<\/is>/g) ?? []) {
+      parts.push(...textFromTag(block, "t"));
+    }
+  }
+
+  return parts.join(" ");
+}
+
 const OPENAI_EXTRACTION_PROMPT =
   "You are an OCR and document-understanding engine. Extract ALL readable text " +
   "from this file verbatim, preserving reading order. If it is an image, chart, " +
@@ -156,8 +233,13 @@ async function extractRaw(
     mimeType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
     ext === "pptx"
   ) {
-    // Basic fallback — full pptx parsing would need a dedicated lib
-    return { content: `[Slides uploaded: ${filename}]`, type: "SLIDES" };
+    const content = await extractPptxText(buffer).catch(() => "");
+    const aiEligible = content.replace(/\s/g, "").length < 16;
+    return {
+      content: aiEligible ? `[Slides: ${filename}]` : content,
+      type: "SLIDES",
+      aiEligible,
+    };
   }
 
   // CSV / TSV are plain text and index directly.
@@ -165,7 +247,18 @@ async function extractRaw(
     return { content: buffer.toString("utf-8"), type: "SHEET" };
   }
 
-  // Binary spreadsheets — let the OpenAI file pass try to read them.
+  // XLSX is an OOXML zip — pull its cell text directly.
+  if (ext === "xlsx" || mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+    const content = await extractXlsxText(buffer).catch(() => "");
+    const aiEligible = content.replace(/\s/g, "").length < 16;
+    return {
+      content: aiEligible ? `[Spreadsheet: ${filename}]` : content,
+      type: "SHEET",
+      aiEligible,
+    };
+  }
+
+  // Other binary spreadsheets (xls/ods/numbers) — let the OpenAI file pass try.
   if (BINARY_SHEET_EXTS.has(ext) || mimeType.includes("spreadsheet") || mimeType.includes("ms-excel")) {
     return { content: `[Spreadsheet: ${filename}]`, type: "SHEET", aiEligible: true };
   }

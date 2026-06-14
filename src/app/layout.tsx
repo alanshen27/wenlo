@@ -13,9 +13,43 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://recalls.sh";
+const TITLE = "Recall — cloud storage + notes for the agentic era";
+const DESCRIPTION =
+  "Recall is cloud storage and notes built for AI agents. Store your files and notes, and let an agent search, read, and answer across everything you keep.";
+
 export const metadata: Metadata = {
-  title: "recalls — personal knowledge base",
-  description: "Obsidian + grep + semantic search for your notes, PDFs, slides, and code.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: TITLE,
+    template: "%s — Recall",
+  },
+  description: DESCRIPTION,
+  applicationName: "Recall",
+  keywords: [
+    "cloud storage",
+    "notes",
+    "AI agent",
+    "agentic",
+    "semantic search",
+    "knowledge base",
+    "RAG",
+  ],
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "Recall",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  icons: {
+    icon: "/icon.png",
+  },
 };
 
 export default function RootLayout({

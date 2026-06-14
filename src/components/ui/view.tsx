@@ -50,7 +50,7 @@ type ViewHeaderProps = {
 function ViewHeader({ title, description, eyebrow, icon, actions, className }: ViewHeaderProps) {
   return (
     <div className={cn("flex flex-wrap items-start justify-between gap-4", className)}>
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex min-w-0 items-start gap-3">
         {icon && <div className="flex shrink-0 items-center">{icon}</div>}
         <div className="min-w-0">
           {eyebrow && (

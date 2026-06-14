@@ -61,7 +61,7 @@ export function LibraryModal({
           <DialogHeader>
             <DialogTitle>{mode === "create" ? "New library" : "Edit library"}</DialogTitle>
             <DialogDescription>
-              Libraries are separate knowledge bases — IB, USACO, research, etc.
+              Libraries are separate spaces for your files and notes — work, research, personal, etc.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">

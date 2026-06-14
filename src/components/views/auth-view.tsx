@@ -108,7 +108,9 @@ export function AuthView({ defaultTab = "signin", redirectTo = "/" }: AuthViewPr
 
         <div className="mb-6 flex flex-col items-center text-center">
           <Logo size="lg" />
-          <p className="mt-3 text-sm text-muted-foreground">Personal coding knowledge base</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Cloud storage + notes for the agentic era
+          </p>
         </div>
 
         <Card>

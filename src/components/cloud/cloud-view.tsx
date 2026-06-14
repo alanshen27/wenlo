@@ -16,12 +16,11 @@ import { FileText, FolderClosed, Loader2, Upload } from "lucide-react";
 import { useLibrary } from "@/components/library/library-shell";
 import { CloudToolbar, type SortMode, type ViewMode } from "@/components/cloud/cloud-toolbar";
 import { EntityCard, EntityTable, type CloudItem } from "@/components/cloud/entities";
-import { FolderIcon } from "@/components/icons/folder-icon";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ViewContainer, ViewHeader, ViewScroll, SectionLabel } from "@/components/ui/view";
 import { getFolderContents } from "@/lib/folders";
-import { isPreviewOnlyType } from "@/lib/file-icons";
+import { FolderArtwork } from "@/lib/file-icons";
 import type { FolderColorId } from "@/lib/folder-colors";
 import { documentRoute, folderHome, pageRoute } from "@/lib/routes";
 import {
@@ -29,6 +28,7 @@ import {
   parseItemDragId,
   type SidebarDragItem,
 } from "@/lib/sidebar-dnd";
+import { formatBytes } from "@/lib/utils";
 
 type Props = {
   folderId?: string | null;
@@ -178,11 +178,10 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   }
 
   function actionsFor(item: CloudItem) {
-    // Previewing is a read action, so it's available to viewers too. Media /
-    // binary files open a Dropbox-style preview panel instead of the
-    // extracted-text document page.
+    // Files open in the preview sidebar on single click (double click opens the
+    // full page). Previewing is a read action, so viewers get it too.
     const onOpen =
-      item.kind === "document" && !item.pending && isPreviewOnlyType(item.type)
+      item.kind === "document" && !item.pending
         ? () => openDocumentPreview({ id: item.id, title: item.title, type: item.type })
         : undefined;
 
@@ -210,7 +209,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
 
   function renderGrid(items: CloudItem[]) {
     return (
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9">
         {items.map((item) => (
           <EntityCard
             key={`${item.kind}-${item.id}`}
@@ -225,18 +224,27 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   }
 
   const headerIcon = selectedFolder ? (
-    <FolderIcon color={selectedFolder.color} className="size-7" />
+    <FolderArtwork color={selectedFolder.color} className="size-8" />
   ) : (
     <span className="text-2xl leading-none">{activeLibrary?.icon ?? "📚"}</span>
   );
 
   const title = selectedFolder ? selectedFolder.name : (activeLibrary?.name ?? "Home");
 
-  const stats = [
-    { label: "folder", count: contents.folders.length },
-    { label: "page", count: contents.pages.length },
-    { label: "file", count: contents.documents.filter((d) => !d.pending).length },
-  ].filter((s) => s.count > 0);
+  const plural = (count: number, label: string) =>
+    `${count} ${label}${count === 1 ? "" : "s"}`;
+  const totalBytes = contents.documents.reduce(
+    (sum, d) => sum + (d.sizeBytes ?? 0),
+    0
+  );
+  const totalSize = formatBytes(totalBytes);
+
+  const stats: string[] = [];
+  if (contents.folders.length) stats.push(plural(contents.folders.length, "folder"));
+  if (contents.pages.length) stats.push(plural(contents.pages.length, "page"));
+  const fileCount = contents.documents.filter((d) => !d.pending).length;
+  if (fileCount) stats.push(plural(fileCount, "file"));
+  if (totalBytes > 0 && totalSize) stats.push(totalSize);
 
   return (
     <ViewScroll
@@ -283,10 +291,9 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {stats.length > 0 ? (
                 stats.map((s, i) => (
-                  <span key={s.label}>
+                  <span key={s}>
                     {i > 0 && <span className="mr-2 text-border">·</span>}
-                    {s.count} {s.label}
-                    {s.count === 1 ? "" : "s"}
+                    {s}
                   </span>
                 ))
               ) : (
@@ -403,13 +410,13 @@ function CloudSkeleton({ view }: { view: ViewMode }) {
   return (
     <div className="space-y-3">
       <Skeleton className="h-3.5 w-16" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        {Array.from({ length: 12 }).map((_, i) => (
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9">
+        {Array.from({ length: 18 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col items-center gap-2 rounded-lg border border-border px-3 py-3.5"
+            className="flex flex-col items-center gap-2 rounded-xl border border-border px-2 py-3"
           >
-            <Skeleton className="size-8 rounded-lg" />
+            <Skeleton className="size-10 rounded-lg" />
             <Skeleton className="h-3.5 w-full" style={{ maxWidth: `${55 + ((i * 17) % 35)}%` }} />
           </div>
         ))}
