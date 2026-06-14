@@ -4,7 +4,7 @@ import { useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { FolderInput, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Check, FolderInput, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import {
   getDocumentLabel,
 } from "@/lib/file-icons";
 import { folderDropId, itemDragId, type SidebarDragItem } from "@/lib/sidebar-dnd";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 
 export type CloudItem =
   | { kind: "folder"; id: string; title: string; color: string; count: number }
@@ -28,9 +28,19 @@ export type CloudItem =
       id: string;
       title: string;
       type: string;
+      sizeBytes?: number | null;
       pending?: boolean;
       processing?: boolean;
     };
+
+/** Per-item selection wiring passed down to a card or row. */
+export type SelectionState = {
+  selectable: boolean;
+  selected: boolean;
+  /** True when at least one item is selected (forces the checkbox to show). */
+  active: boolean;
+  onToggle: (shiftKey: boolean) => void;
+};
 
 type ItemActions = {
   href: string;
@@ -61,6 +71,40 @@ function useOpenInteraction(href: string, onOpen?: () => void) {
       onOpen?.();
     }, 220);
   }, [href, onOpen, router]);
+}
+
+/** Small checkbox used for multi-select on cards and rows. */
+function SelectBox({
+  checked,
+  onToggle,
+  className,
+}: {
+  checked: boolean;
+  onToggle: (shiftKey: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={checked ? "Deselect" : "Select"}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle(e.shiftKey);
+      }}
+      className={cn(
+        "flex size-4 items-center justify-center rounded-[5px] border transition-colors",
+        checked
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-muted-foreground/40 bg-background/80 hover:border-muted-foreground",
+        className
+      )}
+    >
+      {checked && <Check className="size-3" strokeWidth={3} />}
+    </button>
+  );
 }
 
 /** A page or document can be dragged into a folder; folders are drop targets only. */
@@ -250,23 +294,39 @@ export function EntityCard({
   onDelete,
   onMove,
   enableDnd,
-}: { item: CloudItem; enableDnd?: boolean } & ItemActions) {
+  selection,
+}: { item: CloudItem; enableDnd?: boolean; selection?: SelectionState } & ItemActions) {
   const pending = item.kind === "document" && item.pending;
   const processing = item.kind === "document" && item.processing && !pending;
   const busy = pending || processing;
   const hasActions = !pending && (onEdit || onDelete || onMove);
   const handleOpen = useOpenInteraction(href, onOpen);
+  const canSelect = Boolean(selection?.selectable);
+  const isSelected = Boolean(selection?.selected);
+  const showSelect = canSelect && (isSelected || selection?.active);
 
   return (
     <DndShell item={item} enableDnd={enableDnd && !pending} className="rounded-xl">
       <div
         className={cn(
-          "group/card relative flex select-none flex-col items-center gap-1.5 rounded-xl border border-border/60 bg-card px-1.5 py-2.5 text-center shadow-sm transition-all",
+          "group/card relative flex select-none flex-col items-center gap-1.5 rounded-xl border bg-card px-1.5 py-2.5 text-center shadow-sm transition-all",
+          isSelected ? "border-primary ring-2 ring-primary/40" : "border-border/60",
           pending
             ? "opacity-60"
             : "hover:-translate-y-0.5 hover:border-border hover:shadow-md has-[a:focus-visible]:border-primary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-primary/40 has-[button:focus-visible]:border-primary has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-primary/40"
         )}
       >
+        {canSelect && selection && (
+          <div
+            className={cn(
+              "absolute left-1.5 top-1.5 z-10 transition-opacity",
+              showSelect ? "opacity-100" : "opacity-0 group-hover/card:opacity-100"
+            )}
+          >
+            <SelectBox checked={isSelected} onToggle={selection.onToggle} />
+          </div>
+        )}
+
         {!pending &&
           (onOpen ? (
             <button
@@ -309,11 +369,21 @@ export function EntityCard({
 }
 
 /** Minimal list: a light header row over borderless rows with hover highlight. */
+export type TableSelection = {
+  active: boolean;
+  isSelectable: (item: CloudItem) => boolean;
+  isSelected: (item: CloudItem) => boolean;
+  onToggle: (item: CloudItem, shiftKey: boolean) => void;
+  allSelected: boolean;
+  onToggleAll: () => void;
+};
+
 export function EntityTable({
   items,
   hrefFor,
   actionsFor,
   enableDnd,
+  selection,
 }: {
   items: CloudItem[];
   hrefFor: (item: CloudItem) => string;
@@ -324,12 +394,19 @@ export function EntityTable({
     onMove?: () => void;
   };
   enableDnd?: boolean;
+  selection?: TableSelection;
 }) {
   return (
     <div>
       <div className="flex items-center gap-3 border-b border-border px-2 pb-2 text-xs font-medium text-muted-foreground">
+        {selection && (
+          <span className="flex w-5 shrink-0 justify-center">
+            <SelectBox checked={selection.allSelected} onToggle={selection.onToggleAll} />
+          </span>
+        )}
         <span className="w-7 shrink-0" aria-hidden />
         <span className="min-w-0 flex-1">Name</span>
+        <span className="hidden w-20 shrink-0 text-right sm:inline">Size</span>
         <span className="hidden w-28 shrink-0 sm:inline">Type</span>
         <span className="w-7 shrink-0" aria-hidden />
       </div>
@@ -340,6 +417,14 @@ export function EntityTable({
             item={item}
             href={hrefFor(item)}
             enableDnd={enableDnd}
+            selection={
+              selection && {
+                selectable: selection.isSelectable(item),
+                selected: selection.isSelected(item),
+                active: selection.active,
+                onToggle: (shiftKey) => selection.onToggle(item, shiftKey),
+              }
+            }
             {...actionsFor(item)}
           />
         ))}
@@ -356,11 +441,16 @@ function EntityRow({
   onDelete,
   onMove,
   enableDnd,
-}: { item: CloudItem; enableDnd?: boolean } & ItemActions) {
+  selection,
+}: { item: CloudItem; enableDnd?: boolean; selection?: SelectionState } & ItemActions) {
   const pending = item.kind === "document" && item.pending;
   const processing = item.kind === "document" && item.processing && !pending;
   const busy = pending || processing;
   const handleOpen = useOpenInteraction(href, onOpen);
+  const canSelect = Boolean(selection?.selectable);
+  const isSelected = Boolean(selection?.selected);
+  const showSelect = canSelect && (isSelected || selection?.active);
+  const sizeLabel = item.kind === "document" ? formatBytes(item.sizeBytes) : null;
 
   const inner = (
     <>
@@ -374,6 +464,9 @@ function EntityRow({
         )}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm text-foreground">{item.title}</span>
+      <span className="hidden w-20 shrink-0 truncate text-right text-xs text-muted-foreground sm:inline">
+        {sizeLabel ?? ""}
+      </span>
       <span className="hidden w-28 shrink-0 truncate text-xs text-muted-foreground sm:inline">
         {itemLabel(item)}
       </span>
@@ -383,9 +476,22 @@ function EntityRow({
   const base =
     "group/row flex select-none items-center gap-3 rounded-md px-2 py-1 transition-colors";
 
+  const selectCell =
+    canSelect && selection ? (
+      <span
+        className={cn(
+          "flex w-5 shrink-0 justify-center transition-opacity",
+          showSelect ? "opacity-100" : "opacity-0 group-hover/row:opacity-100"
+        )}
+      >
+        <SelectBox checked={isSelected} onToggle={selection.onToggle} />
+      </span>
+    ) : null;
+
   if (pending) {
     return (
       <div className={cn(base, "opacity-60")} aria-disabled>
+        {selectCell}
         {inner}
         <span className="w-7 shrink-0" aria-hidden />
       </div>
@@ -394,7 +500,8 @@ function EntityRow({
 
   return (
     <DndShell item={item} enableDnd={enableDnd} className="rounded-md">
-      <div className={cn(base, "hover:bg-muted/60")}>
+      <div className={cn(base, isSelected ? "bg-primary/5" : "hover:bg-muted/60")}>
+        {selectCell}
         {onOpen ? (
           <button
             type="button"

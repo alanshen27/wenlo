@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChevronRight, File, FileCode, FileText, Folder, Library, Network, Search, Sparkles } from "lucide-react";
-import { FolderIcon } from "@/components/icons/folder-icon";
+import { FolderArtwork } from "@/lib/file-icons";
 import { cn } from "@/lib/utils";
 import type { BreadcrumbItem } from "@/lib/folders";
 
@@ -68,7 +68,7 @@ function CrumbIcon({ item }: { item: BreadcrumbItem }) {
   const className = "h-3.5 w-3.5 shrink-0 opacity-70";
 
   if (item.type === "folder" && item.color) {
-    return <FolderIcon color={item.color} className="h-3.5 w-3.5 shrink-0" />;
+    return <FolderArtwork color={item.color} className="size-4 shrink-0" />;
   }
 
   switch (item.type) {

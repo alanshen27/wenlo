@@ -12,16 +12,19 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { FileText, FolderClosed, Loader2, Upload } from "lucide-react";
+import { FileText, FolderClosed, FolderInput, Loader2, Trash2, Upload, X } from "lucide-react";
 import { useLibrary } from "@/components/library/library-shell";
 import { CloudToolbar, type SortMode, type ViewMode } from "@/components/cloud/cloud-toolbar";
 import { EntityCard, EntityTable, type CloudItem } from "@/components/cloud/entities";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ViewContainer, ViewHeader, ViewScroll, SectionLabel } from "@/components/ui/view";
+import { ConfirmModal } from "@/components/modals/confirm-modal";
+import { MoveModal } from "@/components/modals/move-modal";
 import { getFolderContents } from "@/lib/folders";
 import { FolderArtwork } from "@/lib/file-icons";
 import type { FolderColorId } from "@/lib/folder-colors";
+import { apiDelete } from "@/lib/api";
 import { documentRoute, folderHome, pageRoute } from "@/lib/routes";
 import {
   parseFolderDropId,
@@ -79,6 +82,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     tree,
     treeLoaded,
     canEdit,
+    refreshTree,
     uploadToFolder,
     createPage,
     moveItem,
@@ -97,6 +101,12 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   const [activeDrag, setActiveDrag] = useState<SidebarDragItem | null>(null);
   const dragDepth = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const lastClickedKey = useRef<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -152,6 +162,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             id: d.id,
             title: d.title,
             type: d.type,
+            sizeBytes: d.sizeBytes,
             pending: d.pending,
             processing: d.processing,
           })),
@@ -162,6 +173,141 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   );
 
   const isEmpty = folderItems.length === 0 && fileItems.length === 0;
+
+  const keyOf = useCallback((item: CloudItem) => `${item.kind}-${item.id}`, []);
+  const isSelectable = useCallback(
+    (item: CloudItem) => !(item.kind === "document" && item.pending),
+    []
+  );
+
+  const orderedSelectable = useMemo(
+    () => [...folderItems, ...fileItems].filter(isSelectable),
+    [folderItems, fileItems, isSelectable]
+  );
+  const selectableKeys = useMemo(
+    () => orderedSelectable.map(keyOf),
+    [orderedSelectable, keyOf]
+  );
+  const selectedItems = useMemo(
+    () => orderedSelectable.filter((item) => selectedKeys.has(keyOf(item))),
+    [orderedSelectable, selectedKeys, keyOf]
+  );
+  const selectionActive = selectedItems.length > 0;
+  const allSelected =
+    selectableKeys.length > 0 && selectableKeys.every((k) => selectedKeys.has(k));
+
+  // Reset selection when navigating to a different folder (adjust-state-on-prop-
+  // change pattern: cheaper and lint-clean vs. an effect).
+  const prevFolderRef = useRef(folderId);
+  if (prevFolderRef.current !== folderId) {
+    prevFolderRef.current = folderId;
+    if (selectedKeys.size > 0) setSelectedKeys(new Set());
+  }
+
+  const toggleSelect = useCallback(
+    (item: CloudItem, shiftKey: boolean) => {
+      const key = keyOf(item);
+      setSelectedKeys((prev) => {
+        const next = new Set(prev);
+        if (shiftKey && lastClickedKey.current) {
+          const a = selectableKeys.indexOf(lastClickedKey.current);
+          const b = selectableKeys.indexOf(key);
+          if (a !== -1 && b !== -1) {
+            const [lo, hi] = a < b ? [a, b] : [b, a];
+            for (let i = lo; i <= hi; i++) next.add(selectableKeys[i]);
+            return next;
+          }
+        }
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      lastClickedKey.current = key;
+    },
+    [keyOf, selectableKeys]
+  );
+
+  const toggleAll = useCallback(() => {
+    setSelectedKeys((prev) =>
+      prev.size >= selectableKeys.length ? new Set() : new Set(selectableKeys)
+    );
+  }, [selectableKeys]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedKeys(new Set());
+    lastClickedKey.current = null;
+  }, []);
+
+  const selectableCount = selectedItems.filter(
+    (i) => i.kind === "page" || i.kind === "document"
+  ).length;
+
+  const handleBulkDelete = useCallback(async () => {
+    setBulkBusy(true);
+    try {
+      await Promise.all(
+        selectedItems.map((item) => {
+          const url =
+            item.kind === "folder"
+              ? `/api/folders/${item.id}`
+              : item.kind === "page"
+                ? `/api/pages/${item.id}`
+                : `/api/documents/${item.id}`;
+          return apiDelete(url).catch(() => {});
+        })
+      );
+      await refreshTree();
+      clearSelection();
+      setBulkDeleteOpen(false);
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selectedItems, refreshTree, clearSelection]);
+
+  const handleBulkMove = useCallback(
+    async (targetFolderId: string | null) => {
+      const movable = selectedItems.filter(
+        (i) => i.kind === "page" || i.kind === "document"
+      );
+      await Promise.all(
+        movable.map((item) =>
+          moveItem(
+            item.kind === "page"
+              ? { type: "page", id: item.id, title: item.title }
+              : { type: "document", id: item.id, title: item.title, docType: item.type },
+            targetFolderId
+          )
+        )
+      );
+      clearSelection();
+      setBulkMoveOpen(false);
+    },
+    [selectedItems, moveItem, clearSelection]
+  );
+
+  const tableSelection = canEdit
+    ? {
+        active: selectionActive,
+        isSelectable,
+        isSelected: (item: CloudItem) => selectedKeys.has(keyOf(item)),
+        onToggle: toggleSelect,
+        allSelected,
+        onToggleAll: toggleAll,
+      }
+    : undefined;
+
+  const cardSelection = useCallback(
+    (item: CloudItem) =>
+      canEdit
+        ? {
+            selectable: isSelectable(item),
+            selected: selectedKeys.has(keyOf(item)),
+            active: selectionActive,
+            onToggle: (shiftKey: boolean) => toggleSelect(item, shiftKey),
+          }
+        : undefined,
+    [canEdit, isSelectable, selectedKeys, keyOf, selectionActive, toggleSelect]
+  );
 
   const handleFiles = useCallback(
     (files: FileList | File[]) => {
@@ -216,6 +362,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             item={item}
             href={hrefFor(item)}
             enableDnd={canEdit}
+            selection={cardSelection(item)}
             {...actionsFor(item)}
           />
         ))}
@@ -324,6 +471,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             hrefFor={hrefFor}
             actionsFor={actionsFor}
             enableDnd={canEdit}
+            selection={tableSelection}
           />
         )}
 
@@ -384,6 +532,62 @@ export function CloudView({ folderId: folderIdProp }: Props) {
           </div>
         </div>
       )}
+
+      {canEdit && selectionActive && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
+          <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-popover/95 py-1.5 pl-4 pr-1.5 shadow-lg backdrop-blur">
+            <span className="text-sm font-medium">
+              {selectedItems.length} selected
+            </span>
+            <span className="mx-1.5 h-5 w-px bg-border" aria-hidden />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setBulkMoveOpen(true)}
+              disabled={selectableCount === 0}
+            >
+              <FolderInput className="size-4" />
+              Move
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => setBulkDeleteOpen(true)}
+            >
+              <Trash2 className="size-4" />
+              Delete
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={clearSelection}
+              aria-label="Clear selection"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={bulkDeleteOpen}
+        title={`Delete ${selectedItems.length} item${selectedItems.length === 1 ? "" : "s"}?`}
+        description="The selected items will be permanently deleted. Folders will also delete everything inside them."
+        loading={bulkBusy}
+        onOpenChange={(open) => !open && !bulkBusy && setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDelete}
+      />
+
+      <MoveModal
+        open={bulkMoveOpen}
+        item={{ type: "document", id: "", title: `${selectableCount} item${selectableCount === 1 ? "" : "s"}` }}
+        folders={folders}
+        currentFolderId={folderId}
+        libraryName={activeLibrary?.name ?? "Library"}
+        onOpenChange={(open) => !open && setBulkMoveOpen(false)}
+        onMove={handleBulkMove}
+      />
     </ViewScroll>
   );
 }

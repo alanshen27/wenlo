@@ -234,6 +234,34 @@ curl -X POST ${baseUrl}/api/gateway/v1/libraries/{libraryId}/query \\
   -d '{"q":"transformer attention","folderId":"{folderId}","limit":10}'`}
             </pre>
           </section>
+
+          <section className="space-y-3 rounded-xl border border-border bg-card p-5">
+            <h2 className="text-sm font-medium">MCP server</h2>
+            <p className="text-sm text-muted-foreground">
+              Connect any MCP client (Claude Desktop, Cursor, ChatGPT) to let an LLM search your
+              libraries and pull files directly. Authenticate with the same{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">rcsk_…</code> key above. Tools:{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">list_libraries</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">search_library</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">list_documents</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">get_document</code>,{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">download_file</code>.
+            </p>
+            <pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 text-xs leading-relaxed">
+{`# Streamable HTTP endpoint
+${baseUrl}/api/mcp
+
+# Cursor / Claude Desktop (mcp.json)
+{
+  "mcpServers": {
+    "recall": {
+      "url": "${baseUrl}/api/mcp",
+      "headers": { "Authorization": "Bearer rcsk_…" }
+    }
+  }
+}`}
+            </pre>
+          </section>
         </div>
       </main>
     </div>
