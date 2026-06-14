@@ -299,7 +299,7 @@ const baseHandler = createMcpHandler(
             select: { id: true, title: true, folderId: true },
           });
 
-          if (body) await indexDocument(document.id, document.title, body);
+          if (body) await indexDocument(document.id, document.title, body, auth.userId);
 
           return jsonResult({
             id: document.id,
@@ -346,7 +346,7 @@ const baseHandler = createMcpHandler(
           const existing = document.content ?? "";
           const next = existing.length > 0 ? `${existing}\n\n${text}` : text;
           await prisma.document.update({ where: { id: document.id }, data: { content: next } });
-          await indexDocument(document.id, document.title, next);
+          await indexDocument(document.id, document.title, next, auth.userId);
 
           return jsonResult({ id: document.id, length: next.length });
         } catch (error) {
@@ -399,7 +399,7 @@ const baseHandler = createMcpHandler(
             occurrence ?? 1
           );
           await prisma.document.update({ where: { id: document.id }, data: { content: next } });
-          await indexDocument(document.id, document.title, next);
+          await indexDocument(document.id, document.title, next, auth.userId);
 
           return jsonResult({ id: document.id, replaced, length: next.length });
         } catch (error) {

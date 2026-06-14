@@ -74,7 +74,7 @@ export async function PATCH(
     },
   });
 
-  await indexPage(page.id, page.title, page.plainText).catch(() => {});
+  await indexPage(page.id, page.title, page.plainText, user.id).catch(() => {});
 
   return NextResponse.json(page);
 }

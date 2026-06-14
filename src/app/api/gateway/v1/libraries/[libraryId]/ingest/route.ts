@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           },
         });
 
-        await indexDocument(document.id, document.title, document.content).catch(() => {});
+        await indexDocument(document.id, document.title, document.content, userId).catch(() => {});
         return NextResponse.json({ kind: "document", item: document, updated: true });
       }
 
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         },
       });
 
-      await indexDocument(document.id, document.title, document.content).catch(() => {});
+      await indexDocument(document.id, document.title, document.content, userId).catch(() => {});
       return NextResponse.json({ kind: "document", item: document, created: true }, { status: 201 });
     }
 
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         },
       });
 
-      await indexPage(page.id, page.title, page.plainText).catch(() => {});
+      await indexPage(page.id, page.title, page.plainText, userId).catch(() => {});
       return NextResponse.json({ kind: "page", item: page, updated: true });
     }
 
@@ -110,8 +110,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       },
     });
 
-    await indexPage(page.id, page.title, page.plainText).catch(() => {});
-    return NextResponse.json({ kind: "page", item: page, created: true }, { status: 201 });
+      await indexPage(page.id, page.title, page.plainText, userId).catch(() => {});
+      return NextResponse.json({ kind: "page", item: page, created: true }, { status: 201 });
   } catch (error) {
     return gatewayErrorResponse(error);
   }

@@ -195,8 +195,10 @@ export async function POST(req: NextRequest) {
       try {
         let indexedContent = document.content;
         if (runAiPass) {
+          // Over-quota users skip the (expensive) AI extraction pass but the
+          // document is still indexed from its native content below.
           const aiText = sanitizeText(
-            await extractWithOpenAI(buffer, file.type, file.name)
+            await extractWithOpenAI(buffer, file.type, file.name, user.id).catch(() => "")
           ).trim();
           if (aiText) {
             indexedContent = aiText;
@@ -206,7 +208,7 @@ export async function POST(req: NextRequest) {
             });
           }
         }
-        await indexDocument(document.id, document.title, indexedContent);
+        await indexDocument(document.id, document.title, indexedContent, user.id);
         await prisma.document.update({
           where: { id: document.id },
           data: { status: "READY" },

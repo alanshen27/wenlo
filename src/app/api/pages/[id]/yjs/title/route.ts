@@ -41,7 +41,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     data: { title: trimmed },
   });
 
-  await indexPage(updated.id, updated.title, updated.plainText).catch(() => {});
+  await indexPage(updated.id, updated.title, updated.plainText, user.id).catch(() => {});
   await broadcastPageTitle(pageId, trimmed);
 
   return NextResponse.json(updated);

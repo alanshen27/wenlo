@@ -191,7 +191,7 @@ export async function recallSearch(opts: {
   // Semantic search via pgvector
   if (process.env.OPENAI_API_KEY) {
     try {
-      const embedding = await embedText(q);
+      const embedding = await embedText(q, userId);
       const vec = embeddingToSql(embedding);
 
       const semanticRows = await prisma.$queryRaw<
@@ -241,7 +241,12 @@ export async function recallSearch(opts: {
     .slice(0, limit);
 }
 
-export async function indexPage(pageId: string, title: string, plainText: string) {
+export async function indexPage(
+  pageId: string,
+  title: string,
+  plainText: string,
+  userId?: string | null
+) {
   await prisma.chunk.deleteMany({ where: { pageId } });
   const chunks = chunkText(`${title}\n\n${plainText}`);
   if (chunks.length === 0) return;
@@ -249,7 +254,7 @@ export async function indexPage(pageId: string, title: string, plainText: string
   let embeddings: number[][] = [];
   if (process.env.OPENAI_API_KEY) {
     try {
-      embeddings = await embedTexts(chunks);
+      embeddings = await embedTexts(chunks, userId);
     } catch {
       embeddings = [];
     }
@@ -283,7 +288,12 @@ export async function indexPage(pageId: string, title: string, plainText: string
   }
 }
 
-export async function indexDocument(documentId: string, title: string, content: string) {
+export async function indexDocument(
+  documentId: string,
+  title: string,
+  content: string,
+  userId?: string | null
+) {
   await prisma.chunk.deleteMany({ where: { documentId } });
   const chunks = chunkText(`${title}\n\n${content}`);
   if (chunks.length === 0) return;
@@ -291,7 +301,7 @@ export async function indexDocument(documentId: string, title: string, content: 
   let embeddings: number[][] = [];
   if (process.env.OPENAI_API_KEY) {
     try {
-      embeddings = await embedTexts(chunks);
+      embeddings = await embedTexts(chunks, userId);
     } catch {
       embeddings = [];
     }

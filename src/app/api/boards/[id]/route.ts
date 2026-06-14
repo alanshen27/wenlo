@@ -89,7 +89,7 @@ export async function PATCH(
 
   after(async () => {
     try {
-      await indexDocument(id, existing.title, derivedText);
+      await indexDocument(id, existing.title, derivedText, user.id);
     } catch (error) {
       console.error("[boards] reindex failed", error);
     }

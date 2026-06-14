@@ -1,6 +1,7 @@
 import OpenAI, { toFile } from "openai";
 import { DocumentType } from "@/generated/prisma/client";
 import { getOpenAI, OPENAI_MODELS } from "@/lib/search/openai";
+import { chargeUsage, gateUsage } from "@/lib/billing/metered-openai";
 
 export type ExtractResult = {
   content: string;
@@ -145,8 +146,10 @@ const OPENAI_EXTRACTION_PROMPT =
 export async function extractWithOpenAI(
   buffer: Buffer,
   mimeType: string,
-  filename: string
+  filename: string,
+  userId?: string | null
 ): Promise<string> {
+  await gateUsage(userId);
   const openai = getOpenAI();
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const isImage = mimeType.startsWith("image/") || IMAGE_EXTS.has(ext);
@@ -178,6 +181,7 @@ export async function extractWithOpenAI(
       input: [{ role: "user", content }],
     } as OpenAI.Responses.ResponseCreateParamsNonStreaming);
 
+    await chargeUsage(userId, res);
     return res.output_text ?? "";
   } finally {
     // Best-effort cleanup so uploaded files don't accumulate.

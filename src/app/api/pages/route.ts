@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await indexPage(page.id, page.title, "").catch(() => {});
+    await indexPage(page.id, page.title, "", user.id).catch(() => {});
 
     return NextResponse.json(page);
   } catch (error) {

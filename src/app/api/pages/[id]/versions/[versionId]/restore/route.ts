@@ -37,7 +37,7 @@ export async function POST(_req: NextRequest, { params }: RouteParams) {
   const updated = await restorePageVersion(pageId, versionId, user);
   if (!updated) return NextResponse.json({ error: "Restore failed" }, { status: 500 });
 
-  await indexPage(updated.id, updated.title, updated.plainText).catch(() => {});
+  await indexPage(updated.id, updated.title, updated.plainText, user.id).catch(() => {});
 
   if (isCollabConfigured()) {
     const state = await overwritePageYjsFromContent(pageId, version.content);
