@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { ChevronRight, File, FileCode, FileText, Folder, Library, Network, Search, Sparkles } from "lucide-react";
-import { FolderArtwork } from "@/lib/file-icons";
-import { cn } from "@/lib/utils";
-import type { BreadcrumbItem } from "@/lib/folders";
+import { FolderArtwork } from "@/lib/client/file-icons";
+import { cn } from "@/lib/core/utils";
+import type { BreadcrumbItem } from "@/lib/library/folders";
 
 type Props = {
   items: BreadcrumbItem[];

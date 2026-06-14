@@ -4,9 +4,9 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
 import { FolderIcon } from "@/components/icons/folder-icon";
-import type { MindMapNodeData } from "@/lib/mind-map-layout";
-import { getFolderColorHex } from "@/lib/folder-colors";
-import { cn } from "@/lib/utils";
+import type { MindMapNodeData } from "@/lib/pages/mind-map-layout";
+import { getFolderColorHex } from "@/lib/library/folder-colors";
+import { cn } from "@/lib/core/utils";
 
 function MindMapNodeComponent({ data, selected }: NodeProps) {
   const { label, kind, color, libraryIcon, dimmed } = data as MindMapNodeData;
@@ -18,11 +18,11 @@ function MindMapNodeComponent({ data, selected }: NodeProps) {
         className={cn(
           "flex items-center gap-2 rounded-xl border px-3 py-2 shadow-sm transition-all duration-200",
           kind === "library" &&
-            "border-violet-500/30 bg-gradient-to-br from-violet-500/15 to-violet-500/5 font-medium text-violet-900 dark:text-violet-100",
+            "border-primary/30 bg-gradient-to-br from-primary/15 to-primary/5 font-medium text-foreground",
           kind === "folder" && "border-border bg-card text-card-foreground",
           kind === "page" &&
-            "cursor-pointer border-border/80 bg-background hover:border-violet-500/40 hover:shadow-md",
-          selected && kind === "page" && "border-violet-500 ring-2 ring-violet-500/20",
+            "cursor-pointer border-border/80 bg-background hover:border-primary/40 hover:shadow-md",
+          selected && kind === "page" && "border-primary ring-2 ring-primary/20",
           dimmed && "opacity-25"
         )}
         style={

@@ -2,10 +2,10 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { resolveGatewayFolderId } from "@/lib/gateway-auth";
-import { authorizeLibrary, getMcpAuthExtra, verifyRecallApiKey } from "@/lib/mcp-auth";
-import { prisma } from "@/lib/prisma";
-import { recallSearch } from "@/lib/search";
+import { resolveGatewayFolderId } from "@/lib/auth/gateway-auth";
+import { authorizeLibrary, getMcpAuthExtra, verifyRecallApiKey } from "@/lib/auth/mcp-auth";
+import { prisma } from "@/lib/db/prisma";
+import { recallSearch } from "@/lib/search/search";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const maxDuration = 60;
@@ -32,7 +32,7 @@ const baseHandler = createMcpHandler(
       {
         title: "List libraries",
         description:
-          "List the Recall libraries this API key can access. Use the returned `id` as `libraryId` for the other tools.",
+          "List the wenlo libraries this API key can access. Use the returned `id` as `libraryId` for the other tools.",
         inputSchema: {},
         annotations: { readOnlyHint: true, openWorldHint: false },
       },

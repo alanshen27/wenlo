@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { RecallResult } from "@/lib/types";
+import type { RecallResult } from "@/lib/core/types";
 
 type Props = {
   result: RecallResult;

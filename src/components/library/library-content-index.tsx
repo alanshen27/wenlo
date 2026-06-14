@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { FolderIcon } from "@/components/icons/folder-icon";
-import type { FolderContents } from "@/lib/folders";
-import { getDocumentIcon, getDocumentIconClass, PageIcon } from "@/lib/file-icons";
-import { documentRoute, folderHome, pageRoute } from "@/lib/routes";
-import { cn } from "@/lib/utils";
+import type { FolderContents } from "@/lib/library/folders";
+import { getDocumentIcon, getDocumentIconClass, PageIcon } from "@/lib/client/file-icons";
+import { documentRoute, folderHome, pageRoute } from "@/lib/client/routes";
+import { cn } from "@/lib/core/utils";
 
 type Props = {
   libraryId: string;

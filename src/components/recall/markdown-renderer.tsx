@@ -1,6 +1,6 @@
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 const components: Components = {
   h1: ({ children }) => (
@@ -25,7 +25,7 @@ const components: Components = {
     <li className={cn("text-foreground", className)}>{children}</li>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="mb-3 border-l-2 border-violet-500/40 pl-3 text-sm italic text-muted-foreground last:mb-0">
+    <blockquote className="mb-3 border-l-2 border-primary/40 pl-3 text-sm italic text-muted-foreground last:mb-0">
       {children}
     </blockquote>
   ),
@@ -37,7 +37,7 @@ const components: Components = {
     return (
       <a
         href={href}
-        className="font-medium text-violet-600 underline underline-offset-2 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+        className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
         target={isExternal ? "_blank" : undefined}
         rel={isExternal ? "noopener noreferrer" : undefined}
       >

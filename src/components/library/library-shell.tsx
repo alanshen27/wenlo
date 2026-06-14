@@ -21,12 +21,12 @@ import { PendingInvitesBanner } from "@/components/library/pending-invites-banne
 import { MainHeader, type SaveStatus } from "@/components/library/main-header";
 import { FilePreviewPanel, type PreviewTarget } from "@/components/cloud/file-preview-panel";
 import { RecallChatProvider } from "@/components/recall/recall-chat-context";
-import { buildRouteBreadcrumbs } from "@/lib/route-breadcrumbs";
-import { usePersistentState } from "@/lib/use-persistent-state";
-import type { PageCollaborator } from "@/lib/page-presence";
-import type { BreadcrumbItem, FolderNode } from "@/lib/folders";
-import type { FolderColorId } from "@/lib/folder-colors";
-import type { SidebarDragItem } from "@/lib/sidebar-dnd";
+import { buildRouteBreadcrumbs } from "@/lib/client/route-breadcrumbs";
+import { usePersistentState } from "@/lib/client/use-persistent-state";
+import type { PageCollaborator } from "@/lib/realtime/page-presence";
+import type { BreadcrumbItem, FolderNode } from "@/lib/library/folders";
+import type { FolderColorId } from "@/lib/library/folder-colors";
+import type { SidebarDragItem } from "@/lib/client/sidebar-dnd";
 import {
   addOptimisticDocuments,
   createPendingUploads,
@@ -36,16 +36,18 @@ import {
   removeOptimisticDocument,
   replaceOptimisticDocument,
   setDocumentProcessing,
-} from "@/lib/tree-mutations";
-import { uploadFile } from "@/lib/upload";
+} from "@/lib/client/tree-mutations";
+import { uploadFile } from "@/lib/documents/upload";
 import {
   apiDelete,
   apiGet,
   apiPatch,
   apiPost,
-} from "@/lib/api";
+} from "@/lib/client/api";
 import {
-  documentRoute,
+  boardRoute,
+  deckRoute,
+  documentOpenRoute,
   folderHome,
   libraryHome,
   pageRoute,
@@ -53,7 +55,7 @@ import {
   persistActiveLibrary,
   recallRoute,
   searchRoute,
-} from "@/lib/routes";
+} from "@/lib/client/routes";
 
 type FlatFolder = { id: string; name: string; color: string; parentId: string | null };
 
@@ -92,6 +94,8 @@ type LibraryContextValue = {
   breadcrumbHref: (item: BreadcrumbItem) => string | null;
   setHeader: (state: HeaderState) => void;
   createPage: (folderId: string | null) => Promise<void>;
+  createBoard: (folderId: string | null) => Promise<void>;
+  createDeck: (folderId: string | null) => Promise<void>;
   moveItem: (item: SidebarDragItem, folderId: string | null) => Promise<void>;
   beginCreateFolder: (parentId: string | null) => void;
   beginEditFolder: (folder: { id: string; name: string; color: FolderColorId }) => void;
@@ -119,12 +123,15 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     folderId?: string;
     pageId?: string;
     documentId?: string;
+    boardId?: string;
   }>();
 
   const libraryId = params.libraryId;
   const selectedFolderId = params.folderId ?? null;
   const selectedPageId = params.pageId ?? null;
-  const selectedDocumentId = params.documentId ?? null;
+  // Boards are documents; treat the board id as the active document for
+  // breadcrumb / context-folder / selection purposes.
+  const selectedDocumentId = params.documentId ?? params.boardId ?? null;
 
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [tree, setTree] = useState<FolderNode[]>([]);
@@ -303,8 +310,10 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           return folderHome(libraryId, item.id);
         case "page":
           return pageRoute(libraryId, item.id);
-        case "document":
-          return documentRoute(libraryId, item.id);
+        case "document": {
+          const found = findItemInTree(tree, { type: "document", id: item.id });
+          return documentOpenRoute(libraryId, item.id, found?.docType);
+        }
         case "search":
           return searchRoute(libraryId);
         case "recall":
@@ -315,7 +324,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           return null;
       }
     },
-    [libraryId]
+    [libraryId, tree]
   );
 
   const selectLibrary = useCallback(
@@ -335,6 +344,34 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       });
       await refreshTree();
       router.push(pageRoute(libraryId, data.id));
+    },
+    [libraryId, refreshTree, router]
+  );
+
+  const createBoard = useCallback(
+    async (folderId: string | null) => {
+      const data = await apiPost<{ id: string }>("/api/documents", {
+        type: "WHITEBOARD",
+        folderId,
+        libraryId,
+        title: "Untitled whiteboard",
+      });
+      await refreshTree();
+      router.push(boardRoute(libraryId, data.id));
+    },
+    [libraryId, refreshTree, router]
+  );
+
+  const createDeck = useCallback(
+    async (folderId: string | null) => {
+      const data = await apiPost<{ id: string }>("/api/documents", {
+        type: "DECK",
+        folderId,
+        libraryId,
+        title: "Untitled deck",
+      });
+      await refreshTree();
+      router.push(deckRoute(libraryId, data.id));
     },
     [libraryId, refreshTree, router]
   );
@@ -547,6 +584,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       breadcrumbHref,
       setHeader: setHeaderState,
       createPage,
+      createBoard,
+      createDeck,
       moveItem,
       beginCreateFolder,
       beginEditFolder,
@@ -572,6 +611,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       breadcrumbHref,
       setHeaderState,
       createPage,
+      createBoard,
+      createDeck,
       moveItem,
       beginCreateFolder,
       beginEditFolder,
@@ -613,7 +654,10 @@ export function LibraryShell({ children }: { children: ReactNode }) {
             else router.push(libraryHome(libraryId));
           }}
           onSelectPage={(id) => router.push(pageRoute(libraryId, id))}
-          onSelectDocument={(id) => router.push(documentRoute(libraryId, id))}
+          onSelectDocument={(id) => {
+            const found = findItemInTree(tree, { type: "document", id });
+            router.push(documentOpenRoute(libraryId, id, found?.docType));
+          }}
           onCreateFolder={(parentId) => setModal({ kind: "folder-create", parentId })}
           onEditFolder={(folder) =>
             setModal({

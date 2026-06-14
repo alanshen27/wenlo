@@ -11,13 +11,13 @@ import {
   PageVersionHistoryButton,
   PageVersionHistoryModal,
 } from "@/components/modals/page-version-history-modal";
-import type { RecallEditor } from "@/lib/blocknote-schema";
+import type { RecallEditor } from "@/lib/editor/blocknote-schema";
 import { useCollabSession } from "@/hooks/use-collab-session";
 import { usePageCollaboration } from "@/hooks/use-page-collaboration";
 import { isCollabClientConfigured } from "@/lib/collab/config";
 import { colorForUser } from "@/lib/collab/user-colors";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
-import { libraryHome, pageRoute } from "@/lib/routes";
+import { apiGet, apiPatch, apiPost } from "@/lib/client/api";
+import { libraryHome, pageRoute } from "@/lib/client/routes";
 
 type Page = {
   id: string;

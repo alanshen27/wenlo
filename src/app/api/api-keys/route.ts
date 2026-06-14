@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { generateApiKeyMaterial } from "@/lib/api-keys";
-import { resolveLibraryId } from "@/lib/libraries";
-import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/auth";
+import { generateApiKeyMaterial } from "@/lib/auth/api-keys";
+import { resolveLibraryId } from "@/lib/library/libraries";
+import { prisma } from "@/lib/db/prisma";
 
 export async function GET() {
   const user = await requireUser().catch(() => null);

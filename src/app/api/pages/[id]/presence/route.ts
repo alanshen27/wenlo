@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
+import { requireUser } from "@/lib/auth/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
 import {
   leavePagePresence,
   listPageCollaborators,
   touchPagePresence,
-} from "@/lib/page-presence";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/realtime/page-presence";
+import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

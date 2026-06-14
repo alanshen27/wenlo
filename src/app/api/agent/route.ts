@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
+import { requireUser } from "@/lib/auth/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
 import {
   appendRecallChatTurn,
   createRecallChatSession,
@@ -8,10 +8,10 @@ import {
   getRecallChatTurns,
   recallScopeKey,
   type RecallTurn,
-} from "@/lib/recall-chat";
-import { getOpenAI, hasOpenAI, OPENAI_MODELS } from "@/lib/openai";
-import { recallSearch } from "@/lib/search";
-import { assertWithinTokenLimit, recordTokenUsage, UsageLimitError } from "@/lib/usage";
+} from "@/lib/recall-chat/recall-chat";
+import { getOpenAI, hasOpenAI, OPENAI_MODELS } from "@/lib/search/openai";
+import { recallSearch } from "@/lib/search/search";
+import { assertWithinTokenLimit, recordTokenUsage, UsageLimitError } from "@/lib/billing/usage";
 
 type AgentStreamEvent =
   | {

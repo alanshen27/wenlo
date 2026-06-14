@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { libraryHome, readStoredLibraryId } from "@/lib/routes";
-import { apiGet } from "@/lib/api";
+import { libraryHome, readStoredLibraryId } from "@/lib/client/routes";
+import { apiGet } from "@/lib/client/api";
 
 export function RedirectToLibrary() {
   const router = useRouter();

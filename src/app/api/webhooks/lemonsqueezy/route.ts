@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { syncSubscriptionWebhook } from "@/lib/billing";
-import { verifyWebhookSignature } from "@/lib/lemonsqueezy";
+import { syncSubscriptionWebhook } from "@/lib/billing/billing";
+import { verifyWebhookSignature } from "@/lib/billing/lemonsqueezy";
 
 export const runtime = "nodejs";
 

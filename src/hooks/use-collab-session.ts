@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
-import type { PageCollaborator } from "@/lib/page-presence";
+import type { PageCollaborator } from "@/lib/realtime/page-presence";
 import { PusherYjsProvider, type CollabUser } from "@/lib/collab/pusher-yjs-provider";
 
 export type CollabSession = {

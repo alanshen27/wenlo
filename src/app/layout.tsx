@@ -14,18 +14,18 @@ const geistMono = Geist_Mono({
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://recalls.sh";
-const TITLE = "Recall — cloud storage + notes for the agentic era";
+const TITLE = "wenlo — cloud storage + notes for the agentic era";
 const DESCRIPTION =
-  "Recall is cloud storage and notes built for AI agents. Store your files and notes, and let an agent search, read, and answer across everything you keep.";
+  "wenlo is cloud storage and notes built for AI agents. Store your files and notes, and let an agent search, read, and answer across everything you keep.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: TITLE,
-    template: "%s — Recall",
+    template: "%s — wenlo",
   },
   description: DESCRIPTION,
-  applicationName: "Recall",
+  applicationName: "wenlo",
   keywords: [
     "cloud storage",
     "notes",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: SITE_URL,
-    siteName: "Recall",
+    siteName: "wenlo",
     title: TITLE,
     description: DESCRIPTION,
   },
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
   },
   icons: {
-    icon: "/icon.png",
+    icon: "/logo.png",
   },
 };
 

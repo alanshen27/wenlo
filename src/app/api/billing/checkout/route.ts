@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { appBaseUrl, createProCheckout, isBillingConfigured } from "@/lib/lemonsqueezy";
-import { settingsPlanRoute } from "@/lib/routes";
+import { requireUser } from "@/lib/auth/auth";
+import { appBaseUrl, createProCheckout, isBillingConfigured } from "@/lib/billing/lemonsqueezy";
+import { settingsPlanRoute } from "@/lib/client/routes";
 
 export async function POST() {
   const user = await requireUser().catch(() => null);

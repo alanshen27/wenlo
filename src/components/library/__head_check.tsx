@@ -20,12 +20,12 @@ import { ShareLibraryModal } from "@/components/modals/share-library-modal";
 import { PendingInvitesBanner } from "@/components/library/pending-invites-banner";
 import { MainHeader, type SaveStatus } from "@/components/library/main-header";
 import { RecallChatProvider } from "@/components/recall/recall-chat-context";
-import { buildRouteBreadcrumbs } from "@/lib/route-breadcrumbs";
-import { usePersistentState } from "@/lib/use-persistent-state";
-import type { PageCollaborator } from "@/lib/page-presence";
-import type { BreadcrumbItem, FolderNode } from "@/lib/folders";
-import type { FolderColorId } from "@/lib/folder-colors";
-import type { SidebarDragItem } from "@/lib/sidebar-dnd";
+import { buildRouteBreadcrumbs } from "@/lib/client/route-breadcrumbs";
+import { usePersistentState } from "@/lib/client/use-persistent-state";
+import type { PageCollaborator } from "@/lib/realtime/page-presence";
+import type { BreadcrumbItem, FolderNode } from "@/lib/library/folders";
+import type { FolderColorId } from "@/lib/library/folder-colors";
+import type { SidebarDragItem } from "@/lib/client/sidebar-dnd";
 import {
   addOptimisticDocuments,
   createPendingUploads,
@@ -35,14 +35,14 @@ import {
   removeOptimisticDocument,
   replaceOptimisticDocument,
   setDocumentProcessing,
-} from "@/lib/tree-mutations";
-import { uploadFile } from "@/lib/upload";
+} from "@/lib/client/tree-mutations";
+import { uploadFile } from "@/lib/documents/upload";
 import {
   apiDelete,
   apiGet,
   apiPatch,
   apiPost,
-} from "@/lib/api";
+} from "@/lib/client/api";
 import {
   documentRoute,
   folderHome,
@@ -52,7 +52,7 @@ import {
   persistActiveLibrary,
   recallRoute,
   searchRoute,
-} from "@/lib/routes";
+} from "@/lib/client/routes";
 
 type FlatFolder = { id: string; name: string; color: string; parentId: string | null };
 

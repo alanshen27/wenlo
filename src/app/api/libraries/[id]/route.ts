@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
-import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { prisma } from "@/lib/db/prisma";
 
 export async function PATCH(
   req: NextRequest,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { createLibrary, listLibrariesWithRoles } from "@/lib/libraries";
+import { requireUser } from "@/lib/auth/auth";
+import { createLibrary, listLibrariesWithRoles } from "@/lib/library/libraries";
 
 export async function GET() {
   const user = await requireUser().catch(() => null);

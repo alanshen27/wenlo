@@ -14,8 +14,8 @@ import type {
   RecallBlockSchema,
   RecallInlineSchema,
   RecallStyleSchema,
-} from "@/lib/blocknote-schema";
-import { flattenPagesFromTree, type FolderNode } from "@/lib/folders";
+} from "@/lib/editor/blocknote-schema";
+import { flattenPagesFromTree, type FolderNode } from "@/lib/library/folders";
 
 type PageLinkConfig = {
   libraryId: string;

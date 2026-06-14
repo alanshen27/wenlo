@@ -32,7 +32,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -44,27 +44,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { usePersistentState } from "@/lib/use-persistent-state";
+import { usePersistentState } from "@/lib/client/use-persistent-state";
 import { FolderIcon } from "@/components/icons/folder-icon";
-import type { FolderNode } from "@/lib/folders";
+import type { FolderNode } from "@/lib/library/folders";
 import {
   FileArtwork,
   FolderArtwork,
   getDocumentIcon,
   getDocumentIconClass,
   PageIcon,
-} from "@/lib/file-icons";
+} from "@/lib/client/file-icons";
 import { LibrarySwitcher, type Library } from "@/components/sidebar/library-switcher";
 import { SidebarFooter } from "@/components/sidebar/sidebar-footer";
 import { useRecallChat } from "@/components/recall/recall-chat-context";
-import { sessionLabel } from "@/lib/recall-chat-ui";
+import { sessionLabel } from "@/lib/recall-chat/recall-chat-ui";
 import {
   folderDropId,
   itemDragId,
   parseFolderDropId,
   parseItemDragId,
   type SidebarDragItem,
-} from "@/lib/sidebar-dnd";
+} from "@/lib/client/sidebar-dnd";
 
 type FolderRef = { id: string; name: string; color: string };
 type ItemRef = { id: string; title: string };
@@ -306,8 +306,8 @@ export function FolderSidebar(props: Props) {
             className={cn(
               "h-8 w-full justify-start gap-2 px-2",
               activeNav === "recall"
-                ? "bg-violet-500/10 font-medium text-violet-700 dark:text-violet-300"
-                : "text-muted-foreground hover:bg-violet-500/5 hover:text-violet-700 dark:hover:text-violet-300"
+                ? "bg-primary/10 font-medium text-primary"
+                : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
             )}
             onClick={onOpenRecall}
           >
@@ -586,8 +586,8 @@ function RailIconButton({
         "size-10 rounded-lg",
         accent
           ? active
-            ? "bg-violet-500/10 text-violet-700 dark:text-violet-300"
-            : "text-muted-foreground hover:bg-violet-500/5 hover:text-violet-700 dark:hover:text-violet-300"
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
           : active
             ? "sidebar-item-active text-sidebar-foreground"
             : "text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"

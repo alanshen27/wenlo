@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { libraryIdFromFolder, resolveLibraryId } from "@/lib/libraries";
+import { requireUser } from "@/lib/auth/auth";
+import { libraryIdFromFolder, resolveLibraryId } from "@/lib/library/libraries";
 import {
   contentOwnerId,
   LibraryAccessError,
   requireLibraryAccess,
-} from "@/lib/library-access";
-import { prisma } from "@/lib/prisma";
-import { sanitizeStorageName, uploadDocument } from "@/lib/storage";
+} from "@/lib/library/library-access";
+import { prisma } from "@/lib/db/prisma";
+import { sanitizeStorageName, uploadDocument } from "@/lib/documents/storage";
 import {
   extractTextFromFile,
   extractWithOpenAI,
   inferDocumentType,
   sanitizeText,
-} from "@/lib/extract";
-import { hasOpenAI, OPENAI_FILE_PROCESSING_ENABLED } from "@/lib/openai";
-import { indexDocument } from "@/lib/search";
+} from "@/lib/documents/extract";
+import { hasOpenAI, OPENAI_FILE_PROCESSING_ENABLED } from "@/lib/search/openai";
+import { indexDocument } from "@/lib/search/search";
+import { createEmptyBoard } from "@/lib/boards/board-schema";
+import { createEmptyDeck } from "@/lib/decks/deck-schema";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser().catch(() => null);
@@ -67,9 +69,62 @@ async function uniqueDocumentTitle(
   return `${base} (${n})${ext}`;
 }
 
+// Native (file-less) document types created from a JSON body rather than an
+// upload: whiteboards and slideshow decks.
+async function createNativeDocument(req: NextRequest, userId: string) {
+  const { type, title, folderId, libraryId: rawLibraryId } = await req.json();
+
+  if (type !== "WHITEBOARD" && type !== "DECK") {
+    return NextResponse.json({ error: "Unsupported document type" }, { status: 400 });
+  }
+
+  try {
+    const libraryId = await libraryIdFromFolder(
+      userId,
+      folderId ?? null,
+      await resolveLibraryId(userId, rawLibraryId ?? null)
+    );
+    await requireLibraryAccess(userId, libraryId, "EDITOR");
+    const ownerId = await contentOwnerId(libraryId);
+
+    const normalizedFolderId = folderId && folderId !== "__root__" ? folderId : null;
+    const isDeck = type === "DECK";
+    const desiredTitle =
+      (typeof title === "string" && title.trim()) ||
+      (isDeck ? "Untitled deck" : "Untitled whiteboard");
+    const uniqueTitle = await uniqueDocumentTitle(libraryId, normalizedFolderId, desiredTitle);
+
+    const document = await prisma.document.create({
+      data: {
+        title: uniqueTitle,
+        type,
+        status: "READY",
+        content: "",
+        ...(isDeck
+          ? { deckContent: createEmptyDeck() }
+          : { boardContent: createEmptyBoard() }),
+        userId: ownerId,
+        libraryId,
+        folderId: normalizedFolderId,
+      },
+    });
+
+    return NextResponse.json(document);
+  } catch (error) {
+    if (error instanceof LibraryAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const user = await requireUser().catch(() => null);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (req.headers.get("content-type")?.includes("application/json")) {
+    return createNativeDocument(req, user.id);
+  }
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;

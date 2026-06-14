@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
@@ -16,9 +16,12 @@ import {
   FileArtwork,
   FolderArtwork,
   getDocumentLabel,
-} from "@/lib/file-icons";
-import { folderDropId, itemDragId, type SidebarDragItem } from "@/lib/sidebar-dnd";
-import { cn, formatBytes } from "@/lib/utils";
+} from "@/lib/client/file-icons";
+import { folderDropId, itemDragId, type SidebarDragItem } from "@/lib/client/sidebar-dnd";
+import { apiGet } from "@/lib/client/api";
+import { DeckSlideSvg } from "@/components/slideshow/deck-slide-svg";
+import type { Slide } from "@/lib/decks/deck-schema";
+import { cn, formatBytes } from "@/lib/core/utils";
 
 export type CloudItem =
   | { kind: "folder"; id: string; title: string; color: string; count: number }
@@ -285,7 +288,156 @@ function EntityArtwork({ item, className }: { item: CloudItem; className?: strin
   return <FileArtwork type={type} className={className} />;
 }
 
-/** Soft card (Dropbox / OneDrive style): big file artwork with the name beneath. */
+/** Short type · size descriptor shown under a card title. */
+function cardMeta(item: CloudItem): string {
+  if (item.kind === "folder") return `${item.count} item${item.count === 1 ? "" : "s"}`;
+  if (item.kind === "page") return "Page";
+  if (item.pending) return "Uploading…";
+  if (item.processing) return "Processing…";
+  const size = formatBytes(item.sizeBytes);
+  return size ? `${getDocumentLabel(item.type)} · ${size}` : getDocumentLabel(item.type);
+}
+
+/** Small illustrative artwork glyph for a card footer (spinner overlay while busy). */
+function renderTypeChip(type: string, busy?: boolean) {
+  return (
+    <span className="relative shrink-0">
+      <FileArtwork type={type} className="size-8" />
+      {busy && (
+        <Loader2 className="absolute -bottom-1 -right-1 size-3.5 animate-spin rounded-full bg-background text-muted-foreground" />
+      )}
+    </span>
+  );
+}
+
+// Cache page excerpts so re-renders / re-mounts don't refetch the same page.
+const pageExcerptCache = new Map<string, string>();
+
+async function fetchPageExcerpt(pageId: string): Promise<string> {
+  const cached = pageExcerptCache.get(pageId);
+  if (cached !== undefined) return cached;
+  const data = await apiGet<{ plainText?: string }>(`/api/pages/${pageId}`);
+  const text = (data.plainText ?? "").trim();
+  pageExcerptCache.set(pageId, text);
+  return text;
+}
+
+/** A faux "paper" thumbnail rendering the first lines of a page's text. */
+function PagePreview({ pageId, title }: { pageId: string; title: string }) {
+  const [text, setText] = useState<string | null>(pageExcerptCache.get(pageId) ?? null);
+
+  useEffect(() => {
+    if (text !== null) return;
+    let cancelled = false;
+    fetchPageExcerpt(pageId)
+      .then((value) => {
+        if (!cancelled) setText(value);
+      })
+      .catch(() => {
+        if (!cancelled) setText("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pageId, text]);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-white px-4 pt-3.5 dark:bg-zinc-50">
+      <p className="line-clamp-1 text-[9px] font-semibold leading-tight text-slate-800">{title}</p>
+      <p className="mt-1.5 line-clamp-6 whitespace-pre-wrap text-[7.5px] leading-[1.7] text-slate-500">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+// Cache deck first-slides so re-renders / re-mounts don't refetch the same deck.
+const deckSlideCache = new Map<string, Slide | null>();
+
+async function fetchDeckFirstSlide(deckId: string): Promise<Slide | null> {
+  const cached = deckSlideCache.get(deckId);
+  if (cached !== undefined) return cached;
+  const data = await apiGet<{ deck: { slideOrder: string[]; slides: Record<string, Slide> } }>(
+    `/api/decks/${deckId}`
+  );
+  const slide = data.deck.slides[data.deck.slideOrder[0]] ?? null;
+  deckSlideCache.set(deckId, slide);
+  return slide;
+}
+
+/** A scaled, read-only render of a deck's first slide for the card thumbnail. */
+function DeckPreview({ deckId }: { deckId: string }) {
+  const [slide, setSlide] = useState<Slide | null | undefined>(deckSlideCache.get(deckId));
+
+  useEffect(() => {
+    if (slide !== undefined) return;
+    let cancelled = false;
+    fetchDeckFirstSlide(deckId)
+      .then((value) => {
+        if (!cancelled) setSlide(value);
+      })
+      .catch(() => {
+        if (!cancelled) setSlide(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deckId, slide]);
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-muted/40 p-2.5">
+      <div className="w-full overflow-hidden rounded-sm border border-border/60 shadow-sm">
+        <DeckSlideSvg slide={slide ?? undefined} className="w-full" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Top preview pane for a file/page card: real thumbnails for images, an inline
+ * (non-interactive) iframe for PDFs, a text sheet for pages, a first-slide
+ * render for decks, and a tinted file glyph for everything else.
+ */
+function CardPreview({ item }: { item: CloudItem }) {
+  const [imageOk, setImageOk] = useState(true);
+  const ready = !(item.kind === "document" && (item.pending || item.processing));
+  const isImage = item.kind === "document" && item.type === "IMAGE" && ready;
+  const isPdf = item.kind === "document" && item.type === "PDF" && ready;
+  const isDeck = item.kind === "document" && item.type === "DECK" && ready;
+  const previewType = item.kind === "page" ? "PAGE" : item.kind === "document" ? item.type : "OTHER";
+
+  return (
+    <div className="relative flex aspect-4/3 items-center justify-center overflow-hidden border-b border-border/60 bg-muted/30">
+      {item.kind === "page" ? (
+        <PagePreview pageId={item.id} title={item.title} />
+      ) : isDeck ? (
+        <DeckPreview deckId={item.id} />
+      ) : isImage && imageOk ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/api/documents/${item.id}/raw`}
+          alt=""
+          loading="lazy"
+          className="size-full object-cover"
+          onError={() => setImageOk(false)}
+        />
+      ) : isPdf ? (
+        <iframe
+          src={`/api/documents/${item.id}/raw#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+          title={item.title}
+          loading="lazy"
+          tabIndex={-1}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 size-full border-0 bg-white"
+        />
+      ) : (
+        <FileArtwork type={previewType} className="size-14" />
+      )}
+    </div>
+  );
+}
+
+/** Drive-style preview card: a content thumbnail with a name + type/size footer. */
 export function EntityCard({
   item,
   href,
@@ -304,22 +456,24 @@ export function EntityCard({
   const canSelect = Boolean(selection?.selectable);
   const isSelected = Boolean(selection?.selected);
   const showSelect = canSelect && (isSelected || selection?.active);
+  const isFolder = item.kind === "folder";
+  const chipType = item.kind === "page" ? "PAGE" : item.kind === "document" ? item.type : "OTHER";
 
   return (
     <DndShell item={item} enableDnd={enableDnd && !pending} className="rounded-xl">
       <div
         className={cn(
-          "group/card relative flex select-none flex-col items-center gap-1.5 rounded-xl border bg-card px-1.5 py-2.5 text-center shadow-sm transition-all",
+          "group/card relative select-none overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all",
           isSelected ? "border-primary ring-2 ring-primary/40" : "border-border/60",
           pending
             ? "opacity-60"
-            : "hover:-translate-y-0.5 hover:border-border hover:shadow-md has-[a:focus-visible]:border-primary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-primary/40 has-[button:focus-visible]:border-primary has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-primary/40"
+            : "hover:border-border hover:shadow-md has-[a:focus-visible]:border-primary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-primary/40 has-[button:focus-visible]:border-primary has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-primary/40"
         )}
       >
         {canSelect && selection && (
           <div
             className={cn(
-              "absolute left-1.5 top-1.5 z-10 transition-opacity",
+              "absolute left-2 top-2 z-10 transition-opacity",
               showSelect ? "opacity-100" : "opacity-0 group-hover/card:opacity-100"
             )}
           >
@@ -334,33 +488,43 @@ export function EntityCard({
               onClick={handleOpen}
               aria-label={item.title}
               title="Click to preview · double-click to open"
-              className="absolute inset-0 z-0 rounded-xl outline-none"
+              className="absolute inset-0 z-0 outline-none"
             />
           ) : (
             <Link
               href={href}
               aria-label={item.title}
-              className="absolute inset-0 z-0 rounded-xl outline-none"
+              className="absolute inset-0 z-0 outline-none"
             />
           ))}
 
-        <span className={cn("pointer-events-none relative", pending && "animate-pulse")}>
-          <EntityArtwork item={item} className="size-11" />
-          {busy && (
-            <Loader2
-              className="absolute -bottom-0.5 -right-0.5 size-3.5 animate-spin rounded-full bg-background text-muted-foreground"
-              aria-label={pending ? "Uploading" : "Processing"}
-            />
-          )}
-        </span>
-
-        <p className="pointer-events-none relative z-0 w-full truncate px-0.5 text-xs font-medium leading-tight text-foreground">
-          {item.title}
-        </p>
+        <div className={cn("pointer-events-none relative", pending && "animate-pulse")}>
+          {!isFolder && <CardPreview item={item} />}
+          <div className={cn("flex items-center gap-2.5", isFolder ? "px-3 py-3" : "px-2.5 py-2")}>
+            {isFolder ? (
+              <FolderArtwork color={item.color} className="size-9 shrink-0" />
+            ) : (
+              renderTypeChip(chipType, busy)
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium leading-tight text-foreground">
+                {item.title}
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                {cardMeta(item)}
+              </span>
+            </span>
+          </div>
+        </div>
 
         {hasActions && (
-          <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100">
-            <ActionMenu onEdit={onEdit} onDelete={onDelete} onMove={onMove} />
+          <div className="absolute right-1.5 top-1.5 z-10 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100">
+            <ActionMenu
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onMove={onMove}
+              className="bg-background/80 backdrop-blur"
+            />
           </div>
         )}
       </div>

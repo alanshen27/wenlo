@@ -1,5 +1,5 @@
 import { Folder } from "lucide-react";
-import { getFolderColorHex } from "@/lib/folder-colors";
+import { getFolderColorHex } from "@/lib/library/folder-colors";
 
 type Props = {
   color: string;

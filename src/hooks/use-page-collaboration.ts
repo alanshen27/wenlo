@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PageCollaborator } from "@/lib/page-presence";
-import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import type { PageCollaborator } from "@/lib/realtime/page-presence";
+import { apiDelete, apiGet, apiPost } from "@/lib/client/api";
 
 type SyncPayload = {
   title: string;

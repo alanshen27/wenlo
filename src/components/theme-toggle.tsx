@@ -4,21 +4,22 @@ import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 type Props = {
   className?: string;
-  align?: "start" | "center" | "end";
 };
 
-export function ThemeToggle({ className, align = "end" }: Props) {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+const THEME_CYCLE = ["light", "dark", "system"] as const;
+
+const THEME_META = {
+  light: { icon: Sun, label: "Light" },
+  dark: { icon: Moon, label: "Dark" },
+  system: { icon: Monitor, label: "System" },
+} as const;
+
+export function ThemeToggle({ className }: Props) {
+  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -35,41 +36,27 @@ export function ThemeToggle({ className, align = "end" }: Props) {
     );
   }
 
-  const Icon = resolvedTheme === "dark" ? Moon : Sun;
+  const current = (THEME_CYCLE as readonly string[]).includes(theme ?? "")
+    ? (theme as (typeof THEME_CYCLE)[number])
+    : "system";
+  const { icon: Icon, label } = THEME_META[current];
+
+  const cycle = () => {
+    const next = THEME_CYCLE[(THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length];
+    setTheme(next);
+  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={className}
-            title="Theme"
-            aria-label="Change theme"
-          >
-            <Icon className="size-3.5" />
-          </Button>
-        }
-      />
-      <DropdownMenuContent side="bottom" align={align} className="w-36">
-        <DropdownMenuItem onClick={() => setTheme("light")}>
-          <Sun className="size-3.5" />
-          Light
-          {theme === "light" && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>
-          <Moon className="size-3.5" />
-          Dark
-          {theme === "dark" && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>
-          <Monitor className="size-3.5" />
-          System
-          {theme === "system" && <span className="ml-auto text-xs text-muted-foreground">✓</span>}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className={className}
+      title={`Theme: ${label} (click to change)`}
+      aria-label={`Theme: ${label}. Click to change`}
+      onClick={cycle}
+    >
+      <Icon className="size-3.5" />
+    </Button>
   );
 }
 

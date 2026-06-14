@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { recallSearch } from "@/lib/search";
+import { requireUser } from "@/lib/auth/auth";
+import { recallSearch } from "@/lib/search/search";
 
 export async function POST(req: NextRequest) {
   const user = await requireUser().catch(() => null);

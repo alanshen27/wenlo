@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
-import { libraryHome } from "@/lib/routes";
+import { apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
+import { libraryHome } from "@/lib/client/routes";
 
 type PendingInvite = {
   id: string;

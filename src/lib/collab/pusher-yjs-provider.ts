@@ -10,8 +10,8 @@ import {
 } from "y-protocols/awareness";
 import { collabPageChannel, YJS_ORIGIN_REMOTE } from "@/lib/collab/config";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/collab/encoding";
-import type { PageCollaborator } from "@/lib/page-presence";
-import { apiClient, apiGet, apiPostSilent } from "@/lib/api";
+import type { PageCollaborator } from "@/lib/realtime/page-presence";
+import { apiClient, apiGet, apiPostSilent } from "@/lib/client/api";
 
 export type CollabUser = {
   id: string;

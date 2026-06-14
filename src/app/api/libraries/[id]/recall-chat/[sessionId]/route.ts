@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
+import { requireUser } from "@/lib/auth/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
 import {
   deleteRecallChatSession,
   getRecallChatSessionForUser,
   getRecallChatTurns,
-} from "@/lib/recall-chat";
+} from "@/lib/recall-chat/recall-chat";
 
 type RouteParams = { params: Promise<{ id: string; sessionId: string }> };
 

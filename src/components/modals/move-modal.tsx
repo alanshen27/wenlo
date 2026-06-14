@@ -10,8 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FolderIcon } from "@/components/icons/folder-icon";
-import type { SidebarDragItem } from "@/lib/sidebar-dnd";
-import { cn } from "@/lib/utils";
+import type { SidebarDragItem } from "@/lib/client/sidebar-dnd";
+import { cn } from "@/lib/core/utils";
 
 type FlatFolder = { id: string; name: string; color: string; parentId: string | null };
 

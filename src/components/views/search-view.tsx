@@ -9,9 +9,9 @@ import { ScopeSelect } from "@/components/search/scope-select";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { RecallResult } from "@/lib/types";
-import { documentRoute, pageRoute, recallRoute } from "@/lib/routes";
-import { apiPost, getApiErrorMessage } from "@/lib/api";
+import type { RecallResult } from "@/lib/core/types";
+import { documentRoute, pageRoute, recallRoute } from "@/lib/client/routes";
+import { apiPost, getApiErrorMessage } from "@/lib/client/api";
 
 export function SearchView() {
   const router = useRouter();

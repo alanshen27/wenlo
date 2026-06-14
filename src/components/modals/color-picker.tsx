@@ -1,8 +1,8 @@
 "use client";
 
 import { PickerOptionButton } from "@/components/modals/picker-option-button";
-import { FolderArtwork } from "@/lib/file-icons";
-import { FOLDER_COLORS, type FolderColorId } from "@/lib/folder-colors";
+import { FolderArtwork } from "@/lib/client/file-icons";
+import { FOLDER_COLORS, type FolderColorId } from "@/lib/library/folder-colors";
 
 type Props = {
   value: FolderColorId;

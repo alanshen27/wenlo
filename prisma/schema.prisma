@@ -212,6 +212,8 @@ enum DocumentType {
   ARCHIVE
   AUDIO
   VIDEO
+  WHITEBOARD
+  DECK
   OTHER
 }
 
@@ -230,6 +232,13 @@ model Document {
   storagePath  String?
   sizeBytes    Int?
   content      String         @default("") @db.Text
+  // Native editable canvas scene (whiteboard). Null for uploaded files.
+  // Per-element edit locks are ephemeral (Redis, see src/lib/boards/board-locks.ts),
+  // not stored here.
+  boardContent Json?
+  // Native editable slideshow scene (DECK type). Flat, id-keyed slide/element
+  // maps; see src/lib/decks/deck-schema.ts. Null for non-deck documents.
+  deckContent  Json?
   language     String?
   userId       String
   libraryId    String

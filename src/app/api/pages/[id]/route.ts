@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
-import { snapshotPageBeforeUpdate } from "@/lib/page-versions";
-import { prisma } from "@/lib/prisma";
-import { indexPage } from "@/lib/search";
-import { extractPlainText } from "@/lib/editor-content";
+import { requireUser } from "@/lib/auth/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { snapshotPageBeforeUpdate } from "@/lib/pages/page-versions";
+import { prisma } from "@/lib/db/prisma";
+import { indexPage } from "@/lib/search/search";
+import { extractPlainText } from "@/lib/editor/editor-content";
 
 export async function GET(
   _req: NextRequest,

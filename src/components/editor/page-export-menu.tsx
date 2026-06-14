@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { RecallEditor } from "@/lib/blocknote-schema";
+import type { RecallEditor } from "@/lib/editor/blocknote-schema";
 import {
   downloadBlob,
   downloadTextFile,
@@ -28,7 +28,7 @@ import {
   editorToMarkdown,
   editorToPdfBlob,
   slugifyFilename,
-} from "@/lib/editor-export";
+} from "@/lib/editor/editor-export";
 
 type Props = {
   editorRef: RefObject<RecallEditor | null>;

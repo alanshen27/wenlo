@@ -26,7 +26,7 @@ import {
   apiPatch,
   apiPost,
   getApiErrorMessage,
-} from "@/lib/api";
+} from "@/lib/client/api";
 
 type Member = {
   userId: string;

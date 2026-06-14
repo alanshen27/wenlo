@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ColorPicker } from "@/components/modals/color-picker";
-import type { FolderColorId } from "@/lib/folder-colors";
+import type { FolderColorId } from "@/lib/library/folder-colors";
 
 type Props = {
   open: boolean;

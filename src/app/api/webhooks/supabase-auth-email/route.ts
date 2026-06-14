@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   sendSupabaseAuthEmails,
   verifySupabaseAuthEmailPayload,
-} from "@/lib/supabase-auth-email";
+} from "@/lib/auth/supabase-auth-email";
 
 export const runtime = "nodejs";
 

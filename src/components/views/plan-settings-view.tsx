@@ -6,13 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { BillingSummary } from "@/lib/billing";
-import { formatTokens, PLAN_LIST, type PlanDefinition, type PlanId } from "@/lib/plans";
-import { libraryHome, readStoredLibraryId } from "@/lib/routes";
-import { apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
-import type { UsageSummary } from "@/lib/usage";
-import { USAGE_UPDATED_EVENT } from "@/lib/usage-events";
-import { cn } from "@/lib/utils";
+import type { BillingSummary } from "@/lib/billing/billing";
+import { formatTokens, PLAN_LIST, type PlanDefinition, type PlanId } from "@/lib/billing/plans";
+import { libraryHome, readStoredLibraryId } from "@/lib/client/routes";
+import { apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
+import type { UsageSummary } from "@/lib/billing/usage";
+import { USAGE_UPDATED_EVENT } from "@/lib/billing/usage-events";
+import { cn } from "@/lib/core/utils";
 
 type MeResponse = {
   email: string;
@@ -127,7 +127,7 @@ export function PlanSettingsView() {
         <div className="mx-auto max-w-3xl space-y-8">
           <div>
             <div className="mb-2 flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Sparkles className="size-4" />
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">Plans</h1>

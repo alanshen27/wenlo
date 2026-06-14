@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { broadcastPageTitle } from "@/lib/pusher-server";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
-import { snapshotPageBeforeUpdate } from "@/lib/page-versions";
-import { indexPage } from "@/lib/search";
-import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/auth";
+import { broadcastPageTitle } from "@/lib/realtime/pusher-server";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { snapshotPageBeforeUpdate } from "@/lib/pages/page-versions";
+import { indexPage } from "@/lib/search/search";
+import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

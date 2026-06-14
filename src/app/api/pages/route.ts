@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { libraryIdFromFolder, resolveLibraryId } from "@/lib/libraries";
+import { requireUser } from "@/lib/auth/auth";
+import { libraryIdFromFolder, resolveLibraryId } from "@/lib/library/libraries";
 import {
   contentOwnerId,
   LibraryAccessError,
   requireLibraryAccess,
-} from "@/lib/library-access";
-import { prisma } from "@/lib/prisma";
-import { indexPage } from "@/lib/search";
-import { EMPTY_BLOCKS } from "@/lib/editor-content";
+} from "@/lib/library/library-access";
+import { prisma } from "@/lib/db/prisma";
+import { indexPage } from "@/lib/search/search";
+import { EMPTY_BLOCKS } from "@/lib/editor/editor-content";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser().catch(() => null);

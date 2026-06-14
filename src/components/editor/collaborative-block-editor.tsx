@@ -10,7 +10,7 @@ import type {
   RecallEditor,
   RecallInlineSchema,
   RecallStyleSchema,
-} from "@/lib/blocknote-schema";
+} from "@/lib/editor/blocknote-schema";
 import type * as Y from "yjs";
 import { BlockNoteEditorView } from "@/components/editor/blocknote-editor-view";
 import { EditorBodySkeleton } from "@/components/editor/editor-skeleton";
@@ -20,11 +20,11 @@ import {
   loadOrSeedYjsDoc,
   type PusherYjsProvider,
 } from "@/lib/collab/pusher-yjs-provider";
-import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/blocknote-schema";
-import { blocksToPlainText } from "@/lib/editor-content";
-import { apiUpload, getApiErrorMessage } from "@/lib/api";
-import { debounce } from "@/lib/utils";
-import type { FolderNode } from "@/lib/folders";
+import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/editor/blocknote-schema";
+import { blocksToPlainText } from "@/lib/editor/editor-content";
+import { apiUpload, getApiErrorMessage } from "@/lib/client/api";
+import { debounce } from "@/lib/core/utils";
+import type { FolderNode } from "@/lib/library/folders";
 
 type Props = {
   pageId: string;

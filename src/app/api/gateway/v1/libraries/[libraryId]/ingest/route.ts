@@ -3,10 +3,10 @@ import {
   gatewayErrorResponse,
   requireGatewayAuth,
   resolveGatewayFolderId,
-} from "@/lib/gateway-auth";
-import { normalizeIngestDocumentType, normalizeIngestPageContent } from "@/lib/gateway-ingest";
-import { prisma } from "@/lib/prisma";
-import { indexDocument, indexPage } from "@/lib/search";
+} from "@/lib/auth/gateway-auth";
+import { normalizeIngestDocumentType, normalizeIngestPageContent } from "@/lib/gateway/gateway-ingest";
+import { prisma } from "@/lib/db/prisma";
+import { indexDocument, indexPage } from "@/lib/search/search";
 
 type RouteParams = { params: Promise<{ libraryId: string }> };
 

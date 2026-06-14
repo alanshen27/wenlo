@@ -1,7 +1,7 @@
 "use client";
 
-import type { PageCollaborator } from "@/lib/page-presence";
-import { cn } from "@/lib/utils";
+import type { PageCollaborator } from "@/lib/realtime/page-presence";
+import { cn } from "@/lib/core/utils";
 
 function initials(name: string | null, email: string) {
   if (name?.trim()) {

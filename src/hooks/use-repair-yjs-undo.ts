@@ -5,7 +5,7 @@ import type {
   RecallBlockSchema,
   RecallInlineSchema,
   RecallStyleSchema,
-} from "@/lib/blocknote-schema";
+} from "@/lib/editor/blocknote-schema";
 import { useEffect } from "react";
 import type * as Y from "yjs";
 import { ySyncPluginKey, yUndoPluginKey } from "y-prosemirror";

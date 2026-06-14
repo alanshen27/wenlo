@@ -6,11 +6,11 @@ import type {
   RecallBlockSchema,
   RecallInlineSchema,
   RecallStyleSchema,
-} from "@/lib/blocknote-schema";
+} from "@/lib/editor/blocknote-schema";
 import { FileText } from "lucide-react";
 import { useCallback } from "react";
-import type { FolderNode } from "@/lib/folders";
-import { flattenPagesFromTree } from "@/lib/folders";
+import type { FolderNode } from "@/lib/library/folders";
+import { flattenPagesFromTree } from "@/lib/library/folders";
 
 type Props = {
   libraryId: string;

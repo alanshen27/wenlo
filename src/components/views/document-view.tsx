@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ViewContainer, ViewScroll } from "@/components/ui/view";
-import { documentRoute, libraryHome } from "@/lib/routes";
-import { apiGet } from "@/lib/api";
-import { FileArtwork, getDocumentLabel } from "@/lib/file-icons";
-import { cn, formatBytes } from "@/lib/utils";
+import { documentRoute, libraryHome } from "@/lib/client/routes";
+import { apiGet } from "@/lib/client/api";
+import { FileArtwork, getDocumentLabel } from "@/lib/client/file-icons";
+import { cn, formatBytes } from "@/lib/core/utils";
 
 type Document = {
   id: string;

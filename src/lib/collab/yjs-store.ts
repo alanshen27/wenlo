@@ -92,8 +92,8 @@ export async function seedPageYjsStateFromContent(pageId: string, content: unkno
 
   const { BlockNoteEditor } = await import("@blocknote/core");
   const { blocksToYXmlFragment } = await import("@blocknote/core/yjs");
-  const { blockNoteSchema } = await import("@/lib/blocknote-schema");
-  const { normalizeEditorContent } = await import("@/lib/editor-content");
+  const { blockNoteSchema } = await import("@/lib/editor/blocknote-schema");
+  const { normalizeEditorContent } = await import("@/lib/editor/editor-content");
 
   const doc = new Y.Doc();
   const tempEditor = BlockNoteEditor.create({
@@ -111,8 +111,8 @@ export async function seedPageYjsStateFromContent(pageId: string, content: unkno
 export async function overwritePageYjsFromContent(pageId: string, content: unknown) {
   const { BlockNoteEditor } = await import("@blocknote/core");
   const { blocksToYXmlFragment } = await import("@blocknote/core/yjs");
-  const { blockNoteSchema } = await import("@/lib/blocknote-schema");
-  const { normalizeEditorContent } = await import("@/lib/editor-content");
+  const { blockNoteSchema } = await import("@/lib/editor/blocknote-schema");
+  const { normalizeEditorContent } = await import("@/lib/editor/editor-content");
 
   const doc = new Y.Doc();
   const tempEditor = BlockNoteEditor.create({

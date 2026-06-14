@@ -2,7 +2,7 @@
 
 import { createReactInlineContentSpec } from "@blocknote/react";
 import Link from "next/link";
-import { pageRoute } from "@/lib/routes";
+import { pageRoute } from "@/lib/client/routes";
 import { usePageLinkLibraryId } from "@/components/editor/page-link-context";
 
 function resolveLibraryId(stored: string, fromContext: string | null) {

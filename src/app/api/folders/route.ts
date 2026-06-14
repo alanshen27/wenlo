@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { resolveLibraryId } from "@/lib/libraries";
+import { requireUser } from "@/lib/auth/auth";
+import { resolveLibraryId } from "@/lib/library/libraries";
 import {
   contentOwnerId,
   LibraryAccessError,
   requireLibraryAccess,
-} from "@/lib/library-access";
-import { prisma } from "@/lib/prisma";
-import { buildFolderTree } from "@/lib/folders";
+} from "@/lib/library/library-access";
+import { prisma } from "@/lib/db/prisma";
+import { buildFolderTree } from "@/lib/library/folders";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser().catch(() => null);

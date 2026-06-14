@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/auth";
 import { isCollabConfigured } from "@/lib/collab/config";
 import { uint8ToBase64 } from "@/lib/collab/encoding";
 import { overwritePageYjsFromContent } from "@/lib/collab/yjs-store";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
-import { getPageVersion, restorePageVersion } from "@/lib/page-versions";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { getPageVersion, restorePageVersion } from "@/lib/pages/page-versions";
 import {
   broadcastPageTitle,
   broadcastPageYjsUpdate,
-} from "@/lib/pusher-server";
-import { prisma } from "@/lib/prisma";
-import { indexPage } from "@/lib/search";
+} from "@/lib/realtime/pusher-server";
+import { prisma } from "@/lib/db/prisma";
+import { indexPage } from "@/lib/search/search";
 
 type RouteParams = { params: Promise<{ id: string; versionId: string }> };
 

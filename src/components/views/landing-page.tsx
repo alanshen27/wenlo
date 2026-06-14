@@ -2,7 +2,10 @@ import Link from "next/link";
 import {
   ArrowRight,
   Brain,
+  FileText,
+  FolderClosed,
   FolderTree,
+  House,
   Search,
   Sparkles,
   Terminal,
@@ -11,8 +14,8 @@ import {
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { buttonVariants } from "@/components/ui/button";
-import { PLAN_LIST } from "@/lib/plans";
-import { cn } from "@/lib/utils";
+import { PLAN_LIST } from "@/lib/billing/plans";
+import { cn } from "@/lib/core/utils";
 
 const features = [
   {
@@ -44,13 +47,13 @@ const features = [
   {
     icon: Terminal,
     title: "CLI & API",
-    description: "Pipe files in, query from scripts, and wire Recall into your own agents.",
+    description: "Pipe files in, query from scripts, and wire wenlo into your own agents.",
   },
 ];
 
 const steps = [
   { label: "Store", detail: "Upload files and write notes — one home for everything." },
-  { label: "Index", detail: "Recall extracts, OCRs, and embeds it all automatically." },
+  { label: "Index", detail: "wenlo extracts, OCRs, and embeds it all automatically." },
   { label: "Recall", detail: "Your agent searches, reads, and answers with sources." },
 ];
 
@@ -68,7 +71,7 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
     <div className="landing-page relative min-h-screen overflow-x-hidden bg-background">
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="landing-orb landing-orb-1 absolute -top-24 left-[8%] size-[28rem] rounded-full bg-primary/20 blur-3xl dark:bg-primary/15" />
-        <div className="landing-orb landing-orb-2 absolute top-[18%] -right-20 size-[22rem] rounded-full bg-violet-400/20 blur-3xl dark:bg-violet-500/10" />
+        <div className="landing-orb landing-orb-2 absolute top-[18%] -right-20 size-[22rem] rounded-full bg-rose-400/20 blur-3xl dark:bg-rose-500/10" />
         <div className="landing-orb landing-orb-3 absolute bottom-[30%] left-[5%] size-[18rem] rounded-full bg-emerald-400/15 blur-3xl dark:bg-emerald-500/10" />
         <div className="landing-orb landing-orb-4 absolute -bottom-16 right-[12%] size-[24rem] rounded-full bg-amber-400/15 blur-3xl dark:bg-amber-500/10" />
       </div>
@@ -105,7 +108,7 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
             </h1>
             <p className="mt-5 text-lg text-muted-foreground text-pretty md:text-xl">
               Keep your files and notes in one place — then let an agent search, read, and answer
-              across all of it. Recall turns everything you store into context.
+              across all of it. wenlo turns everything you store into context.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link href={primaryHref} className={cn(buttonVariants({ size: "lg" }), "gap-2 px-5")}>
@@ -121,44 +124,9 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
             </div>
           </div>
 
-          <div className="mx-auto mt-12 max-w-xl md:mt-14">
-            <div className="overflow-hidden rounded-xl border border-border/80 bg-card/70 shadow-lg shadow-primary/5 backdrop-blur-sm">
-              <div className="flex items-center gap-2 border-b border-border/80 px-4 py-2.5">
-                <span className="size-2.5 rounded-full bg-red-500/80" />
-                <span className="size-2.5 rounded-full bg-yellow-500/80" />
-                <span className="size-2.5 rounded-full bg-green-500/80" />
-                <span className="ml-2 font-mono text-xs text-muted-foreground">
-                  ~/projects/ml-notes
-                </span>
-              </div>
-              <pre className="overflow-x-auto p-4 font-mono text-[0.8125rem] leading-relaxed sm:p-5 sm:text-sm">
-                <code>
-                  <span className="text-muted-foreground">$ </span>
-                  <span className="text-primary">recall</span>
-                  <span className="text-foreground">
-                    {" "}
-                    &quot;how does rotary positional encoding work?&quot;
-                  </span>
-                  {"\n\n"}
-                  <span className="text-emerald-500/90 dark:text-emerald-400/90">→</span>
-                  <span className="text-muted-foreground"> 3 matches in </span>
-                  <span className="text-foreground">transformers/</span>
-                  {"\n\n"}
-                  <span className="text-foreground/90">
-                    {"  "}[page] Attention Is All You Need — notes
-                  </span>
-                  {"\n"}
-                  <span className="text-muted-foreground">
-                    {"         "}…sin/cos functions of different frequencies…
-                  </span>
-                  {"\n\n"}
-                  <span className="text-foreground/90">{"  "}[pdf] CS224N Lecture 5 — slides</span>
-                  {"\n"}
-                  <span className="text-muted-foreground">
-                    {"         "}…relative positions via rotation in complex space…
-                  </span>
-                </code>
-              </pre>
+          <div className="group mx-auto mt-12 max-w-3xl md:mt-16">
+            <div className="opacity-90 transition-all duration-500 mask-[linear-gradient(to_bottom,black_70%,transparent)] group-hover:blur-0 group-hover:opacity-100">
+              <AppMockup />
             </div>
           </div>
         </section>
@@ -280,7 +248,7 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
       <footer className="relative z-10 border-t border-border/60 py-6">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-3 px-6 text-sm text-muted-foreground sm:flex-row md:px-8">
           <p>
-            <span className="text-foreground">Recall</span> · recalls.sh — MIT License
+            <span className="text-foreground">wenlo</span> · recalls.sh — MIT License
           </p>
           {!isLoggedIn && (
             <Link href="/login" className="transition-colors hover:text-foreground">
@@ -291,4 +259,163 @@ export function LandingPage({ isLoggedIn = false, libraryHref }: LandingPageProp
       </footer>
     </div>
   );
+}
+
+const mockFolders = [
+  { name: "Transformers", color: "bg-blue-500" },
+  { name: "Datasets", color: "bg-emerald-500" },
+  { name: "Papers", color: "bg-amber-500" },
+];
+
+const mockSources = [
+  {
+    icon: FileText,
+    title: "Attention Is All You Need — notes",
+    snippet: "…RoPE rotates query/key vectors by an angle proportional to position, so dot products encode relative distance…",
+    badge: "keyword + semantic",
+  },
+  {
+    icon: FileText,
+    title: "CS224N Lecture 5 — slides.pdf",
+    snippet: "…unlike absolute embeddings, rotary encodings extrapolate to longer sequences than seen in training…",
+    badge: "semantic",
+  },
+];
+
+function AppMockup() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-2xl shadow-primary/10 backdrop-blur-sm">
+      <div className="flex items-center gap-2 border-b border-border/80 bg-muted/40 px-4 py-2.5">
+        <span className="size-2.5 rounded-full bg-red-500/80" />
+        <span className="size-2.5 rounded-full bg-yellow-500/80" />
+        <span className="size-2.5 rounded-full bg-green-500/80" />
+        <div className="ml-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">ML Research</span>
+          <span className="opacity-50">/</span>
+          <span className="inline-flex items-center gap-1 text-primary">
+            <Sparkles className="size-3" />
+            Recall
+          </span>
+        </div>
+      </div>
+
+      <div className="flex min-h-104">
+        <aside className="hidden w-52 shrink-0 flex-col gap-4 border-r border-border/80 bg-muted/20 p-3 sm:flex">
+          <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-card px-2.5 py-1.5">
+            <span className="grid size-5 place-items-center rounded-md bg-primary/15 text-[11px] font-semibold text-primary">
+              M
+            </span>
+            <span className="truncate text-sm font-medium">ML Research</span>
+          </div>
+
+          <div className="flex flex-col gap-0.5">
+            <MockNavItem icon={House} label="Home" />
+            <MockNavItem icon={Search} label="Search" />
+            <MockNavItem icon={Sparkles} label="Recall" active />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <p className="px-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+              Folders
+            </p>
+            {mockFolders.map((folder) => (
+              <div
+                key={folder.name}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground"
+              >
+                <FolderClosed className={cn("size-4 fill-current", folderTint(folder.color))} />
+                <span className="truncate">{folder.name}</span>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-center gap-2 border-b border-border/80 px-4 py-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-card px-2 py-1 text-xs text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-primary" />
+              ML Research · All
+            </span>
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-hidden p-4">
+            <div className="flex justify-end">
+              <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
+                How does rotary positional encoding work?
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="max-w-[92%] rounded-2xl rounded-bl-sm bg-muted/60 px-3.5 py-2.5 text-sm leading-relaxed text-foreground/90">
+                Rotary positional encoding (RoPE) rotates the query and key vectors by an angle that grows
+                with token position. Because attention scores depend on the angle{" "}
+                <span className="text-muted-foreground">difference</span>, the model directly sees{" "}
+                <span className="font-medium text-foreground">relative</span> positions and generalizes to
+                longer sequences.
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">2 sources</p>
+                {mockSources.map((source) => (
+                  <div
+                    key={source.title}
+                    className="rounded-lg border border-border bg-card p-2.5 text-left"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                        <source.icon className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{source.title}</span>
+                      </span>
+                      <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        {source.badge}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{source.snippet}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border/80 p-3">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2">
+              <span className="truncate text-sm text-muted-foreground">Ask anything about your notes…</span>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">
+                <Sparkles className="size-3" />
+                Recall
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockNavItem({
+  icon: Icon,
+  label,
+  active,
+}: {
+  icon: typeof House;
+  label: string;
+  active?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+        active
+          ? "bg-primary/10 font-medium text-primary"
+          : "text-muted-foreground"
+      )}
+    >
+      <Icon className="size-4" />
+      {label}
+    </div>
+  );
+}
+
+function folderTint(color: string) {
+  return color.replace("bg-", "text-");
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { acceptLibraryInvite, declineLibraryInvite } from "@/lib/invites";
-import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/auth";
+import { acceptLibraryInvite, declineLibraryInvite } from "@/lib/library/invites";
+import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ token: string }> };
 

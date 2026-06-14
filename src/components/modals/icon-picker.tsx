@@ -1,7 +1,7 @@
 "use client";
 
 import { PickerOptionButton } from "@/components/modals/picker-option-button";
-import { LIBRARY_ICONS } from "@/lib/folder-colors";
+import { LIBRARY_ICONS } from "@/lib/library/folder-colors";
 
 type Props = {
   value: string;

@@ -5,7 +5,6 @@ import {
   ArrowDownAZ,
   ArrowUpZA,
   ChevronDown,
-  FolderPlus,
   LayoutGrid,
   List,
   Loader2,
@@ -14,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 export type ViewMode = "grid" | "list";
 export type SortMode = "name-asc" | "name-desc" | "type";
@@ -41,6 +41,8 @@ type Props = {
   sort: SortMode;
   onSortChange: (sort: SortMode) => void;
   onNewPage: () => void | Promise<void>;
+  onNewBoard: () => void | Promise<void>;
+  onNewDeck: () => void | Promise<void>;
   onNewFolder: () => void;
   onUpload: () => void;
 };
@@ -52,6 +54,8 @@ export function CloudToolbar({
   sort,
   onSortChange,
   onNewPage,
+  onNewBoard,
+  onNewDeck,
   onNewFolder,
   onUpload,
 }: Props) {
@@ -119,18 +123,26 @@ export function CloudToolbar({
             {creatingPage ? "Creating…" : "New"}
             <ChevronDown className="size-4 opacity-70" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuContent align="end" className="w-60 **:[[role=menuitem]]:gap-3 **:[[role=menuitem]]:py-2.5 **:[[role=menuitem]]:text-sm">
             <DropdownMenuItem onClick={handleNewPage}>
-              <Plus className="size-3.5" />
+              <FileArtwork type="PAGE" className="size-5" />
               New page
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={onNewBoard}>
+              <FileArtwork type="WHITEBOARD" className="size-5" />
+              New whiteboard
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onNewDeck}>
+              <FileArtwork type="DECK" className="size-5" />
+              New deck
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onNewFolder}>
-              <FolderPlus className="size-3.5" />
+              <FolderArtwork color="blue" className="size-5" />
               New folder
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onUpload}>
-              <Upload className="size-3.5" />
+              <Upload className="size-4" />
               Upload files
             </DropdownMenuItem>
           </DropdownMenuContent>

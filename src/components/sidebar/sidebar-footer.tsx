@@ -11,14 +11,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatTokens } from "@/lib/plans";
+import { formatTokens } from "@/lib/billing/plans";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { apiGet } from "@/lib/api";
-import { settingsPlanRoute, settingsRoute } from "@/lib/routes";
-import type { UsageSummary } from "@/lib/usage";
-import { USAGE_UPDATED_EVENT } from "@/lib/usage-events";
+import { apiGet } from "@/lib/client/api";
+import { settingsPlanRoute, settingsRoute } from "@/lib/client/routes";
+import type { UsageSummary } from "@/lib/billing/usage";
+import { USAGE_UPDATED_EVENT } from "@/lib/billing/usage-events";
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 type MeResponse = {
   id: string;

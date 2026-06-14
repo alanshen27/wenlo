@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/auth";
 import { isCollabConfigured } from "@/lib/collab/config";
 import { authorizePusherChannel } from "@/lib/collab/pusher-auth";
-import { LibraryAccessError } from "@/lib/library-access";
+import { LibraryAccessError } from "@/lib/library/library-access";
 
 export async function POST(req: NextRequest) {
   if (!isCollabConfigured()) {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const auth = await authorizePusherChannel(user.id, channelName, socketId);
+    const auth = await authorizePusherChannel(user, channelName, socketId);
     return NextResponse.json(auth);
   } catch (error) {
     if (error instanceof LibraryAccessError) {

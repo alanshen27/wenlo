@@ -1,7 +1,7 @@
 import { LandingView } from "@/components/views/landing-view";
-import { getCurrentUser } from "@/lib/auth";
-import { listLibrariesWithRoles } from "@/lib/libraries";
-import { libraryHome } from "@/lib/routes";
+import { getCurrentUser } from "@/lib/auth/auth";
+import { listLibrariesWithRoles } from "@/lib/library/libraries";
+import { libraryHome } from "@/lib/client/routes";
 
 export default async function HomePage() {
   const user = await getCurrentUser();

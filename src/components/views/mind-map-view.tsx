@@ -15,11 +15,11 @@ import "@xyflow/react/dist/style.css";
 import { Loader2, Network } from "lucide-react";
 import { MindMapNode } from "@/components/mind-map/mind-map-node";
 import { useLibrary } from "@/components/library/library-shell";
-import type { GraphEdge, GraphNode } from "@/lib/page-graph";
-import { applyFocus, layoutMindMap, type MindMapNodeData } from "@/lib/mind-map-layout";
-import { getFolderColorHex } from "@/lib/folder-colors";
-import { apiGet } from "@/lib/api";
-import { pageRoute } from "@/lib/routes";
+import type { GraphEdge, GraphNode } from "@/lib/pages/page-graph";
+import { applyFocus, layoutMindMap, type MindMapNodeData } from "@/lib/pages/mind-map-layout";
+import { getFolderColorHex } from "@/lib/library/folder-colors";
+import { apiGet } from "@/lib/client/api";
+import { pageRoute } from "@/lib/client/routes";
 
 const nodeTypes = { mindMap: MindMapNode };
 
@@ -127,13 +127,13 @@ export function MindMapView() {
             Folder
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-px w-4 border-t border-dashed border-violet-400" />
+            <span className="inline-block h-px w-4 border-t border-dashed border-primary/60" />
             Link
           </span>
         </div>
       </div>
 
-      <div className="relative flex-1 bg-gradient-to-br from-violet-500/[0.03] via-background to-indigo-500/[0.03]">
+      <div className="relative flex-1 bg-linear-to-br from-primary/3 via-background to-primary/3">
         <ReactFlow
           nodes={nodes}
           edges={edges}

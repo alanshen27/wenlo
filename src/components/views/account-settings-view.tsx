@@ -7,10 +7,10 @@ import { ArrowLeft } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { libraryHome, readStoredLibraryId, settingsIntegrationsRoute, settingsPlanRoute } from "@/lib/routes";
-import { apiGet, apiPatch, getApiErrorMessage } from "@/lib/api";
+import { libraryHome, readStoredLibraryId, settingsIntegrationsRoute, settingsPlanRoute } from "@/lib/client/routes";
+import { apiGet, apiPatch, getApiErrorMessage } from "@/lib/client/api";
 import { ThemeSettingRow, ThemeToggle } from "@/components/theme-toggle";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 type MeResponse = {
   email: string;
@@ -145,7 +145,7 @@ export function AccountSettingsView() {
           <div className="rounded-xl border border-border bg-card p-5">
             <h2 className="text-sm font-medium">CLI & API access</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create Recall API keys so scripts and agents can read and write your libraries.
+              Create wenlo API keys so scripts and agents can read and write your libraries.
             </p>
             <Link
               href={settingsIntegrationsRoute()}

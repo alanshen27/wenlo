@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { LibraryRole } from "@/lib/library-access";
+import type { LibraryRole } from "@/lib/library/library-access";
 
 export type Library = {
   id: string;

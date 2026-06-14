@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
+import { requireUser } from "@/lib/auth/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
 import {
   PAGE_ASSET_MAX_BYTES,
   isAllowedAssetType,
   pageAssetStoragePath,
   pageAssetUrl,
-} from "@/lib/page-assets";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/documents/page-assets";
+import { prisma } from "@/lib/db/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type RouteParams = { params: Promise<{ id: string }> };

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
-import { prisma } from "@/lib/prisma";
-import { listPendingInvitesForUser } from "@/lib/invites";
+import { requireUser } from "@/lib/auth/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { prisma } from "@/lib/db/prisma";
+import { listPendingInvitesForUser } from "@/lib/library/invites";
 
 export async function GET() {
   const user = await requireUser().catch(() => null);

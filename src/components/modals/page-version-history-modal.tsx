@@ -11,9 +11,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import type { PageVersionSummary } from "@/lib/page-versions";
+import { apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
+import { cn } from "@/lib/core/utils";
+import type { PageVersionSummary } from "@/lib/pages/page-versions";
 
 type VersionDetail = PageVersionSummary & {
   content: unknown;

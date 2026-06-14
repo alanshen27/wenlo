@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/auth";
 import { isCollabConfigured } from "@/lib/collab/config";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/collab/encoding";
 import { mergePageYjsUpdate, readPageYjsState, seedPageYjsStateFromContent } from "@/lib/collab/yjs-store";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
-import { broadcastPageAwareness, broadcastPageYjsUpdate } from "@/lib/pusher-server";
-import { prisma } from "@/lib/prisma";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { broadcastPageAwareness, broadcastPageYjsUpdate } from "@/lib/realtime/pusher-server";
+import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

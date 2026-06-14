@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/auth";
 import {
   isInlineAssetType,
   pageAssetStoragePath,
   parsePageAssetRequest,
-} from "@/lib/page-assets";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/documents/page-assets";
+import { prisma } from "@/lib/db/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type RouteParams = { params: Promise<{ id: string; path: string[] }> };

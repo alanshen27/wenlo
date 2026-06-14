@@ -9,12 +9,12 @@ import { useRecallChat } from "@/components/recall/recall-chat-context";
 import { ScopeSelect } from "@/components/search/scope-select";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { Button } from "@/components/ui/button";
-import type { RecallResult } from "@/lib/types";
-import { notifyUsageUpdated } from "@/lib/usage-events";
-import { documentRoute, pageRoute, searchRoute } from "@/lib/routes";
-import { apiGet, getApiErrorMessage } from "@/lib/api";
-import type { RecallChatSessionSummary, RecallTurn } from "@/lib/recall-chat-shared";
-import { cn } from "@/lib/utils";
+import type { RecallResult } from "@/lib/core/types";
+import { notifyUsageUpdated } from "@/lib/billing/usage-events";
+import { documentRoute, pageRoute, searchRoute } from "@/lib/client/routes";
+import { apiGet, getApiErrorMessage } from "@/lib/client/api";
+import type { RecallChatSessionSummary, RecallTurn } from "@/lib/recall-chat/recall-chat-shared";
+import { cn } from "@/lib/core/utils";
 import MarkdownRenderer from "../recall/markdown-renderer";
 
 type AgentStreamEvent =
@@ -248,7 +248,7 @@ export function RecallView() {
 
           {showWelcome && (
             <div className="flex flex-col items-center py-10 text-center md:py-16">
-              <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+              <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 <Sparkles className="size-6" />
               </div>
               <h2 className="mb-2 text-lg font-semibold tracking-tight">
@@ -267,7 +267,7 @@ export function RecallView() {
                       setQuestion(prompt);
                       inputRef.current?.focus();
                     }}
-                    className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:border-violet-500/30 hover:bg-violet-500/5 hover:text-foreground"
+                    className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-foreground"
                   >
                     {prompt}
                   </button>
@@ -279,7 +279,7 @@ export function RecallView() {
           {displayTurns.map((turn, i) => (
             <div key={`${turn.createdAt}-${i}`} className="space-y-4">
               <div className="flex justify-end">
-                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-violet-600 px-4 py-2.5 text-sm text-white dark:bg-violet-500">
+                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
                   {turn.question}
                 </div>
               </div>
@@ -311,7 +311,7 @@ export function RecallView() {
           {streamingTurn && (
             <div className="space-y-4">
               <div className="flex justify-end">
-                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-violet-600 px-4 py-2.5 text-sm text-white dark:bg-violet-500">
+                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
                   {streamingTurn.question}
                 </div>
               </div>
@@ -345,7 +345,7 @@ export function RecallView() {
             ask();
           }}
         >
-          <div className="rounded-2xl border border-border bg-card shadow-sm transition-shadow focus-within:border-violet-500/40 focus-within:ring-2 focus-within:ring-violet-500/10">
+          <div className="rounded-2xl border border-border bg-card shadow-sm transition-shadow focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
             <textarea
               ref={inputRef}
               value={question}
@@ -372,7 +372,7 @@ export function RecallView() {
                 type="submit"
                 size="sm"
                 disabled={loadingHistory || loading || !question.trim()}
-                className="gap-1.5 bg-violet-600 hover:bg-violet-600/90 dark:bg-violet-500"
+                className="gap-1.5"
               >
                 <Sparkles className="size-3.5" />
                 Recall

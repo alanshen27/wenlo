@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
-import { buildFolderTree } from "@/lib/folders";
-import { buildPageGraph } from "@/lib/page-graph";
-import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/auth";
+import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { buildFolderTree } from "@/lib/library/folders";
+import { buildPageGraph } from "@/lib/pages/page-graph";
+import { prisma } from "@/lib/db/prisma";
 
 export async function GET(
   _req: NextRequest,

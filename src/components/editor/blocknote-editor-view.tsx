@@ -9,7 +9,7 @@ import { PageLinkLibraryProvider } from "@/components/editor/page-link-context";
 import { PageLinkMenu } from "@/components/editor/page-link-menu";
 import { SlashMenu } from "@/components/editor/slash-menu";
 import { BlockNoteSideMenuController } from "@/components/editor/blocknote-side-menu";
-import type { FolderNode } from "@/lib/folders";
+import type { FolderNode } from "@/lib/library/folders";
 
 type Props<
   BSchema extends BlockSchema,

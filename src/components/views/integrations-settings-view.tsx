@@ -6,8 +6,8 @@ import { ArrowLeft, Copy, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { libraryHome, readStoredLibraryId } from "@/lib/routes";
-import { apiDelete, apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
+import { libraryHome, readStoredLibraryId } from "@/lib/client/routes";
+import { apiDelete, apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
 
 type Library = { id: string; name: string; icon: string };
 

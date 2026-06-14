@@ -3,8 +3,8 @@ import {
   gatewayErrorResponse,
   requireGatewayAuth,
   resolveGatewayFolderId,
-} from "@/lib/gateway-auth";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/auth/gateway-auth";
+import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ libraryId: string }> };
 

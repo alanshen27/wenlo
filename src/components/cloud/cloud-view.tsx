@@ -12,26 +12,43 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { FileText, FolderClosed, FolderInput, Loader2, Trash2, Upload, X } from "lucide-react";
+import {
+  ChevronDown,
+  CloudUpload,
+  FilePlus,
+  FileText,
+  FolderClosed,
+  FolderInput,
+  Loader2,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useLibrary } from "@/components/library/library-shell";
 import { CloudToolbar, type SortMode, type ViewMode } from "@/components/cloud/cloud-toolbar";
 import { EntityCard, EntityTable, type CloudItem } from "@/components/cloud/entities";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ViewContainer, ViewHeader, ViewScroll, SectionLabel } from "@/components/ui/view";
 import { ConfirmModal } from "@/components/modals/confirm-modal";
 import { MoveModal } from "@/components/modals/move-modal";
-import { getFolderContents } from "@/lib/folders";
-import { FolderArtwork } from "@/lib/file-icons";
-import type { FolderColorId } from "@/lib/folder-colors";
-import { apiDelete } from "@/lib/api";
-import { documentRoute, folderHome, pageRoute } from "@/lib/routes";
+import { getFolderContents } from "@/lib/library/folders";
+import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
+import type { FolderColorId } from "@/lib/library/folder-colors";
+import { apiDelete } from "@/lib/client/api";
+import { documentOpenRoute, folderHome, pageRoute } from "@/lib/client/routes";
 import {
   parseFolderDropId,
   parseItemDragId,
   type SidebarDragItem,
-} from "@/lib/sidebar-dnd";
-import { formatBytes } from "@/lib/utils";
+} from "@/lib/client/sidebar-dnd";
+import { formatBytes } from "@/lib/core/utils";
 
 type Props = {
   folderId?: string | null;
@@ -85,6 +102,8 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     refreshTree,
     uploadToFolder,
     createPage,
+    createBoard,
+    createDeck,
     moveItem,
     beginCreateFolder,
     beginEditFolder,
@@ -99,7 +118,6 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   const [sort, setSort] = usePersistentState<SortMode>(SORT_KEY, "name-asc");
   const [dragging, setDragging] = useState(false);
   const [activeDrag, setActiveDrag] = useState<SidebarDragItem | null>(null);
-  const dragDepth = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
@@ -320,7 +338,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   function hrefFor(item: CloudItem) {
     if (item.kind === "folder") return folderHome(libraryId, item.id);
     if (item.kind === "page") return pageRoute(libraryId, item.id);
-    return documentRoute(libraryId, item.id);
+    return documentOpenRoute(libraryId, item.id, item.type);
   }
 
   function actionsFor(item: CloudItem) {
@@ -353,9 +371,13 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     };
   }
 
-  function renderGrid(items: CloudItem[]) {
+  function renderGrid(items: CloudItem[], variant: "folder" | "file") {
+    const cols =
+      variant === "folder"
+        ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+        : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
     return (
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9">
+      <div className={`grid gap-3 ${cols}`}>
         {items.map((item) => (
           <EntityCard
             key={`${item.kind}-${item.id}`}
@@ -398,26 +420,13 @@ export function CloudView({ folderId: folderIdProp }: Props) {
       className="relative"
       onDragEnter={(e) => {
         if (!canEdit || !Array.from(e.dataTransfer.types).includes("Files")) return;
-        dragDepth.current += 1;
+        e.preventDefault();
         setDragging(true);
       }}
       onDragOver={(e) => {
         if (!canEdit || !Array.from(e.dataTransfer.types).includes("Files")) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
-      }}
-      onDragLeave={() => {
-        dragDepth.current = Math.max(0, dragDepth.current - 1);
-        if (dragDepth.current === 0) setDragging(false);
-      }}
-      onDrop={(e) => {
-        if (!canEdit) return;
-        dragDepth.current = 0;
-        setDragging(false);
-        if (e.dataTransfer.files.length) {
-          e.preventDefault();
-          handleFiles(e.dataTransfer.files);
-        }
       }}
     >
       <DndContext
@@ -457,11 +466,23 @@ export function CloudView({ folderId: folderIdProp }: Props) {
               sort={sort}
               onSortChange={setSort}
               onNewPage={() => createPage(folderId)}
+              onNewBoard={() => createBoard(folderId)}
+              onNewDeck={() => createDeck(folderId)}
               onNewFolder={() => beginCreateFolder(folderId)}
               onUpload={() => inputRef.current?.click()}
             />
           }
         />
+
+        {canEdit && treeLoaded && (
+          <QuickActions
+            onNewPage={() => createPage(folderId)}
+            onNewBoard={() => createBoard(folderId)}
+            onNewDeck={() => createDeck(folderId)}
+            onNewFolder={() => beginCreateFolder(folderId)}
+            onUpload={() => inputRef.current?.click()}
+          />
+        )}
 
         {!treeLoaded && <CloudSkeleton view={view} />}
 
@@ -478,14 +499,14 @@ export function CloudView({ folderId: folderIdProp }: Props) {
         {treeLoaded && view === "grid" && folderItems.length > 0 && (
           <section className="space-y-3">
             <SectionLabel>Folders</SectionLabel>
-            {renderGrid(folderItems)}
+            {renderGrid(folderItems, "folder")}
           </section>
         )}
 
         {treeLoaded && view === "grid" && fileItems.length > 0 && (
           <section className="space-y-3">
             <SectionLabel>Files &amp; pages</SectionLabel>
-            {renderGrid(fileItems)}
+            {renderGrid(fileItems, "file")}
           </section>
         )}
 
@@ -522,8 +543,28 @@ export function CloudView({ folderId: folderIdProp }: Props) {
       )}
 
       {dragging && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-primary/5 backdrop-blur-[1px]">
-          <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-primary/50 bg-background/80 px-10 py-8 text-primary shadow-lg">
+        // Full-cover catcher: once a file drag begins this sits above the cards
+        // (incl. PDF preview iframes, which otherwise swallow native drag events)
+        // and owns the dragover/drop so the drop zone stays reliable.
+        <div
+          className="absolute inset-0 z-20 flex items-center justify-center bg-primary/5 backdrop-blur-[1px]"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              setDragging(false);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragging(false);
+            if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+          }}
+        >
+          <div className="pointer-events-none flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-primary/50 bg-background/80 px-10 py-8 text-primary shadow-lg">
             <Upload className="size-7" />
             <p className="text-sm font-medium">Drop files to upload</p>
             <p className="text-xs text-muted-foreground">
@@ -592,6 +633,82 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   );
 }
 
+function QuickActions({
+  onNewPage,
+  onNewBoard,
+  onNewDeck,
+  onNewFolder,
+  onUpload,
+}: {
+  onNewPage: () => void | Promise<void>;
+  onNewBoard: () => void | Promise<void>;
+  onNewDeck: () => void | Promise<void>;
+  onNewFolder: () => void;
+  onUpload: () => void;
+}) {
+  const [creating, setCreating] = useState(false);
+
+  async function handleNewPage() {
+    if (creating) return;
+    setCreating(true);
+    try {
+      await onNewPage();
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const cardClass =
+    "group flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 text-left shadow-sm transition-colors hover:border-border hover:bg-accent/50 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<button type="button" className={cardClass} />}>
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            {creating ? <Loader2 className="size-5 animate-spin" /> : <FilePlus className="size-5" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-foreground">New</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              Create a page or folder
+            </span>
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60 **:[[role=menuitem]]:gap-3 **:[[role=menuitem]]:py-2.5 **:[[role=menuitem]]:text-sm">
+          <DropdownMenuItem onClick={handleNewPage}>
+            <FileArtwork type="PAGE" className="size-5" />
+            New page
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onNewBoard}>
+            <FileArtwork type="WHITEBOARD" className="size-5" />
+            New whiteboard
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onNewDeck}>
+            <FileArtwork type="DECK" className="size-5" />
+            New deck
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onNewFolder}>
+            <FolderArtwork color="blue" className="size-5" />
+            New folder
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <button type="button" onClick={onUpload} className={cardClass}>
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-500/10 text-orange-500 dark:text-orange-400">
+          <CloudUpload className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-foreground">Upload</span>
+          <span className="block truncate text-xs text-muted-foreground">Upload local files</span>
+        </span>
+      </button>
+    </div>
+  );
+}
+
 function CloudSkeleton({ view }: { view: ViewMode }) {
   if (view === "list") {
     return (
@@ -614,14 +731,17 @@ function CloudSkeleton({ view }: { view: ViewMode }) {
   return (
     <div className="space-y-3">
       <Skeleton className="h-3.5 w-16" />
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9">
-        {Array.from({ length: 18 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex flex-col items-center gap-2 rounded-xl border border-border px-2 py-3"
-          >
-            <Skeleton className="size-10 rounded-lg" />
-            <Skeleton className="h-3.5 w-full" style={{ maxWidth: `${55 + ((i * 17) % 35)}%` }} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div key={i} className="overflow-hidden rounded-xl border border-border">
+            <Skeleton className="aspect-4/3 w-full rounded-none" />
+            <div className="flex items-center gap-2.5 px-2.5 py-2">
+              <Skeleton className="size-7 shrink-0 rounded-md" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <Skeleton className="h-3" style={{ maxWidth: `${55 + ((i * 17) % 35)}%` }} />
+                <Skeleton className="h-2.5 w-1/2" />
+              </div>
+            </div>
           </div>
         ))}
       </div>

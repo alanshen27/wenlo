@@ -5,13 +5,13 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { BlockNoteEditorView } from "@/components/editor/blocknote-editor-view";
-import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/blocknote-schema";
-import { blocksToPlainText, normalizeEditorContent } from "@/lib/editor-content";
-import { apiUpload, getApiErrorMessage } from "@/lib/api";
-import { debounce } from "@/lib/utils";
-import type { RecallPartialBlock } from "@/lib/editor-content";
-import type { RecallEditor } from "@/lib/blocknote-schema";
-import type { FolderNode } from "@/lib/folders";
+import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/editor/blocknote-schema";
+import { blocksToPlainText, normalizeEditorContent } from "@/lib/editor/editor-content";
+import { apiUpload, getApiErrorMessage } from "@/lib/client/api";
+import { debounce } from "@/lib/core/utils";
+import type { RecallPartialBlock } from "@/lib/editor/editor-content";
+import type { RecallEditor } from "@/lib/editor/blocknote-schema";
+import type { FolderNode } from "@/lib/library/folders";
 
 type Props = {
   pageId: string;

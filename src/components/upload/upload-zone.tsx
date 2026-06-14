@@ -2,9 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { Button } from "@/components/ui/button";
-import { uploadFile } from "@/lib/upload";
+import { uploadFile } from "@/lib/documents/upload";
 
 type Props = {
   libraryId: string | null;

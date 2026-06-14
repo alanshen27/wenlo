@@ -12,8 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
-import { libraryHome } from "@/lib/routes";
+import { apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
+import { libraryHome } from "@/lib/client/routes";
 import { Logo } from "@/components/logo";
 
 type InviteDetails = {

@@ -4,9 +4,9 @@ import { Check, Loader2, Maximize2, Minimize2, PanelLeftOpen } from "lucide-reac
 import { PageCollaborators } from "@/components/editor/page-collaborators";
 import { NavBreadcrumb } from "@/components/nav/nav-breadcrumb";
 import { Button } from "@/components/ui/button";
-import type { BreadcrumbItem } from "@/lib/folders";
-import type { PageCollaborator } from "@/lib/page-presence";
-import { cn } from "@/lib/utils";
+import type { BreadcrumbItem } from "@/lib/library/folders";
+import type { PageCollaborator } from "@/lib/realtime/page-presence";
+import { cn } from "@/lib/core/utils";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 

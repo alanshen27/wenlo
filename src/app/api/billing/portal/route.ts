@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { getBillingSummary } from "@/lib/billing";
-import { isBillingConfigured } from "@/lib/lemonsqueezy";
+import { requireUser } from "@/lib/auth/auth";
+import { getBillingSummary } from "@/lib/billing/billing";
+import { isBillingConfigured } from "@/lib/billing/lemonsqueezy";
 
 export async function GET() {
   const user = await requireUser().catch(() => null);

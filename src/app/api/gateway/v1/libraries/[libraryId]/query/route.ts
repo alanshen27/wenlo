@@ -3,8 +3,8 @@ import {
   gatewayErrorResponse,
   requireGatewayAuth,
   resolveGatewayFolderId,
-} from "@/lib/gateway-auth";
-import { recallSearch } from "@/lib/search";
+} from "@/lib/auth/gateway-auth";
+import { recallSearch } from "@/lib/search/search";
 
 type RouteParams = { params: Promise<{ libraryId: string }> };
 

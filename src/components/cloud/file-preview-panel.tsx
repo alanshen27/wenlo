@@ -5,10 +5,14 @@ import Link from "next/link";
 import { Download, ExternalLink, FileText, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileArtwork, getDocumentLabel } from "@/lib/file-icons";
-import { apiGet } from "@/lib/api";
-import { documentRoute } from "@/lib/routes";
-import { cn, formatBytes } from "@/lib/utils";
+import { FileArtwork, getDocumentLabel } from "@/lib/client/file-icons";
+import { apiGet } from "@/lib/client/api";
+import { boardRoute, deckRoute, documentRoute } from "@/lib/client/routes";
+import { cn, formatBytes } from "@/lib/core/utils";
+import { BoardPreview } from "@/components/whiteboard/board-preview";
+import type { BoardDoc } from "@/lib/boards/board-schema";
+import { DeckSlideSvg } from "@/components/slideshow/deck-slide-svg";
+import type { DeckDoc } from "@/lib/decks/deck-schema";
 
 export type PreviewTarget = { id: string; title: string; type: string };
 
@@ -41,18 +45,33 @@ export function FilePreviewPanel({
   onClose: () => void;
 }) {
   const [doc, setDoc] = useState<DocumentDetail | null>(null);
+  const [board, setBoard] = useState<BoardDoc | null>(null);
+  const [deck, setDeck] = useState<DeckDoc | null>(null);
   const [loading, setLoading] = useState(true);
   const [mediaError, setMediaError] = useState(false);
+
+  const isBoard = target.type === "WHITEBOARD";
+  const isDeck = target.type === "DECK";
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setMediaError(false);
     setDoc(null);
+    setBoard(null);
+    setDeck(null);
     (async () => {
       try {
-        const data = await apiGet<DocumentDetail>(`/api/documents/${target.id}`);
-        if (!cancelled) setDoc(data);
+        if (isBoard) {
+          const data = await apiGet<{ scene: BoardDoc }>(`/api/boards/${target.id}`);
+          if (!cancelled) setBoard(data.scene);
+        } else if (isDeck) {
+          const data = await apiGet<{ deck: DeckDoc }>(`/api/decks/${target.id}`);
+          if (!cancelled) setDeck(data.deck);
+        } else {
+          const data = await apiGet<DocumentDetail>(`/api/documents/${target.id}`);
+          if (!cancelled) setDoc(data);
+        }
       } catch {
         /* keep the header from `target`, show the unavailable state */
       } finally {
@@ -62,7 +81,7 @@ export function FilePreviewPanel({
     return () => {
       cancelled = true;
     };
-  }, [target.id]);
+  }, [target.id, isBoard, isDeck]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -101,6 +120,28 @@ export function FilePreviewPanel({
         <div className="flex min-h-40 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 p-3">
           {loading ? (
             <Skeleton className="h-40 w-full rounded-lg" />
+          ) : isBoard ? (
+            board ? (
+              <BoardPreview scene={board} className="h-[40vh] w-full" />
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <FileArtwork type="WHITEBOARD" className="size-20" />
+                <p className="text-xs text-muted-foreground">Preview unavailable</p>
+              </div>
+            )
+          ) : isDeck ? (
+            deck ? (
+              <DeckSlideSvg
+                slide={deck.slides[deck.slideOrder[0]]}
+                className="w-full rounded-lg border border-border"
+                ariaLabel="Deck preview"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <FileArtwork type="DECK" className="size-20" />
+                <p className="text-xs text-muted-foreground">Preview unavailable</p>
+              </div>
+            )
           ) : hasFile && doc && isImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -185,21 +226,41 @@ export function FilePreviewPanel({
       </div>
 
       <footer className="flex items-center gap-2 border-t border-border px-4 py-3">
-        <a
-          href={`${rawUrl}?download=1`}
-          download={target.title}
-          className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex-1")}
-        >
-          <Download className="size-4" />
-          Download
-        </a>
-        <Link
-          href={documentRoute(libraryId, target.id)}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-        >
-          <ExternalLink className="size-4" />
-          Open
-        </Link>
+        {isBoard ? (
+          <Link
+            href={boardRoute(libraryId, target.id)}
+            className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex-1")}
+          >
+            <ExternalLink className="size-4" />
+            Open board
+          </Link>
+        ) : isDeck ? (
+          <Link
+            href={deckRoute(libraryId, target.id)}
+            className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex-1")}
+          >
+            <ExternalLink className="size-4" />
+            Open deck
+          </Link>
+        ) : (
+          <>
+            <a
+              href={`${rawUrl}?download=1`}
+              download={target.title}
+              className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex-1")}
+            >
+              <Download className="size-4" />
+              Download
+            </a>
+            <Link
+              href={documentRoute(libraryId, target.id)}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <ExternalLink className="size-4" />
+              Open
+            </Link>
+          </>
+        )}
       </footer>
     </aside>
   );
