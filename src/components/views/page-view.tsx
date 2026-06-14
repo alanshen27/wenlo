@@ -5,10 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useLibrary } from "@/components/library/library-shell";
 import type { SaveStatus } from "@/components/library/main-header";
 import { PageEditor } from "@/components/editor/page-editor";
+import { EditorBodySkeleton, PageSkeleton } from "@/components/editor/editor-skeleton";
+import { PageExportMenu } from "@/components/editor/page-export-menu";
 import {
   PageVersionHistoryButton,
   PageVersionHistoryModal,
 } from "@/components/modals/page-version-history-modal";
+import type { RecallEditor } from "@/lib/blocknote-schema";
 import { useCollabSession } from "@/hooks/use-collab-session";
 import { usePageCollaboration } from "@/hooks/use-page-collaboration";
 import { isCollabClientConfigured } from "@/lib/collab/config";
@@ -48,6 +51,7 @@ export function PageView() {
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleFromRemoteRef = useRef(false);
+  const editorRef = useRef<RecallEditor | null>(null);
 
   const collabEnabled = isCollabClientConfigured();
 
@@ -249,11 +253,7 @@ export function PageView() {
   ]);
 
   if (!page) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        Loading…
-      </div>
-    );
+    return <PageSkeleton />;
   }
 
   const collabReady =
@@ -280,7 +280,10 @@ export function PageView() {
             className="notion-page-title min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground read-only:cursor-default"
             placeholder="Untitled"
           />
-          <PageVersionHistoryButton onClick={() => setHistoryOpen(true)} />
+          <div className="flex shrink-0 items-center gap-0.5">
+            <PageExportMenu editorRef={editorRef} title={titleDraft} />
+            <PageVersionHistoryButton onClick={() => setHistoryOpen(true)} />
+          </div>
         </div>
         <PageVersionHistoryModal
           open={historyOpen}
@@ -290,9 +293,13 @@ export function PageView() {
           onRestore={handleRestore}
         />
         {collabEnabled && !collabReady ? (
-          <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
-            {collabError ? collabError : "Connecting to collaborators…"}
-          </div>
+          collabError ? (
+            <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
+              {collabError}
+            </div>
+          ) : (
+            <EditorBodySkeleton />
+          )
         ) : (
           <PageEditor
             key={collabReady ? `${page.id}-collab-${editorEpoch}` : `${page.id}-${editorEpoch}`}
@@ -300,6 +307,9 @@ export function PageView() {
             content={page.content}
             onChange={savePage}
             onLocalEdit={collabEnabled ? undefined : markLocalEdit}
+            onEditorReady={(editor) => {
+              editorRef.current = editor;
+            }}
             syncedContent={syncedContent ?? page.content}
             syncKey={syncKey}
             readOnly={!canEdit}

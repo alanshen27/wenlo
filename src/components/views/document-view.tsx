@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useLibrary } from "@/components/library/library-shell";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ViewContainer, ViewScroll } from "@/components/ui/view";
 import { documentRoute, libraryHome } from "@/lib/routes";
 import { apiGet } from "@/lib/api";
 
@@ -52,26 +54,35 @@ export function DocumentView() {
 
   if (!document) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        Loading…
-      </div>
+      <ViewScroll>
+        <ViewContainer size="prose">
+          <Skeleton className="mb-4 h-9 w-2/3" />
+          <div className="mb-6 flex items-center gap-2">
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+          <div className="space-y-2.5 rounded-lg border border-border bg-muted/40 p-4">
+            {["95%", "88%", "70%", "92%", "60%", "80%", "45%"].map((w, i) => (
+              <Skeleton key={i} className="h-3.5" style={{ width: w }} />
+            ))}
+          </div>
+        </ViewContainer>
+      </ViewScroll>
     );
   }
 
   return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-8 py-12 md:px-16">
-          <h1 className="notion-page-title mb-4">{document.title}</h1>
-          <div className="mb-6 flex items-center gap-2">
-            <Badge variant="secondary">{document.type}</Badge>
-            {document.language && <Badge variant="outline">{document.language}</Badge>}
-          </div>
-          <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-4 font-mono text-sm leading-relaxed">
-            {document.content || "(No extracted text)"}
-          </pre>
+    <ViewScroll>
+      <ViewContainer size="prose">
+        <h1 className="notion-page-title mb-4">{document.title}</h1>
+        <div className="mb-6 flex items-center gap-2">
+          <Badge variant="secondary">{document.type}</Badge>
+          {document.language && <Badge variant="outline">{document.language}</Badge>}
         </div>
-      </div>
-    </>
+        <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-4 font-mono text-sm leading-relaxed">
+          {document.content || "(No extracted text)"}
+        </pre>
+      </ViewContainer>
+    </ViewScroll>
   );
 }

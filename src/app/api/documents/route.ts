@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { libraryIdFromFolder, resolveLibraryId } from "@/lib/libraries";
 import {
@@ -84,6 +84,7 @@ export async function POST(req: NextRequest) {
       data: {
         title,
         type: docType,
+        status: "PROCESSING",
         mimeType: file.type,
         storagePath,
         content,
@@ -94,7 +95,21 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await indexDocument(document.id, document.title, document.content).catch(() => {});
+    // Embed/chunk in the background so the upload responds immediately. The
+    // client shows a processing spinner and polls until the status flips.
+    after(async () => {
+      try {
+        await indexDocument(document.id, document.title, document.content);
+        await prisma.document.update({
+          where: { id: document.id },
+          data: { status: "READY" },
+        });
+      } catch {
+        await prisma.document
+          .update({ where: { id: document.id }, data: { status: "FAILED" } })
+          .catch(() => {});
+      }
+    });
 
     return NextResponse.json(document);
   } catch (error) {

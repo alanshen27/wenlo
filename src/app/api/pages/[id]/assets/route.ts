@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { LibraryAccessError, requireLibraryAccess } from "@/lib/library-access";
 import {
   PAGE_ASSET_MAX_BYTES,
-  PAGE_ASSET_MIME_TYPES,
+  isAllowedAssetType,
   pageAssetStoragePath,
   pageAssetUrl,
 } from "@/lib/page-assets";
@@ -37,16 +37,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
 
-  if (!PAGE_ASSET_MIME_TYPES.has(file.type)) {
-    return NextResponse.json({ error: "Unsupported image type" }, { status: 400 });
+  if (!isAllowedAssetType(file.type)) {
+    return NextResponse.json({ error: "This file type isn't allowed" }, { status: 400 });
   }
 
   if (file.size > PAGE_ASSET_MAX_BYTES) {
-    return NextResponse.json({ error: "Image must be under 10MB" }, { status: 400 });
+    return NextResponse.json({ error: "File must be under 50MB" }, { status: 400 });
   }
 
   const safeName = file.name.replace(/[^\w.\-()+ ]/g, "_").slice(0, 120);
-  const filename = `${Date.now()}-${safeName || "image"}`;
+  const filename = `${Date.now()}-${safeName || "file"}`;
   const storagePath = pageAssetStoragePath(ownerId, pageId, filename);
   const buffer = Buffer.from(await file.arrayBuffer());
 

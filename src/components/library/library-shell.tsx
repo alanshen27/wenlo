@@ -15,11 +15,13 @@ import type { Library } from "@/components/sidebar/library-switcher";
 import { FolderModal } from "@/components/modals/folder-modal";
 import { LibraryModal } from "@/components/modals/library-modal";
 import { ConfirmModal } from "@/components/modals/confirm-modal";
+import { MoveModal } from "@/components/modals/move-modal";
 import { ShareLibraryModal } from "@/components/modals/share-library-modal";
 import { PendingInvitesBanner } from "@/components/library/pending-invites-banner";
 import { MainHeader, type SaveStatus } from "@/components/library/main-header";
 import { RecallChatProvider } from "@/components/recall/recall-chat-context";
 import { buildRouteBreadcrumbs } from "@/lib/route-breadcrumbs";
+import { usePersistentState } from "@/lib/use-persistent-state";
 import type { PageCollaborator } from "@/lib/page-presence";
 import type { BreadcrumbItem, FolderNode } from "@/lib/folders";
 import type { FolderColorId } from "@/lib/folder-colors";
@@ -32,6 +34,7 @@ import {
   moveItemInTree,
   removeOptimisticDocument,
   replaceOptimisticDocument,
+  setDocumentProcessing,
 } from "@/lib/tree-mutations";
 import { uploadFile } from "@/lib/upload";
 import {
@@ -62,7 +65,8 @@ type Modal =
   | { kind: "library-edit"; library: Library }
   | { kind: "library-delete"; library: Library }
   | { kind: "page-delete"; id: string; title: string }
-  | { kind: "document-delete"; id: string; title: string };
+  | { kind: "document-delete"; id: string; title: string }
+  | { kind: "move"; item: SidebarDragItem };
 
 type HeaderState = {
   saveStatus?: SaveStatus;
@@ -79,12 +83,21 @@ type LibraryContextValue = {
   libraryRole: Library["role"];
   canEdit: boolean;
   tree: FolderNode[];
+  treeLoaded: boolean;
   folders: FlatFolder[];
   contextFolderId: string | null;
   refreshTree: () => Promise<void>;
   uploadToFolder: (folderId: string | null, files: FileList | File[]) => Promise<void>;
   breadcrumbHref: (item: BreadcrumbItem) => string | null;
   setHeader: (state: HeaderState) => void;
+  createPage: (folderId: string | null) => Promise<void>;
+  moveItem: (item: SidebarDragItem, folderId: string | null) => Promise<void>;
+  beginCreateFolder: (parentId: string | null) => void;
+  beginEditFolder: (folder: { id: string; name: string; color: FolderColorId }) => void;
+  beginDeleteFolder: (folder: { id: string; name: string }) => void;
+  beginDeletePage: (page: { id: string; title: string }) => void;
+  beginDeleteDocument: (doc: { id: string; title: string }) => void;
+  beginMove: (item: SidebarDragItem) => void;
 };
 
 const LibraryContext = createContext<LibraryContextValue | null>(null);
@@ -112,12 +125,17 @@ export function LibraryShell({ children }: { children: ReactNode }) {
 
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [tree, setTree] = useState<FolderNode[]>([]);
+  const [loadedLibraryId, setLoadedLibraryId] = useState<string | null>(null);
   const [folders, setFolders] = useState<FlatFolder[]>([]);
   const [contextFolderId, setContextFolderId] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>({ kind: "none" });
   const [shareOpen, setShareOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [header, setHeader] = useState<HeaderState>({});
+  const [focusMode, setFocusMode] = usePersistentState<boolean>(
+    "recalls:focus-mode",
+    false
+  );
 
   const activeLibrary = libraries.find((l) => l.id === libraryId);
   const libraryRole = activeLibrary?.role ?? "OWNER";
@@ -125,7 +143,17 @@ export function LibraryShell({ children }: { children: ReactNode }) {
   const isSearchPage = pathname.endsWith("/search");
   const isRecallPage = pathname.endsWith("/recall");
   const isMapPage = pathname.endsWith("/map");
-  const activeNav = isSearchPage ? "search" : isRecallPage ? "recall" : isMapPage ? "map" : null;
+  const isFilesHome =
+    !isSearchPage && !isRecallPage && !isMapPage && !selectedPageId && !selectedDocumentId;
+  const activeNav = isSearchPage
+    ? "search"
+    : isRecallPage
+      ? "recall"
+      : isMapPage
+        ? "map"
+        : isFilesHome
+          ? "home"
+          : null;
 
   useEffect(() => {
     if (selectedFolderId) {
@@ -153,8 +181,14 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       setFolders(data.folders);
     } catch {
       /* noop */
+    } finally {
+      setLoadedLibraryId(libraryId);
     }
   }, [libraryId]);
+
+  // Derived so switching libraries shows the skeleton again without an effect,
+  // while on-demand refreshes (after create/move/delete) keep content mounted.
+  const treeLoaded = loadedLibraryId === libraryId;
 
   const loadLibraries = useCallback(async () => {
     try {
@@ -179,6 +213,15 @@ export function LibraryShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     setHeader({});
   }, [libraryId, selectedFolderId, selectedPageId, selectedDocumentId, isSearchPage, isRecallPage, isMapPage]);
+
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFocusMode(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [focusMode, setFocusMode]);
 
   const breadcrumbs = useMemo(() => {
     const libraryName = activeLibrary?.name ?? "Library";
@@ -290,6 +333,40 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     [libraryId, refreshTree, router]
   );
 
+  const beginCreateFolder = useCallback(
+    (parentId: string | null) => setModal({ kind: "folder-create", parentId }),
+    []
+  );
+
+  const beginEditFolder = useCallback(
+    (folder: { id: string; name: string; color: FolderColorId }) =>
+      setModal({ kind: "folder-edit", id: folder.id, name: folder.name, color: folder.color }),
+    []
+  );
+
+  const beginDeleteFolder = useCallback(
+    (folder: { id: string; name: string }) =>
+      setModal({ kind: "folder-delete", id: folder.id, name: folder.name }),
+    []
+  );
+
+  const beginDeletePage = useCallback(
+    (page: { id: string; title: string }) =>
+      setModal({ kind: "page-delete", id: page.id, title: page.title }),
+    []
+  );
+
+  const beginMove = useCallback(
+    (item: SidebarDragItem) => setModal({ kind: "move", item }),
+    []
+  );
+
+  const beginDeleteDocument = useCallback(
+    (doc: { id: string; title: string }) =>
+      setModal({ kind: "document-delete", id: doc.id, title: doc.title }),
+    []
+  );
+
   const moveItem = useCallback(
     async (item: SidebarDragItem, folderId: string | null) => {
       if (!item.title) return;
@@ -323,6 +400,30 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     []
   );
 
+  const pollDocumentStatus = useCallback((documentId: string) => {
+    let attempts = 0;
+    const tick = async () => {
+      attempts += 1;
+      try {
+        const { status } = await apiGet<{ status: string }>(
+          `/api/documents/${documentId}/status`
+        );
+        if (status !== "PROCESSING") {
+          setTree((prev) => setDocumentProcessing(prev, documentId, false));
+          return;
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+      if (attempts < 60) {
+        window.setTimeout(tick, 2000);
+      } else {
+        setTree((prev) => setDocumentProcessing(prev, documentId, false));
+      }
+    };
+    window.setTimeout(tick, 2000);
+  }, []);
+
   const uploadToFolder = useCallback(
     async (folderId: string | null, files: FileList | File[]) => {
       const fileList = Array.from(files);
@@ -335,14 +436,18 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           const tempId = pending[index].id;
           try {
             const uploaded = await uploadFile({ libraryId, folderId, file });
-            setTree((prev) => replaceOptimisticDocument(prev, tempId, uploaded));
+            const processing = uploaded.status === "PROCESSING";
+            setTree((prev) =>
+              replaceOptimisticDocument(prev, tempId, { ...uploaded, processing })
+            );
+            if (processing) pollDocumentStatus(uploaded.id);
           } catch {
             setTree((prev) => removeOptimisticDocument(prev, tempId));
           }
         })
       );
     },
-    [libraryId]
+    [libraryId, pollDocumentStatus]
   );
 
   async function handleFolderSubmit(data: { name: string; color: FolderColorId }) {
@@ -420,12 +525,21 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       libraryRole,
       canEdit,
       tree,
+      treeLoaded,
       folders,
       contextFolderId,
       refreshTree,
       uploadToFolder,
       breadcrumbHref,
       setHeader: setHeaderState,
+      createPage,
+      moveItem,
+      beginCreateFolder,
+      beginEditFolder,
+      beginDeleteFolder,
+      beginDeletePage,
+      beginDeleteDocument,
+      beginMove,
     }),
     [
       libraryId,
@@ -434,12 +548,21 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       libraryRole,
       canEdit,
       tree,
+      treeLoaded,
       folders,
       contextFolderId,
       refreshTree,
       uploadToFolder,
       breadcrumbHref,
       setHeaderState,
+      createPage,
+      moveItem,
+      beginCreateFolder,
+      beginEditFolder,
+      beginDeleteFolder,
+      beginDeletePage,
+      beginDeleteDocument,
+      beginMove,
     ]
   );
 
@@ -451,6 +574,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
         contextFolderId={contextFolderId}
       >
       <div className="flex h-screen overflow-hidden bg-background text-foreground">
+        {!focusMode && (
         <FolderSidebar
           libraries={libraries}
           activeLibraryId={libraryId}
@@ -461,6 +585,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           onDeleteLibrary={(library) => setModal({ kind: "library-delete", library })}
           canEdit={canEdit}
           tree={tree}
+          treeLoading={!treeLoaded}
           selectedFolderId={selectedFolderId}
           selectedPageId={selectedPageId}
           selectedDocumentId={selectedDocumentId}
@@ -488,10 +613,12 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           onDeleteDocument={(d) => setModal({ kind: "document-delete", id: d.id, title: d.title })}
           onMoveItem={moveItem}
           onUploadToFolder={uploadToFolder}
+          onOpenHome={() => router.push(libraryHome(libraryId))}
           onOpenSearch={() => router.push(searchRoute(libraryId))}
           onOpenRecall={() => router.push(recallRoute(libraryId))}
           onOpenMindMap={() => router.push(mindMapRoute(libraryId))}
         />
+        )}
 
         <main className="flex flex-1 flex-col overflow-hidden">
           <PendingInvitesBanner onAccepted={loadLibraries} />
@@ -501,6 +628,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
             saveStatus={header.saveStatus}
             collaborators={header.collaborators}
             remoteNotice={header.remoteNotice}
+            focusMode={focusMode}
+            onToggleFocus={() => setFocusMode((prev) => !prev)}
           />
           {children}
         </main>
@@ -555,6 +684,22 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           loading={deleteLoading}
           onOpenChange={(open) => !open && setModal({ kind: "none" })}
           onConfirm={handleConfirmDelete}
+        />
+
+        <MoveModal
+          open={modal.kind === "move"}
+          item={modal.kind === "move" ? modal.item : null}
+          folders={folders}
+          currentFolderId={
+            modal.kind === "move" ? (findItemFolderId(tree, modal.item) ?? null) : null
+          }
+          libraryName={activeLibrary?.name ?? "Library"}
+          onOpenChange={(open) => !open && setModal({ kind: "none" })}
+          onMove={async (folderId) => {
+            if (modal.kind !== "move") return;
+            await moveItem(modal.item, folderId);
+            setModal({ kind: "none" });
+          }}
         />
 
         {activeLibrary && (

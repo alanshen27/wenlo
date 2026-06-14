@@ -179,7 +179,7 @@ export function ShareLibraryModal({ open, libraryId, libraryName, onOpenChange }
             </form>
 
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase">People</p>
+              <p className="text-xs font-medium text-muted-foreground">People</p>
               <ul className="divide-y divide-border rounded-lg border border-border text-sm">
                 {owner && (
                   <li className="flex items-center justify-between gap-2 px-3 py-2">

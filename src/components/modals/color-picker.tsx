@@ -1,7 +1,7 @@
 "use client";
 
-import { Folder } from "lucide-react";
 import { PickerOptionButton } from "@/components/modals/picker-option-button";
+import { FolderArtwork } from "@/lib/file-icons";
 import { FOLDER_COLORS, type FolderColorId } from "@/lib/folder-colors";
 
 type Props = {
@@ -19,7 +19,7 @@ export function ColorPicker({ value, onChange }: Props) {
           title={color.label}
           onClick={() => onChange(color.id)}
         >
-          <Folder className="size-5" style={{ color: color.hex, fill: `${color.hex}33` }} />
+          <FolderArtwork color={color.id} className="size-6" />
         </PickerOptionButton>
       ))}
     </div>

@@ -5,11 +5,12 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { BlockNoteEditorView } from "@/components/editor/blocknote-editor-view";
-import { blockNoteSchema } from "@/lib/blocknote-schema";
+import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/blocknote-schema";
 import { blocksToPlainText, normalizeEditorContent } from "@/lib/editor-content";
 import { apiUpload, getApiErrorMessage } from "@/lib/api";
 import { debounce } from "@/lib/utils";
 import type { RecallPartialBlock } from "@/lib/editor-content";
+import type { RecallEditor } from "@/lib/blocknote-schema";
 import type { FolderNode } from "@/lib/folders";
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
   content: unknown;
   onChange: (content: unknown, plainText: string) => void;
   onLocalEdit?: () => void;
+  onEditorReady?: (editor: RecallEditor | null) => void;
   syncedContent?: unknown;
   syncKey?: number;
 };
@@ -32,6 +34,7 @@ export function BlockEditor({
   content,
   onChange,
   onLocalEdit,
+  onEditorReady,
   syncedContent,
   syncKey = 0,
 }: Props) {
@@ -67,12 +70,22 @@ export function BlockEditor({
 
   const editor = useCreateBlockNote(
     {
+      ...multiColumnEditorOptions,
       schema: blockNoteSchema,
       initialContent: initialBlocks,
       uploadFile,
     },
     [pageId]
   );
+
+  const onEditorReadyRef = useRef(onEditorReady);
+  useEffect(() => {
+    onEditorReadyRef.current = onEditorReady;
+  });
+  useEffect(() => {
+    onEditorReadyRef.current?.(editor);
+    return () => onEditorReadyRef.current?.(null);
+  }, [editor]);
 
   useEffect(() => {
     if (!syncKey || syncedContent === undefined) return;

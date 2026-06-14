@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Maximize2, Minimize2, PanelLeftOpen } from "lucide-react";
 import { PageCollaborators } from "@/components/editor/page-collaborators";
 import { NavBreadcrumb } from "@/components/nav/nav-breadcrumb";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 import type { BreadcrumbItem } from "@/lib/folders";
 import type { PageCollaborator } from "@/lib/page-presence";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,8 @@ type Props = {
   saveStatus?: SaveStatus;
   collaborators?: PageCollaborator[];
   remoteNotice?: string | null;
+  focusMode?: boolean;
+  onToggleFocus?: () => void;
 };
 
 export function MainHeader({
@@ -24,10 +26,26 @@ export function MainHeader({
   saveStatus = "idle",
   collaborators = [],
   remoteNotice,
+  focusMode = false,
+  onToggleFocus,
 }: Props) {
   return (
     <header className="flex h-11 shrink-0 items-center justify-between gap-4 px-4">
-      <NavBreadcrumb items={breadcrumbs} hrefFor={hrefFor} />
+      <div className="flex min-w-0 items-center gap-1">
+        {focusMode && onToggleFocus && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Show sidebar"
+            aria-label="Show sidebar"
+            className="-ml-1 shrink-0"
+            onClick={onToggleFocus}
+          >
+            <PanelLeftOpen className="size-4" />
+          </Button>
+        )}
+        <NavBreadcrumb items={breadcrumbs} hrefFor={hrefFor} />
+      </div>
       <div className="flex shrink-0 items-center gap-3">
         {remoteNotice && (
           <span className="hidden text-xs text-muted-foreground sm:inline">{remoteNotice}</span>
@@ -53,6 +71,21 @@ export function MainHeader({
           )}
           {saveStatus === "error" && <span className="text-destructive">Save failed</span>}
         </div>
+        {onToggleFocus && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={focusMode ? "Exit full screen" : "Full screen"}
+            aria-label={focusMode ? "Exit full screen" : "Full screen"}
+            onClick={onToggleFocus}
+          >
+            {focusMode ? (
+              <Minimize2 className="size-4" />
+            ) : (
+              <Maximize2 className="size-4" />
+            )}
+          </Button>
+        )}
       </div>
     </header>
   );

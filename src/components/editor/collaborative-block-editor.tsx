@@ -7,18 +7,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BlockNoteEditor } from "@blocknote/core";
 import type {
   RecallBlockSchema,
+  RecallEditor,
   RecallInlineSchema,
   RecallStyleSchema,
 } from "@/lib/blocknote-schema";
 import type * as Y from "yjs";
 import { BlockNoteEditorView } from "@/components/editor/blocknote-editor-view";
+import { EditorBodySkeleton } from "@/components/editor/editor-skeleton";
 import { useRepairYjsUndo } from "@/hooks/use-repair-yjs-undo";
 import { YJS_FRAGMENT } from "@/lib/collab/config";
 import {
   loadOrSeedYjsDoc,
   type PusherYjsProvider,
 } from "@/lib/collab/pusher-yjs-provider";
-import { blockNoteSchema } from "@/lib/blocknote-schema";
+import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/blocknote-schema";
 import { blocksToPlainText } from "@/lib/editor-content";
 import { apiUpload, getApiErrorMessage } from "@/lib/api";
 import { debounce } from "@/lib/utils";
@@ -37,6 +39,7 @@ type Props = {
   readOnly?: boolean;
   onChange: (content: unknown, plainText: string) => void;
   onLocalEdit?: () => void;
+  onEditorReady?: (editor: RecallEditor | null) => void;
 };
 
 export function CollaborativeBlockEditor(props: Props) {
@@ -60,11 +63,7 @@ export function CollaborativeBlockEditor(props: Props) {
   }, [props.doc, props.pageId]);
 
   if (!yjsReady) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
-        Loading document…
-      </div>
-    );
+    return <EditorBodySkeleton />;
   }
 
   return <CollaborativeBlockEditorMounted {...props} />;
@@ -79,11 +78,16 @@ function CollaborativeBlockEditorMounted({
   readOnly = false,
   onChange,
   onLocalEdit,
+  onEditorReady,
 }: Props) {
   const onChangeRef = useRef(onChange);
   const onLocalEditRef = useRef(onLocalEdit);
+  const onEditorReadyRef = useRef(onEditorReady);
   onChangeRef.current = onChange;
   onLocalEditRef.current = onLocalEdit;
+  useEffect(() => {
+    onEditorReadyRef.current = onEditorReady;
+  });
 
   const fragment = doc.getXmlFragment(YJS_FRAGMENT);
 
@@ -116,6 +120,7 @@ function CollaborativeBlockEditorMounted({
   // Create the editor only after Yjs state is in the fragment (y-prosemirror order).
   const editor = useCreateBlockNote(
     {
+      ...multiColumnEditorOptions,
       schema: blockNoteSchema,
       uploadFile,
       collaboration: {
@@ -131,6 +136,11 @@ function CollaborativeBlockEditorMounted({
   editorRef.current = editor;
 
   useRepairYjsUndo(doc, editor);
+
+  useEffect(() => {
+    onEditorReadyRef.current?.(editor);
+    return () => onEditorReadyRef.current?.(null);
+  }, [editor]);
 
   useEffect(() => {
     return () => {

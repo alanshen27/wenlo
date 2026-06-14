@@ -5,7 +5,13 @@ export type FolderNode = {
   parentId: string | null;
   children: FolderNode[];
   pages: { id: string; title: string }[];
-  documents: { id: string; title: string; type: string; pending?: boolean }[];
+  documents: {
+    id: string;
+    title: string;
+    type: string;
+    pending?: boolean;
+    processing?: boolean;
+  }[];
 };
 
 type FlatFolder = {
@@ -16,7 +22,13 @@ type FlatFolder = {
 };
 
 type FlatPage = { id: string; title: string; folderId: string | null };
-type FlatDoc = { id: string; title: string; type: string; folderId: string | null };
+type FlatDoc = {
+  id: string;
+  title: string;
+  type: string;
+  folderId: string | null;
+  status?: string;
+};
 
 export function buildFolderTree(
   folders: FlatFolder[],
@@ -35,7 +47,12 @@ export function buildFolderTree(
       pages: pages.filter((p) => p.folderId === f.id).map(({ id, title }) => ({ id, title })),
       documents: documents
         .filter((d) => d.folderId === f.id)
-        .map(({ id, title, type }) => ({ id, title, type })),
+        .map(({ id, title, type, status }) => ({
+          id,
+          title,
+          type,
+          processing: status === "PROCESSING",
+        })),
     });
   }
 
@@ -58,7 +75,12 @@ export function buildFolderTree(
     pages: pages.filter((p) => !p.folderId).map(({ id, title }) => ({ id, title })),
     documents: documents
       .filter((d) => !d.folderId)
-      .map(({ id, title, type }) => ({ id, title, type })),
+      .map(({ id, title, type, status }) => ({
+        id,
+        title,
+        type,
+        processing: status === "PROCESSING",
+      })),
   };
 
   if (rootVirtual.pages.length > 0 || rootVirtual.documents.length > 0) {

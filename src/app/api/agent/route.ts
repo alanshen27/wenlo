@@ -12,6 +12,22 @@ import {
 import { recallSearch } from "@/lib/search";
 import { assertWithinTokenLimit, recordTokenUsage, UsageLimitError } from "@/lib/usage";
 
+type AgentStreamEvent =
+  | {
+      type: "meta";
+      sessionId: string;
+      sources: RecallTurn["sources"];
+      scope: "all" | "folder";
+    }
+  | { type: "delta"; text: string }
+  | {
+      type: "done";
+      sessionId: string;
+      session: { id: string; title: string | null; turnCount: number };
+      turn: RecallTurn;
+    }
+  | { type: "error"; error: string };
+
 export async function POST(req: NextRequest) {
   const user = await requireUser().catch(() => null);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -96,51 +112,98 @@ export async function POST(req: NextRequest) {
   const { default: OpenAI } = await import("openai");
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: hasResults
-          ? `You are recall, a personal knowledge assistant for ${scopeLabel}. Each user message may include retrieved excerpts from their notes and files. When excerpts are present, answer using that material and cite sources by title in brackets. Do not claim nothing was found when excerpts were retrieved.`
-          : `You are recall, a personal knowledge assistant for ${scopeLabel}. If no excerpts were retrieved for a question, say you could not find relevant information in the library.`,
-      },
-      ...priorTurns.flatMap((turn) => [
-        { role: "user" as const, content: turn.question },
-        { role: "assistant" as const, content: turn.answer },
-      ]),
-      {
-        role: "user",
-        content: `${freshSearchNote}Question: ${question.trim()}\n\nRetrieved excerpts (${results.length} source${results.length === 1 ? "" : "s"}):\n${retrievedContext}`,
-      },
-    ],
-    temperature: 0.3,
+  const sessionIdForStream: string = activeSessionId;
+  const trimmedQuestion = question.trim();
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: AgentStreamEvent) => {
+        controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      };
+
+      try {
+        send({
+          type: "meta",
+          sessionId: sessionIdForStream,
+          sources: results,
+          scope: scope === "folder" ? "folder" : "all",
+        });
+
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          stream: true,
+          stream_options: { include_usage: true },
+          messages: [
+            {
+              role: "system",
+              content: hasResults
+                ? `You are recall, a personal knowledge assistant for ${scopeLabel}. Each user message may include retrieved excerpts from their notes and files. When excerpts are present, answer using that material and cite sources by title in brackets. Do not claim nothing was found when excerpts were retrieved.`
+                : `You are recall, a personal knowledge assistant for ${scopeLabel}. If no excerpts were retrieved for a question, say you could not find relevant information in the library.`,
+            },
+            ...priorTurns.flatMap((turn) => [
+              { role: "user" as const, content: turn.question },
+              { role: "assistant" as const, content: turn.answer },
+            ]),
+            {
+              role: "user",
+              content: `${freshSearchNote}Question: ${trimmedQuestion}\n\nRetrieved excerpts (${results.length} source${results.length === 1 ? "" : "s"}):\n${retrievedContext}`,
+            },
+          ],
+          temperature: 0.3,
+        });
+
+        let answer = "";
+        let tokensUsed = 0;
+        for await (const chunk of completion) {
+          const delta = chunk.choices[0]?.delta?.content;
+          if (delta) {
+            answer += delta;
+            send({ type: "delta", text: delta });
+          }
+          if (chunk.usage?.total_tokens) {
+            tokensUsed = chunk.usage.total_tokens;
+          }
+        }
+
+        if (tokensUsed > 0) {
+          await recordTokenUsage(user.id, tokensUsed);
+        }
+
+        const turn: RecallTurn = {
+          question: trimmedQuestion,
+          answer,
+          sources: results,
+          createdAt: new Date().toISOString(),
+        };
+
+        const { turns, title } = await appendRecallChatTurn(
+          sessionIdForStream,
+          user.id,
+          turn
+        );
+
+        send({
+          type: "done",
+          sessionId: sessionIdForStream,
+          session: { id: sessionIdForStream, title, turnCount: turns.length },
+          turn,
+        });
+        controller.close();
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Recall failed";
+        send({ type: "error", error: message });
+        controller.close();
+      }
+    },
   });
 
-  const tokensUsed = completion.usage?.total_tokens ?? 0;
-  if (tokensUsed > 0) {
-    await recordTokenUsage(user.id, tokensUsed);
-  }
-
-  const answer = completion.choices[0]?.message?.content ?? "";
-  const turn: RecallTurn = {
-    question: question.trim(),
-    answer,
-    sources: results,
-    createdAt: new Date().toISOString(),
-  };
-
-  const { turns, title } = await appendRecallChatTurn(activeSessionId, user.id, turn);
-
-  return NextResponse.json({
-    sessionId: activeSessionId,
-    session: {
-      id: activeSessionId,
-      title,
-      turnCount: turns.length,
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
     },
-    turn,
-    turns,
-    scope: scope === "folder" ? "folder" : "all",
   });
 }

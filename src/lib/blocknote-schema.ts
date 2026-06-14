@@ -1,4 +1,15 @@
-import { BlockNoteSchema, createCodeBlockSpec, defaultInlineContentSpecs } from "@blocknote/core";
+import {
+  BlockNoteSchema,
+  createCodeBlockSpec,
+  defaultInlineContentSpecs,
+  type BlockNoteEditor,
+} from "@blocknote/core";
+import { en as enLocale } from "@blocknote/core/locales";
+import {
+  withMultiColumn,
+  multiColumnDropCursor,
+  locales as multiColumnLocales,
+} from "@blocknote/xl-multi-column";
 import { PageLink } from "@/components/editor/page-link-inline";
 import { codeBlockOptions as baseCodeBlockOptions } from "@blocknote/code-block";
 import { createParser } from "prosemirror-highlight/shiki";
@@ -25,17 +36,37 @@ export const codeBlockOptions = {
     }),
 };
 
-export const blockNoteSchema = BlockNoteSchema.create({
-  inlineContentSpecs: {
-    ...defaultInlineContentSpecs,
-    pageLink: PageLink,
+export const blockNoteSchema = withMultiColumn(
+  BlockNoteSchema.create({
+    inlineContentSpecs: {
+      ...defaultInlineContentSpecs,
+      pageLink: PageLink,
+    },
+  }).extend({
+    blockSpecs: {
+      codeBlock: createCodeBlockSpec(codeBlockOptions),
+    },
+  })
+);
+
+/**
+ * Shared `useCreateBlockNote` options that light up multi-column support:
+ * the vertical drop cursor and the column slash-menu/dictionary entries.
+ */
+export const multiColumnEditorOptions = {
+  dropCursor: multiColumnDropCursor,
+  dictionary: {
+    ...enLocale,
+    multi_column: multiColumnLocales.en,
   },
-}).extend({
-  blockSpecs: {
-    codeBlock: createCodeBlockSpec(codeBlockOptions),
-  },
-});
+} as const;
 
 export type RecallBlockSchema = typeof blockNoteSchema.blockSchema;
 export type RecallInlineSchema = typeof blockNoteSchema.inlineContentSchema;
 export type RecallStyleSchema = typeof blockNoteSchema.styleSchema;
+
+export type RecallEditor = BlockNoteEditor<
+  RecallBlockSchema,
+  RecallInlineSchema,
+  RecallStyleSchema
+>;

@@ -152,13 +152,32 @@ export function addOptimisticDocuments(
 export function replaceOptimisticDocument(
   tree: FolderNode[],
   tempId: string,
-  document: { id: string; title: string; type: string }
+  document: { id: string; title: string; type: string; processing?: boolean }
 ): FolderNode[] {
   const next = cloneTree(tree);
   walkNodes(next, (node) => {
     const idx = node.documents.findIndex((d) => d.id === tempId);
     if (idx === -1) return;
-    node.documents[idx] = { id: document.id, title: document.title, type: document.type };
+    node.documents[idx] = {
+      id: document.id,
+      title: document.title,
+      type: document.type,
+      processing: document.processing,
+    };
+  });
+  return next;
+}
+
+/** Toggles the background-indexing spinner for a real (non-pending) document. */
+export function setDocumentProcessing(
+  tree: FolderNode[],
+  id: string,
+  processing: boolean
+): FolderNode[] {
+  const next = cloneTree(tree);
+  walkNodes(next, (node) => {
+    const doc = node.documents.find((d) => d.id === id);
+    if (doc) doc.processing = processing;
   });
   return next;
 }

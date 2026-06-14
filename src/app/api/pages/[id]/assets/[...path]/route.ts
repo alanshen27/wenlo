@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { pageAssetStoragePath, parsePageAssetRequest } from "@/lib/page-assets";
+import {
+  isInlineAssetType,
+  pageAssetStoragePath,
+  parsePageAssetRequest,
+} from "@/lib/page-assets";
 import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -27,9 +31,17 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     }
 
     const buffer = Buffer.from(await data.arrayBuffer());
+    const contentType = data.type || "application/octet-stream";
+    const downloadName = filename.split("/").pop() || "file";
+    // Media renders inline; anything else downloads so markup can't execute on our origin.
+    const disposition = isInlineAssetType(contentType)
+      ? "inline"
+      : `attachment; filename="${downloadName.replace(/"/g, "")}"`;
     return new NextResponse(buffer, {
       headers: {
-        "Content-Type": data.type || "application/octet-stream",
+        "Content-Type": contentType,
+        "Content-Disposition": disposition,
+        "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, max-age=3600",
       },
     });

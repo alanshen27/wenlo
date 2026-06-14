@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       }),
       prisma.document.findMany({
         where: { libraryId },
-        select: { id: true, title: true, type: true, folderId: true },
+        select: { id: true, title: true, type: true, status: true, folderId: true },
         orderBy: { updatedAt: "desc" },
       }),
     ]);

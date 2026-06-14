@@ -12,10 +12,21 @@ import { Button } from "@/components/ui/button";
 import type { RecallResult } from "@/lib/types";
 import { notifyUsageUpdated } from "@/lib/usage-events";
 import { documentRoute, pageRoute, searchRoute } from "@/lib/routes";
-import { apiGet, apiPost, getApiErrorMessage } from "@/lib/api";
+import { apiGet, getApiErrorMessage } from "@/lib/api";
 import type { RecallChatSessionSummary, RecallTurn } from "@/lib/recall-chat";
 import { cn } from "@/lib/utils";
 import MarkdownRenderer from "../recall/markdown-renderer";
+
+type AgentStreamEvent =
+  | { type: "meta"; sessionId: string; sources: RecallResult[]; scope: "all" | "folder" }
+  | { type: "delta"; text: string }
+  | {
+      type: "done";
+      sessionId: string;
+      session: { id: string; title: string | null; turnCount: number };
+      turn: RecallTurn;
+    }
+  | { type: "error"; error: string };
 
 const EXAMPLE_PROMPTS = [
   "Summarize what I have on dynamic programming",
@@ -41,6 +52,7 @@ export function RecallView() {
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [turns, setTurns] = useState<RecallTurn[]>([]);
+  const [streamingTurn, setStreamingTurn] = useState<RecallTurn | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const folderName = contextFolderId
@@ -83,7 +95,7 @@ export function RecallView() {
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [turns, loading]);
+  }, [turns, loading, streamingTurn?.answer]);
 
   const ask = useCallback(async () => {
     const trimmed = question.trim();
@@ -92,33 +104,92 @@ export function RecallView() {
     setLoading(true);
     setError(null);
     setQuestion("");
+    setStreamingTurn({
+      question: trimmed,
+      answer: "",
+      sources: [],
+      createdAt: new Date().toISOString(),
+    });
 
     try {
-      const data = await apiPost<{
-        sessionId: string;
-        session: { id: string; title: string | null; turnCount: number };
-        turns: RecallTurn[];
-      }>("/api/agent", {
-        question: trimmed,
-        libraryId,
-        folderId: effectiveFolderId,
-        scope,
-        sessionId: activeSessionId,
+      const res = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          question: trimmed,
+          libraryId,
+          folderId: effectiveFolderId,
+          scope,
+          sessionId: activeSessionId,
+        }),
       });
 
-      setTurns(data.turns);
-      updateSessionMeta({
-        id: data.session.id,
-        title: data.session.title,
-        turnCount: data.session.turnCount,
-        updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      });
-      refreshSessions();
-      notifyUsageUpdated();
+      if (!res.ok || !res.body) {
+        let message = "Recall failed";
+        try {
+          const data = await res.json();
+          if (typeof data?.error === "string") message = data.error;
+        } catch {}
+        throw new Error(message);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamError: string | null = null;
+
+      const handleEvent = (event: AgentStreamEvent) => {
+        if (event.type === "meta") {
+          setStreamingTurn((prev) =>
+            prev ? { ...prev, sources: event.sources } : prev
+          );
+        } else if (event.type === "delta") {
+          setStreamingTurn((prev) =>
+            prev ? { ...prev, answer: prev.answer + event.text } : prev
+          );
+        } else if (event.type === "done") {
+          setTurns((prev) => [...prev, event.turn]);
+          setStreamingTurn(null);
+          updateSessionMeta({
+            id: event.session.id,
+            title: event.session.title,
+            turnCount: event.session.turnCount,
+            updatedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+          });
+          refreshSessions();
+          notifyUsageUpdated();
+        } else if (event.type === "error") {
+          streamError = event.error;
+        }
+      };
+
+      const drain = (chunk: string) => {
+        buffer += chunk;
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, newlineIndex).trim();
+          buffer = buffer.slice(newlineIndex + 1);
+          if (!line) continue;
+          try {
+            handleEvent(JSON.parse(line) as AgentStreamEvent);
+          } catch {}
+        }
+      };
+
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        drain(decoder.decode(value, { stream: true }));
+      }
+      drain(decoder.decode());
+
+      if (streamError) throw new Error(streamError);
     } catch (e) {
       setError(getApiErrorMessage(e, "Recall failed"));
       setQuestion(trimmed);
+      setStreamingTurn(null);
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -237,11 +308,22 @@ export function RecallView() {
             </div>
           ))}
 
-          {loading && (
-            <div className="max-w-[95%] rounded-2xl rounded-bl-sm bg-muted/60 px-4 py-3">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" />
-                Reading your library…
+          {streamingTurn && (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-violet-600 px-4 py-2.5 text-sm text-white dark:bg-violet-500">
+                  {streamingTurn.question}
+                </div>
+              </div>
+              <div className="max-w-[95%] rounded-2xl rounded-bl-sm bg-muted/60 px-4 py-3">
+                {streamingTurn.answer ? (
+                  <MarkdownRenderer content={streamingTurn.answer} />
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />
+                    Reading your library…
+                  </div>
+                )}
               </div>
             </div>
           )}

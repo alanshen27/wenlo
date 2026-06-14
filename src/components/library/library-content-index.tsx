@@ -26,7 +26,7 @@ export function LibraryContentIndex({ libraryId, contents }: Props) {
 
   return (
     <div className="mt-8">
-      <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <p className="mb-2 text-sm font-medium text-muted-foreground">
         In this folder
       </p>
       <ul className="divide-y divide-border rounded-lg border border-border">

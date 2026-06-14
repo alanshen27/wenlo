@@ -1,9 +1,12 @@
 import { apiUpload, getApiErrorMessage } from "@/lib/api";
 
+export type DocumentStatus = "PROCESSING" | "READY" | "FAILED";
+
 export type UploadedDocument = {
   id: string;
   title: string;
   type: string;
+  status: DocumentStatus;
 };
 
 export async function uploadFile(opts: {
@@ -16,13 +19,21 @@ export async function uploadFile(opts: {
   form.append("file", file);
   form.append("libraryId", libraryId);
   if (folderId) form.append("folderId", folderId);
-  let document: { id: string; title: string; type: string };
+  let document: { id: string; title: string; type: string; status?: DocumentStatus };
   try {
-    document = await apiUpload<{ id: string; title: string; type: string }>("/api/documents", form);
+    document = await apiUpload<{ id: string; title: string; type: string; status?: DocumentStatus }>(
+      "/api/documents",
+      form
+    );
   } catch (e) {
     throw new Error(getApiErrorMessage(e, "Upload failed"));
   }
-  return { id: document.id, title: document.title, type: document.type };
+  return {
+    id: document.id,
+    title: document.title,
+    type: document.type,
+    status: document.status ?? "READY",
+  };
 }
 
 export async function uploadFiles(opts: {
