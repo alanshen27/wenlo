@@ -155,7 +155,7 @@ export function CloudToolbar({
 function DropdownMenuTriggerSort({ sort }: { sort: SortMode }) {
   const Icon = sort === "name-desc" ? ArrowUpZA : sort === "type" ? Shapes : ArrowDownAZ;
   return (
-    <DropdownMenuTrigger render={<Button variant="outline" size="sm" data-icon="inline-start" />}>
+    <DropdownMenuTrigger render={<Button variant="outline" data-icon="inline-start" />}>
       <Icon className="size-3.5" />
       <span className="hidden sm:inline">{SORT_LABELS[sort]}</span>
     </DropdownMenuTrigger>
