@@ -5,7 +5,9 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { resolveGatewayFolderId } from "@/lib/auth/gateway-auth";
 import { authorizeLibrary, getMcpAuthExtra, verifyRecallApiKey } from "@/lib/auth/mcp-auth";
 import { prisma } from "@/lib/db/prisma";
-import { recallSearch } from "@/lib/search/search";
+import { applyTextPatch } from "@/lib/documents/text-patch";
+import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
+import { indexDocument, recallSearch } from "@/lib/search/search";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const maxDuration = 60;
@@ -250,6 +252,158 @@ const baseHandler = createMcpHandler(
           };
         } catch (error) {
           return errorResult(error instanceof Error ? error.message : "Failed to download file");
+        }
+      }
+    );
+
+    server.registerTool(
+      "create_note",
+      {
+        title: "Create note",
+        description:
+          "Create a new text note in a library and return its id. The note is immediately searchable. Use `append_to_note` to add to it or `edit_note` to patch it later.",
+        inputSchema: {
+          libraryId: z.string().describe("Library id to create the note in (requires EDITOR access)"),
+          title: z.string().describe("Note title"),
+          content: z.string().optional().describe("Initial body text (plain text/markdown)"),
+          folderId: z
+            .string()
+            .optional()
+            .describe("Folder id to place the note in (omit or 'root' for the library root)"),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      },
+      async ({ libraryId, title, content, folderId }, extra) => {
+        try {
+          const auth = toAuth(extra);
+          await authorizeLibrary(auth, libraryId);
+          await requireLibraryAccess(auth.userId, libraryId, "EDITOR");
+
+          const ownerId = await contentOwnerId(libraryId);
+          const resolvedFolderId =
+            folderId === undefined
+              ? null
+              : await resolveGatewayFolderId(auth.userId, libraryId, folderId);
+          const body = (content ?? "").trim();
+
+          const document = await prisma.document.create({
+            data: {
+              title: title.trim() || "Untitled note",
+              type: "NOTE",
+              status: "READY",
+              content: body,
+              userId: ownerId,
+              libraryId,
+              folderId: resolvedFolderId,
+            },
+            select: { id: true, title: true, folderId: true },
+          });
+
+          if (body) await indexDocument(document.id, document.title, body);
+
+          return jsonResult({
+            id: document.id,
+            title: document.title,
+            libraryId,
+            folderId: document.folderId,
+          });
+        } catch (error) {
+          return errorResult(error instanceof Error ? error.message : "Failed to create note");
+        }
+      }
+    );
+
+    server.registerTool(
+      "append_to_note",
+      {
+        title: "Append to note",
+        description:
+          "Append text to the end of an existing text note. Only works on native notes (not uploaded files).",
+        inputSchema: {
+          libraryId: z.string().describe("Library id the note belongs to (requires EDITOR access)"),
+          documentId: z.string().describe("Document id of the note to append to"),
+          text: z.string().describe("Text to append. A blank line is inserted before it if the note is non-empty."),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      },
+      async ({ libraryId, documentId, text }, extra) => {
+        try {
+          const auth = toAuth(extra);
+          await authorizeLibrary(auth, libraryId);
+          await requireLibraryAccess(auth.userId, libraryId, "EDITOR");
+
+          const document = await prisma.document.findFirst({
+            where: { id: documentId, libraryId },
+            select: { id: true, title: true, content: true, storagePath: true },
+          });
+          if (!document) return errorResult("Document not found");
+          if (document.storagePath) {
+            return errorResult(
+              "This document is an uploaded file; its extracted text can't be edited. Use create_note for editable notes."
+            );
+          }
+
+          const existing = document.content ?? "";
+          const next = existing.length > 0 ? `${existing}\n\n${text}` : text;
+          await prisma.document.update({ where: { id: document.id }, data: { content: next } });
+          await indexDocument(document.id, document.title, next);
+
+          return jsonResult({ id: document.id, length: next.length });
+        } catch (error) {
+          return errorResult(error instanceof Error ? error.message : "Failed to append to note");
+        }
+      }
+    );
+
+    server.registerTool(
+      "edit_note",
+      {
+        title: "Edit note (patch)",
+        description:
+          "Patch a note by replacing a substring rather than rewriting it. Choose which occurrence to replace via `occurrence`. Only works on native notes (not uploaded files).",
+        inputSchema: {
+          libraryId: z.string().describe("Library id the note belongs to (requires EDITOR access)"),
+          documentId: z.string().describe("Document id of the note to edit"),
+          oldString: z.string().min(1).describe("Exact substring to find and replace (must be non-empty)"),
+          newString: z.string().describe("Replacement text (may be empty to delete the match)"),
+          occurrence: z
+            .union([z.number().int().min(1), z.literal("all")])
+            .optional()
+            .describe(
+              "Which match to replace: 1 = first (default), 2 = second, 3 = third, …, or 'all' for every occurrence"
+            ),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+      },
+      async ({ libraryId, documentId, oldString, newString, occurrence }, extra) => {
+        try {
+          const auth = toAuth(extra);
+          await authorizeLibrary(auth, libraryId);
+          await requireLibraryAccess(auth.userId, libraryId, "EDITOR");
+
+          const document = await prisma.document.findFirst({
+            where: { id: documentId, libraryId },
+            select: { id: true, title: true, content: true, storagePath: true },
+          });
+          if (!document) return errorResult("Document not found");
+          if (document.storagePath) {
+            return errorResult(
+              "This document is an uploaded file; its extracted text can't be edited. Use create_note for editable notes."
+            );
+          }
+
+          const { content: next, replaced } = applyTextPatch(
+            document.content ?? "",
+            oldString,
+            newString,
+            occurrence ?? 1
+          );
+          await prisma.document.update({ where: { id: document.id }, data: { content: next } });
+          await indexDocument(document.id, document.title, next);
+
+          return jsonResult({ id: document.id, replaced, length: next.length });
+        } catch (error) {
+          return errorResult(error instanceof Error ? error.message : "Failed to edit note");
         }
       }
     );
