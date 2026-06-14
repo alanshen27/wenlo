@@ -9,6 +9,7 @@ import {
   recallScopeKey,
   type RecallTurn,
 } from "@/lib/recall-chat";
+import { getOpenAI, hasOpenAI, OPENAI_MODELS } from "@/lib/openai";
 import { recallSearch } from "@/lib/search";
 import { assertWithinTokenLimit, recordTokenUsage, UsageLimitError } from "@/lib/usage";
 
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
   const user = await requireUser().catch(() => null);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (!hasOpenAI()) {
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 503 });
   }
 
@@ -109,8 +110,7 @@ export async function POST(req: NextRequest) {
       ? "Note: Fresh search results are included below. Use them even if earlier turns found nothing.\n\n"
       : "";
 
-  const { default: OpenAI } = await import("openai");
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = getOpenAI();
 
   const sessionIdForStream: string = activeSessionId;
   const trimmedQuestion = question.trim();
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
         });
 
         const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: OPENAI_MODELS.chat,
           stream: true,
           stream_options: { include_usage: true },
           messages: [

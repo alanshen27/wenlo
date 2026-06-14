@@ -1,4 +1,31 @@
+import type OpenAI from "openai";
 import { DocumentType } from "@/generated/prisma/client";
+import { getOpenAI, OPENAI_MODELS } from "@/lib/openai";
+
+export type ExtractResult = {
+  content: string;
+  type: DocumentType;
+  language?: string;
+  /**
+   * True when native extraction couldn't produce good text (images, scanned
+   * PDFs, unknown binaries) and the file is a candidate for OpenAI
+   * vision/file processing in the background.
+   */
+  aiEligible?: boolean;
+};
+
+const IMAGE_EXTS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+  "tif",
+  "tiff",
+  "heic",
+  "svg",
+]);
 
 /**
  * Postgres `text` columns reject NUL bytes (0x00), which binary-ish extractions
@@ -17,11 +44,51 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   return text;
 }
 
+const OPENAI_EXTRACTION_PROMPT =
+  "You are an OCR and document-understanding engine. Extract ALL readable text " +
+  "from this file verbatim, preserving reading order. If it is an image, chart, " +
+  "or diagram, also append a concise description of the visual content (objects, " +
+  "tables, layout, data) so it can be found via search. Respond with plain text " +
+  "only — no preamble and no markdown code fences.";
+
+/**
+ * Extract searchable text from a file using an OpenAI vision/file model.
+ * Handles images (transcription + description) and documents like PDFs that
+ * native parsing can't read (e.g. scanned pages). Returns "" on any failure so
+ * callers can fall back to whatever native content they already have.
+ */
+export async function extractWithOpenAI(
+  buffer: Buffer,
+  mimeType: string,
+  filename: string
+): Promise<string> {
+  const openai = getOpenAI();
+  const dataUrl = `data:${mimeType || "application/octet-stream"};base64,${buffer.toString("base64")}`;
+  const isImage = mimeType.startsWith("image/") || IMAGE_EXTS.has(filename.split(".").pop()?.toLowerCase() ?? "");
+
+  const content = isImage
+    ? [
+        { type: "input_text", text: OPENAI_EXTRACTION_PROMPT },
+        { type: "input_image", image_url: dataUrl, detail: "auto" },
+      ]
+    : [
+        { type: "input_text", text: OPENAI_EXTRACTION_PROMPT },
+        { type: "input_file", filename, file_data: dataUrl },
+      ];
+
+  const res = await openai.responses.create({
+    model: OPENAI_MODELS.fileProcessing,
+    input: [{ role: "user", content }],
+  } as OpenAI.Responses.ResponseCreateParamsNonStreaming);
+
+  return res.output_text ?? "";
+}
+
 export async function extractTextFromFile(
   buffer: Buffer,
   mimeType: string,
   filename: string
-): Promise<{ content: string; type: DocumentType; language?: string }> {
+): Promise<ExtractResult> {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
 
   const result = await extractRaw(buffer, mimeType, filename, ext);
@@ -33,10 +100,22 @@ async function extractRaw(
   mimeType: string,
   filename: string,
   ext: string
-): Promise<{ content: string; type: DocumentType; language?: string }> {
+): Promise<ExtractResult> {
+  if (mimeType.startsWith("image/") || IMAGE_EXTS.has(ext)) {
+    // Real text comes from the OpenAI pass in the background job.
+    return { content: `[Image: ${filename}]`, type: "OTHER", aiEligible: true };
+  }
+
   if (mimeType === "application/pdf" || ext === "pdf") {
     const content = await extractPdfText(buffer);
-    return { content, type: "PDF" };
+    // Scanned / image-only PDFs yield little or no extractable text — flag them
+    // for OpenAI processing.
+    const aiEligible = content.replace(/\s/g, "").length < 16;
+    return {
+      content: aiEligible ? `[PDF: ${filename}]` : content,
+      type: "PDF",
+      aiEligible,
+    };
   }
 
   if (
@@ -82,7 +161,9 @@ async function extractRaw(
     };
   }
 
-  return { content: buffer.toString("utf-8"), type: "OTHER" };
+  // Unknown / binary file: don't persist mis-decoded bytes. Leave a placeholder
+  // and let the OpenAI file pass try to read it in the background.
+  return { content: `[File: ${filename}]`, type: "OTHER", aiEligible: true };
 }
 
 export function inferDocumentType(filename: string, mimeType: string): DocumentType {

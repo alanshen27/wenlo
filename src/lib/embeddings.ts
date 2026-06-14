@@ -1,15 +1,9 @@
-import OpenAI from "openai";
-
-function getOpenAI() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-  return new OpenAI({ apiKey });
-}
+import { getOpenAI, OPENAI_MODELS } from "@/lib/openai";
 
 export async function embedText(text: string): Promise<number[]> {
   const openai = getOpenAI();
   const res = await openai.embeddings.create({
-    model: "text-embedding-3-small",
+    model: OPENAI_MODELS.embedding,
     input: text.slice(0, 8000),
   });
   return res.data[0].embedding;
@@ -19,7 +13,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
   const openai = getOpenAI();
   const res = await openai.embeddings.create({
-    model: "text-embedding-3-small",
+    model: OPENAI_MODELS.embedding,
     input: texts.map((t) => t.slice(0, 8000)),
   });
   return res.data.map((d) => d.embedding);

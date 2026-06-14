@@ -8,7 +8,13 @@ import {
 } from "@/lib/library-access";
 import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { extractTextFromFile, inferDocumentType } from "@/lib/extract";
+import {
+  extractTextFromFile,
+  extractWithOpenAI,
+  inferDocumentType,
+  sanitizeText,
+} from "@/lib/extract";
+import { hasOpenAI, OPENAI_FILE_PROCESSING_ENABLED } from "@/lib/openai";
 import { indexDocument } from "@/lib/search";
 
 export async function GET(req: NextRequest) {
@@ -58,7 +64,7 @@ export async function POST(req: NextRequest) {
     const ownerId = await contentOwnerId(libraryId);
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { content, type, language } = await extractTextFromFile(
+    const { content, type, language, aiEligible } = await extractTextFromFile(
       buffer,
       file.type,
       file.name
@@ -95,11 +101,27 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Embed/chunk in the background so the upload responds immediately. The
-    // client shows a processing spinner and polls until the status flips.
+    // Process + embed/chunk in the background so the upload responds
+    // immediately. The client shows a processing spinner and polls until the
+    // status flips. For images / scanned PDFs / unknown files we first run an
+    // OpenAI vision+file pass to produce searchable text.
+    const runAiPass = Boolean(aiEligible) && OPENAI_FILE_PROCESSING_ENABLED && hasOpenAI();
     after(async () => {
       try {
-        await indexDocument(document.id, document.title, document.content);
+        let indexedContent = document.content;
+        if (runAiPass) {
+          const aiText = sanitizeText(
+            await extractWithOpenAI(buffer, file.type, file.name)
+          ).trim();
+          if (aiText) {
+            indexedContent = aiText;
+            await prisma.document.update({
+              where: { id: document.id },
+              data: { content: aiText },
+            });
+          }
+        }
+        await indexDocument(document.id, document.title, indexedContent);
         await prisma.document.update({
           where: { id: document.id },
           data: { status: "READY" },
