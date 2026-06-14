@@ -1,9 +1,13 @@
 import {
   File,
+  FileArchive,
+  FileAudio,
   FileCode,
   FileImage,
+  FileSpreadsheet,
   FileText,
   FileType,
+  FileVideo,
   Presentation,
   StickyNote,
   type LucideIcon,
@@ -23,6 +27,16 @@ export function getDocumentIcon(type: string): LucideIcon {
       return FileText;
     case "NOTE":
       return StickyNote;
+    case "IMAGE":
+      return FileImage;
+    case "SHEET":
+      return FileSpreadsheet;
+    case "ARCHIVE":
+      return FileArchive;
+    case "AUDIO":
+      return FileAudio;
+    case "VIDEO":
+      return FileVideo;
     default:
       return File;
   }
@@ -40,6 +54,16 @@ export function getDocumentIconClass(type: string): string {
       return "text-blue-400";
     case "NOTE":
       return "text-yellow-400";
+    case "IMAGE":
+      return "text-violet-400";
+    case "SHEET":
+      return "text-green-400";
+    case "ARCHIVE":
+      return "text-amber-400";
+    case "AUDIO":
+      return "text-pink-400";
+    case "VIDEO":
+      return "text-sky-400";
     default:
       return "text-muted-foreground";
   }
@@ -58,6 +82,16 @@ export function getDocumentTileClass(type: string): string {
       return "bg-blue-500/10 text-blue-500 dark:text-blue-400";
     case "NOTE":
       return "bg-yellow-500/10 text-yellow-600 dark:text-yellow-500";
+    case "IMAGE":
+      return "bg-violet-500/10 text-violet-500 dark:text-violet-400";
+    case "SHEET":
+      return "bg-green-500/10 text-green-600 dark:text-green-400";
+    case "ARCHIVE":
+      return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+    case "AUDIO":
+      return "bg-pink-500/10 text-pink-500 dark:text-pink-400";
+    case "VIDEO":
+      return "bg-sky-500/10 text-sky-500 dark:text-sky-400";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -76,6 +110,16 @@ export function getDocumentLabel(type: string): string {
       return "Document";
     case "NOTE":
       return "Note";
+    case "IMAGE":
+      return "Image";
+    case "SHEET":
+      return "Spreadsheet";
+    case "ARCHIVE":
+      return "Archive";
+    case "AUDIO":
+      return "Audio";
+    case "VIDEO":
+      return "Video";
     default:
       return "File";
   }
@@ -98,6 +142,16 @@ export function getDocumentBadge(type: string): string {
       return "NOTE";
     case "PAGE":
       return "PAGE";
+    case "IMAGE":
+      return "IMG";
+    case "SHEET":
+      return "XLS";
+    case "ARCHIVE":
+      return "ZIP";
+    case "AUDIO":
+      return "AUD";
+    case "VIDEO":
+      return "VID";
     default:
       return "FILE";
   }
@@ -112,6 +166,11 @@ const FILE_ART: Record<string, ArtPalette> = {
   CODE: { accent: "#10b981", body: "#ecfdf5", fold: "#a7f3d0", line: "#6ee7b7" },
   NOTE: { accent: "#f59e0b", body: "#fffbeb", fold: "#fde68a", line: "#fcd34d" },
   PAGE: { accent: "#8b5cf6", body: "#f5f3ff", fold: "#ddd6fe", line: "#c4b5fd" },
+  IMAGE: { accent: "#8b5cf6", body: "#f5f3ff", fold: "#ddd6fe", line: "#c4b5fd" },
+  SHEET: { accent: "#16a34a", body: "#f0fdf4", fold: "#bbf7d0", line: "#86efac" },
+  ARCHIVE: { accent: "#d97706", body: "#fffbeb", fold: "#fde68a", line: "#fcd34d" },
+  AUDIO: { accent: "#ec4899", body: "#fdf2f8", fold: "#fbcfe8", line: "#f9a8d4" },
+  VIDEO: { accent: "#0ea5e9", body: "#f0f9ff", fold: "#bae6fd", line: "#7dd3fc" },
   OTHER: { accent: "#64748b", body: "#f1f5f9", fold: "#cbd5e1", line: "#94a3b8" },
 };
 

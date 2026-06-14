@@ -1,4 +1,4 @@
-import type OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { DocumentType } from "@/generated/prisma/client";
 import { getOpenAI, OPENAI_MODELS } from "@/lib/openai";
 
@@ -26,6 +26,14 @@ const IMAGE_EXTS = new Set([
   "heic",
   "svg",
 ]);
+
+/** Spreadsheets that are plain text and can be indexed directly. */
+const TEXT_SHEET_EXTS = new Set(["csv", "tsv"]);
+/** Binary spreadsheets — read via the OpenAI file pass. */
+const BINARY_SHEET_EXTS = new Set(["xls", "xlsx", "ods", "numbers"]);
+const ARCHIVE_EXTS = new Set(["zip", "tar", "gz", "tgz", "rar", "7z", "bz2"]);
+const AUDIO_EXTS = new Set(["mp3", "wav", "m4a", "aac", "ogg", "flac", "opus"]);
+const VIDEO_EXTS = new Set(["mp4", "mov", "webm", "mkv", "avi", "m4v", "wmv"]);
 
 /**
  * Postgres `text` columns reject NUL bytes (0x00), which binary-ish extractions
@@ -63,25 +71,41 @@ export async function extractWithOpenAI(
   filename: string
 ): Promise<string> {
   const openai = getOpenAI();
-  const dataUrl = `data:${mimeType || "application/octet-stream"};base64,${buffer.toString("base64")}`;
-  const isImage = mimeType.startsWith("image/") || IMAGE_EXTS.has(filename.split(".").pop()?.toLowerCase() ?? "");
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  const isImage = mimeType.startsWith("image/") || IMAGE_EXTS.has(ext);
 
-  const content = isImage
-    ? [
-        { type: "input_text", text: OPENAI_EXTRACTION_PROMPT },
-        { type: "input_image", image_url: dataUrl, detail: "auto" },
-      ]
-    : [
-        { type: "input_text", text: OPENAI_EXTRACTION_PROMPT },
-        { type: "input_file", filename, file_data: dataUrl },
-      ];
+  // Upload via the Files API and reference by id (avoids huge base64 payloads
+  // and works better for large files). Images use the "vision" purpose;
+  // everything else uses "user_data" for the Responses file input.
+  const uploadable = await toFile(buffer, filename, {
+    type: mimeType || "application/octet-stream",
+  });
+  const file = await openai.files.create({
+    file: uploadable,
+    purpose: isImage ? "vision" : "user_data",
+  });
 
-  const res = await openai.responses.create({
-    model: OPENAI_MODELS.fileProcessing,
-    input: [{ role: "user", content }],
-  } as OpenAI.Responses.ResponseCreateParamsNonStreaming);
+  try {
+    const content = isImage
+      ? [
+          { type: "input_text", text: OPENAI_EXTRACTION_PROMPT },
+          { type: "input_image", file_id: file.id, detail: "auto" },
+        ]
+      : [
+          { type: "input_text", text: OPENAI_EXTRACTION_PROMPT },
+          { type: "input_file", file_id: file.id },
+        ];
 
-  return res.output_text ?? "";
+    const res = await openai.responses.create({
+      model: OPENAI_MODELS.fileProcessing,
+      input: [{ role: "user", content }],
+    } as OpenAI.Responses.ResponseCreateParamsNonStreaming);
+
+    return res.output_text ?? "";
+  } finally {
+    // Best-effort cleanup so uploaded files don't accumulate.
+    await openai.files.delete(file.id).catch(() => {});
+  }
 }
 
 export async function extractTextFromFile(
@@ -103,7 +127,7 @@ async function extractRaw(
 ): Promise<ExtractResult> {
   if (mimeType.startsWith("image/") || IMAGE_EXTS.has(ext)) {
     // Real text comes from the OpenAI pass in the background job.
-    return { content: `[Image: ${filename}]`, type: "OTHER", aiEligible: true };
+    return { content: `[Image: ${filename}]`, type: "IMAGE", aiEligible: true };
   }
 
   if (mimeType === "application/pdf" || ext === "pdf") {
@@ -134,6 +158,28 @@ async function extractRaw(
   ) {
     // Basic fallback — full pptx parsing would need a dedicated lib
     return { content: `[Slides uploaded: ${filename}]`, type: "SLIDES" };
+  }
+
+  // CSV / TSV are plain text and index directly.
+  if (TEXT_SHEET_EXTS.has(ext) || mimeType === "text/csv" || mimeType === "text/tab-separated-values") {
+    return { content: buffer.toString("utf-8"), type: "SHEET" };
+  }
+
+  // Binary spreadsheets — let the OpenAI file pass try to read them.
+  if (BINARY_SHEET_EXTS.has(ext) || mimeType.includes("spreadsheet") || mimeType.includes("ms-excel")) {
+    return { content: `[Spreadsheet: ${filename}]`, type: "SHEET", aiEligible: true };
+  }
+
+  if (ARCHIVE_EXTS.has(ext) || mimeType === "application/zip" || mimeType.includes("compressed")) {
+    return { content: `[Archive: ${filename}]`, type: "ARCHIVE" };
+  }
+
+  if (AUDIO_EXTS.has(ext) || mimeType.startsWith("audio/")) {
+    return { content: `[Audio: ${filename}]`, type: "AUDIO" };
+  }
+
+  if (VIDEO_EXTS.has(ext) || mimeType.startsWith("video/")) {
+    return { content: `[Video: ${filename}]`, type: "VIDEO" };
   }
 
   const codeExts: Record<string, string> = {
@@ -171,6 +217,12 @@ export function inferDocumentType(filename: string, mimeType: string): DocumentT
   if (ext === "pdf" || mimeType === "application/pdf") return "PDF";
   if (ext === "pptx" || ext === "ppt") return "SLIDES";
   if (ext === "docx" || ext === "doc") return "DOC";
+  if (mimeType.startsWith("image/") || IMAGE_EXTS.has(ext)) return "IMAGE";
+  if (TEXT_SHEET_EXTS.has(ext) || BINARY_SHEET_EXTS.has(ext) || mimeType.includes("spreadsheet"))
+    return "SHEET";
+  if (ARCHIVE_EXTS.has(ext)) return "ARCHIVE";
+  if (AUDIO_EXTS.has(ext) || mimeType.startsWith("audio/")) return "AUDIO";
+  if (VIDEO_EXTS.has(ext) || mimeType.startsWith("video/")) return "VIDEO";
   if (["ts", "tsx", "js", "jsx", "py", "rs", "go", "java", "cpp", "c", "h"].includes(ext))
     return "CODE";
   if (["md", "txt"].includes(ext)) return "NOTE";

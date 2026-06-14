@@ -150,7 +150,6 @@ export async function POST(req: NextRequest) {
               content: `${freshSearchNote}Question: ${trimmedQuestion}\n\nRetrieved excerpts (${results.length} source${results.length === 1 ? "" : "s"}):\n${retrievedContext}`,
             },
           ],
-          temperature: 0.3,
         });
 
         let answer = "";

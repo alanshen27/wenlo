@@ -207,6 +207,11 @@ enum DocumentType {
   SLIDES
   DOC
   CODE
+  IMAGE
+  SHEET
+  ARCHIVE
+  AUDIO
+  VIDEO
   OTHER
 }
 
