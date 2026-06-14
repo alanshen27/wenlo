@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ViewContainer, ViewHeader, ViewScroll, SectionLabel } from "@/components/ui/view";
 import { getFolderContents } from "@/lib/folders";
+import { isPreviewOnlyType } from "@/lib/file-icons";
 import type { FolderColorId } from "@/lib/folder-colors";
 import { documentRoute, folderHome, pageRoute } from "@/lib/routes";
 import {
@@ -87,6 +88,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     beginDeletePage,
     beginDeleteDocument,
     beginMove,
+    openDocumentPreview,
   } = useLibrary();
 
   const [view, setView] = usePersistentState<ViewMode>(VIEW_KEY, "grid");
@@ -176,7 +178,15 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   }
 
   function actionsFor(item: CloudItem) {
-    if (!canEdit) return {};
+    // Previewing is a read action, so it's available to viewers too. Media /
+    // binary files open a Dropbox-style preview panel instead of the
+    // extracted-text document page.
+    const onOpen =
+      item.kind === "document" && !item.pending && isPreviewOnlyType(item.type)
+        ? () => openDocumentPreview({ id: item.id, title: item.title, type: item.type })
+        : undefined;
+
+    if (!canEdit) return { onOpen };
     if (item.kind === "folder") {
       return {
         onEdit: () =>
@@ -191,6 +201,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
       };
     }
     return {
+      onOpen,
       onMove: () =>
         beginMove({ type: "document", id: item.id, title: item.title, docType: item.type }),
       onDelete: () => beginDeleteDocument({ id: item.id, title: item.title }),

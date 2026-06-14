@@ -32,6 +32,8 @@ export type CloudItem =
 
 type ItemActions = {
   href: string;
+  /** When set, clicking opens an in-app preview panel instead of navigating. */
+  onOpen?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onMove?: () => void;
@@ -219,6 +221,7 @@ function EntityArtwork({ item, className }: { item: CloudItem; className?: strin
 export function EntityCard({
   item,
   href,
+  onOpen,
   onEdit,
   onDelete,
   onMove,
@@ -236,16 +239,24 @@ export function EntityCard({
           "group/card relative flex flex-col items-center gap-3 rounded-2xl border border-border/60 bg-card px-3 py-5 text-center shadow-sm transition-all",
           pending
             ? "opacity-60"
-            : "hover:-translate-y-0.5 hover:border-border hover:shadow-md has-[a:focus-visible]:border-primary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-primary/40"
+            : "hover:-translate-y-0.5 hover:border-border hover:shadow-md has-[a:focus-visible]:border-primary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-primary/40 has-[button:focus-visible]:border-primary has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-primary/40"
         )}
       >
-        {!pending && (
-          <Link
-            href={href}
-            aria-label={item.title}
-            className="absolute inset-0 z-0 rounded-2xl outline-none"
-          />
-        )}
+        {!pending &&
+          (onOpen ? (
+            <button
+              type="button"
+              onClick={onOpen}
+              aria-label={item.title}
+              className="absolute inset-0 z-0 rounded-2xl outline-none"
+            />
+          ) : (
+            <Link
+              href={href}
+              aria-label={item.title}
+              className="absolute inset-0 z-0 rounded-2xl outline-none"
+            />
+          ))}
 
         <span className={cn("relative", pending && "animate-pulse")}>
           <EntityArtwork item={item} className="size-16" />
@@ -280,7 +291,12 @@ export function EntityTable({
 }: {
   items: CloudItem[];
   hrefFor: (item: CloudItem) => string;
-  actionsFor: (item: CloudItem) => { onEdit?: () => void; onDelete?: () => void; onMove?: () => void };
+  actionsFor: (item: CloudItem) => {
+    onOpen?: () => void;
+    onEdit?: () => void;
+    onDelete?: () => void;
+    onMove?: () => void;
+  };
   enableDnd?: boolean;
 }) {
   return (
@@ -309,6 +325,7 @@ export function EntityTable({
 function EntityRow({
   item,
   href,
+  onOpen,
   onEdit,
   onDelete,
   onMove,
@@ -350,9 +367,19 @@ function EntityRow({
   return (
     <DndShell item={item} enableDnd={enableDnd} className="rounded-md">
       <div className={cn(base, "hover:bg-muted/60")}>
-        <Link href={href} className="flex min-w-0 flex-1 items-center gap-3 outline-none">
-          {inner}
-        </Link>
+        {onOpen ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none"
+          >
+            {inner}
+          </button>
+        ) : (
+          <Link href={href} className="flex min-w-0 flex-1 items-center gap-3 outline-none">
+            {inner}
+          </Link>
+        )}
         <div className="w-7 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100">
           <ActionMenu onEdit={onEdit} onDelete={onDelete} onMove={onMove} />
         </div>

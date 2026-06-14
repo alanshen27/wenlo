@@ -19,6 +19,7 @@ import { MoveModal } from "@/components/modals/move-modal";
 import { ShareLibraryModal } from "@/components/modals/share-library-modal";
 import { PendingInvitesBanner } from "@/components/library/pending-invites-banner";
 import { MainHeader, type SaveStatus } from "@/components/library/main-header";
+import { FilePreviewPanel, type PreviewTarget } from "@/components/cloud/file-preview-panel";
 import { RecallChatProvider } from "@/components/recall/recall-chat-context";
 import { buildRouteBreadcrumbs } from "@/lib/route-breadcrumbs";
 import { usePersistentState } from "@/lib/use-persistent-state";
@@ -98,6 +99,8 @@ type LibraryContextValue = {
   beginDeletePage: (page: { id: string; title: string }) => void;
   beginDeleteDocument: (doc: { id: string; title: string }) => void;
   beginMove: (item: SidebarDragItem) => void;
+  openDocumentPreview: (target: PreviewTarget) => void;
+  closeDocumentPreview: () => void;
 };
 
 const LibraryContext = createContext<LibraryContextValue | null>(null);
@@ -132,6 +135,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
   const [shareOpen, setShareOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [header, setHeader] = useState<HeaderState>({});
+  const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null);
   const [focusMode, setFocusMode] = usePersistentState<boolean>(
     "recalls:focus-mode",
     false
@@ -212,6 +216,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setHeader({});
+    // Close any open file preview when the active view changes.
+    setPreviewTarget(null);
   }, [libraryId, selectedFolderId, selectedPageId, selectedDocumentId, isSearchPage, isRecallPage, isMapPage]);
 
   useEffect(() => {
@@ -367,6 +373,13 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     []
   );
 
+  const openDocumentPreview = useCallback(
+    (target: PreviewTarget) => setPreviewTarget(target),
+    []
+  );
+
+  const closeDocumentPreview = useCallback(() => setPreviewTarget(null), []);
+
   const moveItem = useCallback(
     async (item: SidebarDragItem, folderId: string | null) => {
       if (!item.title) return;
@@ -498,6 +511,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       } else if (modal.kind === "document-delete") {
         await apiDelete(`/api/documents/${modal.id}`);
         if (selectedDocumentId === modal.id) router.push(libraryHome(libraryId));
+        setPreviewTarget((prev) => (prev?.id === modal.id ? null : prev));
         refreshTree();
       } else if (modal.kind === "library-delete") {
         await apiDelete(`/api/libraries/${modal.library.id}`);
@@ -540,6 +554,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       beginDeletePage,
       beginDeleteDocument,
       beginMove,
+      openDocumentPreview,
+      closeDocumentPreview,
     }),
     [
       libraryId,
@@ -563,6 +579,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       beginDeletePage,
       beginDeleteDocument,
       beginMove,
+      openDocumentPreview,
+      closeDocumentPreview,
     ]
   );
 
@@ -633,6 +651,14 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           />
           {children}
         </main>
+
+        {previewTarget && (
+          <FilePreviewPanel
+            target={previewTarget}
+            libraryId={libraryId}
+            onClose={closeDocumentPreview}
+          />
+        )}
 
         <FolderModal
           open={modal.kind === "folder-create" || modal.kind === "folder-edit"}

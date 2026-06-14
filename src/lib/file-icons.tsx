@@ -125,6 +125,16 @@ export function getDocumentLabel(type: string): string {
   }
 }
 
+/**
+ * Files that have no meaningful extracted-text view and are better shown in a
+ * Dropbox-style preview panel (media + download) than the document text page.
+ */
+const PREVIEW_ONLY_TYPES = new Set(["IMAGE", "AUDIO", "VIDEO", "ARCHIVE", "OTHER"]);
+
+export function isPreviewOnlyType(type: string): boolean {
+  return PREVIEW_ONLY_TYPES.has(type);
+}
+
 export { FileText as PageIcon, FileImage };
 
 /** Short uppercase badge text shown on the illustrative file artwork. */
