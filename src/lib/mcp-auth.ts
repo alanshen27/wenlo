@@ -31,7 +31,19 @@ export async function verifyRecallApiKey(
   req: Request,
   bearerToken?: string
 ): Promise<AuthInfo | undefined> {
-  const rawKey = bearerToken?.startsWith("rcsk_") ? bearerToken : extractBearerKey(req);
+  // Prefer the Authorization header, but fall back to a `?key=`/`?api_key=`
+  // query param for MCP clients (e.g. older AnythingLLM builds) that don't
+  // forward custom headers on the streamable HTTP transport.
+  let queryKey: string | undefined;
+  try {
+    const params = new URL(req.url).searchParams;
+    queryKey = params.get("key") ?? params.get("api_key") ?? undefined;
+  } catch {
+    queryKey = undefined;
+  }
+
+  const candidate = bearerToken ?? extractBearerKey(req) ?? queryKey;
+  const rawKey = candidate?.startsWith("rcsk_") ? candidate : null;
   if (!rawKey) return undefined;
 
   const apiKey = await prisma.apiKey.findFirst({
