@@ -4,6 +4,7 @@ export type FlowTemplate = {
   id: string;
   label: string;
   title: string;
+  accent: string;
   build: () => FlowDoc;
 };
 
@@ -28,6 +29,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     id: "linear",
     label: "Linear process",
     title: "Feature delivery flow",
+    accent: "#6366f1",
     build: () => {
       const a = node("New request", 0, 0, "rounded", "green");
       const b = node("Triage & prioritize", 200, 0);
@@ -56,6 +58,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     id: "decision",
     label: "Decision tree",
     title: "Signup flow",
+    accent: "#f59e0b",
     build: () => {
       const start = node("User lands on signup", 180, 0, "rounded", "green");
       const decision = node("Has invite link?", 140, 120, "diamond", "amber");
@@ -91,6 +94,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     id: "swimlane",
     label: "Handoff",
     title: "Support → engineering handoff",
+    accent: "#8b5cf6",
     build: () => {
       const req = node("Customer reports bug", 0, 0, "rectangle", "indigo");
       const triage = node("Support reproduces", 220, 0, "rectangle", "purple");

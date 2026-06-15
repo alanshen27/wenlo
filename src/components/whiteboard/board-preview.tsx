@@ -4,6 +4,63 @@ import { shapePolygonSvgPoints } from "@/lib/canvas/shapes";
 import { cn } from "@/lib/core/utils";
 
 const FONT = "Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const STICKY_PAD = 12;
+const STICKY_FONT = 16;
+const STICKY_LINE_HEIGHT = STICKY_FONT * 1.3;
+
+/** Rough width estimate — good enough for thumbnail line breaks. */
+function estimateTextWidth(text: string, fontSize: number): number {
+  return text.length * fontSize * 0.55;
+}
+
+function wrapStickyText(
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  maxLines: number
+): string[] {
+  if (!text || maxLines <= 0) return [];
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+
+  const pushCurrent = () => {
+    if (!current) return;
+    lines.push(current);
+    current = "";
+  };
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (estimateTextWidth(candidate, fontSize) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+    pushCurrent();
+    if (lines.length >= maxLines) return lines;
+
+    if (estimateTextWidth(word, fontSize) <= maxWidth) {
+      current = word;
+      continue;
+    }
+
+    let chunk = "";
+    for (const ch of word) {
+      const next = chunk + ch;
+      if (estimateTextWidth(next, fontSize) > maxWidth && chunk) {
+        lines.push(chunk);
+        chunk = ch;
+        if (lines.length >= maxLines) return lines;
+      } else {
+        chunk = next;
+      }
+    }
+    current = chunk;
+  }
+
+  pushCurrent();
+  return lines.slice(0, maxLines);
+}
 
 /** Triangle points for an arrowhead at (x2,y2) pointing away from (x1,y1). */
 function arrowHeadPoints(x1: number, y1: number, x2: number, y2: number, size: number): string {
@@ -30,8 +87,8 @@ function pointsStr(points: number[]): string {
 
 /**
  * Lightweight, read-only SVG render of a whiteboard scene for the preview panel.
- * Intentionally dependency-free (no Konva) and approximate — text doesn't wrap —
- * so it stays cheap to mount in a sidebar thumbnail.
+ * Intentionally dependency-free (no Konva). Text/sticky copy is word-wrapped to
+ * the element bounds so thumbnails don't spill outside stickies.
  */
 export function BoardPreview({
   scene,
@@ -222,15 +279,35 @@ function PreviewElement({ el }: { el: BoardElement }) {
           opacity={opacity}
         />
       );
-    case "sticky":
+    case "sticky": {
+      const innerW = Math.max(1, el.w - STICKY_PAD * 2);
+      const innerH = Math.max(1, el.h - STICKY_PAD * 2);
+      const maxLines = Math.max(1, Math.floor(innerH / STICKY_LINE_HEIGHT));
+      const lines = wrapStickyText(el.text, innerW, STICKY_FONT, maxLines);
+      const clipId = `sticky-clip-${el.id}`;
       return (
         <g transform={transform} opacity={opacity}>
+          <defs>
+            <clipPath id={clipId}>
+              <rect width={el.w} height={el.h} rx={4} />
+            </clipPath>
+          </defs>
           <rect width={el.w} height={el.h} rx={4} fill={el.fill} />
-          <text x={12} y={26} fontSize={16} fill={el.color} fontFamily={FONT}>
-            {el.text.slice(0, 40)}
+          <text
+            fontSize={STICKY_FONT}
+            fill={el.color}
+            fontFamily={FONT}
+            clipPath={`url(#${clipId})`}
+          >
+            {lines.map((line, i) => (
+              <tspan key={i} x={STICKY_PAD} dy={i === 0 ? STICKY_PAD + STICKY_FONT : STICKY_LINE_HEIGHT}>
+                {line}
+              </tspan>
+            ))}
           </text>
         </g>
       );
+    }
     case "text":
       return (
         <text

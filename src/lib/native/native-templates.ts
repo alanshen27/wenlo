@@ -10,6 +10,8 @@ export type NativeTemplateEntry = {
   id: string;
   label: string;
   title: string;
+  /** Card thumbnail tint + accent stripe. */
+  accent?: string;
   /** Plain-text excerpt for doc/database card thumbnails. */
   preview?: string;
 };
@@ -21,6 +23,7 @@ export function listNativeTemplates(kind: NativeKind): NativeTemplateEntry[] {
         id: t.id,
         label: t.label,
         title: t.title,
+        accent: t.accent,
         preview: t.preview,
       }));
     case "slides":
@@ -28,24 +31,28 @@ export function listNativeTemplates(kind: NativeKind): NativeTemplateEntry[] {
         id: t.id,
         label: t.label,
         title: t.title,
+        accent: t.accent,
       }));
     case "whiteboards":
       return BOARD_TEMPLATES.map((t) => ({
         id: t.id,
         label: t.label,
         title: t.title,
+        accent: t.accent,
       }));
     case "flowcharts":
       return FLOW_TEMPLATES.map((t) => ({
         id: t.id,
         label: t.label,
         title: t.title,
+        accent: t.accent,
       }));
     case "databases":
       return DATABASE_TEMPLATES.map((t) => ({
         id: t.id,
         label: t.label,
         title: t.title,
+        accent: t.accent,
         preview: t.preview,
       }));
     default:

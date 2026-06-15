@@ -4,6 +4,8 @@ export type PageTemplate = {
   id: string;
   label: string;
   title: string;
+  /** Card thumbnail + accent stripe color. */
+  accent: string;
   preview: string;
   content: RecallPartialBlock[];
 };
@@ -13,6 +15,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     id: "meeting-notes",
     label: "Meeting notes",
     title: "Meeting notes",
+    accent: "#2563eb",
     preview:
       "Product sync · June 15\nAttendees: Alex, Jordan, Sam\nAgenda: Launch timeline, open bugs\nDecision: Ship July 1 soft launch",
     content: [
@@ -66,6 +69,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     id: "project-brief",
     label: "Project brief",
     title: "Project brief",
+    accent: "#7c3aed",
     preview:
       "Native app homes\nProblem: editors buried in library nav\nGoal: Word-style entry per content type\nSuccess: <90s to first edit",
     content: [
@@ -128,6 +132,7 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     id: "weekly-update",
     label: "Weekly update",
     title: "Weekly update",
+    accent: "#059669",
     preview:
       "Week of June 9\nShipped: native homes, recents API\nIn progress: template previews\nBlocker: billing QA staffing",
     content: [
