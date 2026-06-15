@@ -3,6 +3,7 @@ import { badRequest, withAuth } from "@/lib/api/http";
 import { getBillingSummary } from "@/lib/billing/billing";
 import { prisma } from "@/lib/db/prisma";
 import { getUsageSummary } from "@/lib/billing/usage";
+import { completeOnboarding } from "@/lib/onboarding/onboarding";
 
 export async function GET() {
   return withAuth(undefined, async ({ user }) => {
@@ -16,6 +17,8 @@ export async function GET() {
       email: user.email,
       name: user.name,
       avatarUrl: user.avatarUrl,
+      onboardingCompletedAt: user.onboardingCompletedAt,
+      needsOnboarding: user.onboardingCompletedAt == null,
       usage,
       billing,
     });
@@ -32,27 +35,37 @@ export async function PATCH(req: NextRequest) {
         ? body.avatarUrl.trim()
         : null
       : undefined;
+    const shouldCompleteOnboarding = body.completeOnboarding === true;
 
-    if (name === undefined && avatarUrl === undefined && !hasAvatar) {
+    if (
+      name === undefined &&
+      avatarUrl === undefined &&
+      !hasAvatar &&
+      !shouldCompleteOnboarding
+    ) {
       throw badRequest("Nothing to update");
     }
     if (avatarUrl && !/^https?:\/\//i.test(avatarUrl)) {
       throw badRequest("Avatar must be a valid http(s) URL");
     }
 
-    const updated = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        ...(name !== undefined ? { name: name || null } : {}),
-        ...(hasAvatar ? { avatarUrl } : {}),
-      },
-    });
+    const updated = shouldCompleteOnboarding
+      ? await completeOnboarding(user.id)
+      : await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            ...(name !== undefined ? { name: name || null } : {}),
+            ...(hasAvatar ? { avatarUrl } : {}),
+          },
+        });
 
     return NextResponse.json({
       id: updated.id,
       email: updated.email,
       name: updated.name,
       avatarUrl: updated.avatarUrl,
+      onboardingCompletedAt: updated.onboardingCompletedAt,
+      needsOnboarding: updated.onboardingCompletedAt == null,
     });
   });
 }

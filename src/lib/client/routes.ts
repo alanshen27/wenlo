@@ -102,6 +102,10 @@ export function settingsPlanRoute() {
   return "/settings/plan";
 }
 
+export function onboardingRoute() {
+  return "/onboarding";
+}
+
 // ---------------------------------------------------------------------------
 // Standalone pages
 // ---------------------------------------------------------------------------

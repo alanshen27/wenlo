@@ -24,6 +24,8 @@ model User {
   usagePeriodStart           DateTime @default(now())
   lemonSqueezyCustomerId     String?
   lemonSqueezySubscriptionId String?
+  // Null until the user finishes first-run onboarding (library setup + first doc + Recall).
+  onboardingCompletedAt      DateTime?
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 

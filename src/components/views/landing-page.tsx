@@ -6,9 +6,9 @@ import {
   FolderClosed,
   FolderTree,
   House,
+  Plug,
   Search,
   Sparkles,
-  Terminal,
   Upload,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
@@ -45,9 +45,10 @@ const features = [
     description: "Ask across a folder or your whole library — the agent reads your files and cites sources.",
   },
   {
-    icon: Terminal,
-    title: "CLI & API",
-    description: "Pipe files in, query from scripts, and wire wenlo into your own agents.",
+    icon: Plug,
+    title: "API & integrations",
+    description:
+      "Ingest files, query your library, and connect external agents via API keys and MCP.",
   },
 ];
 

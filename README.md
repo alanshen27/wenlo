@@ -2,11 +2,7 @@
 
 Cloud storage + notes for the agentic era. Store your files and notes, then let an agent search, read, and answer across everything you keep.
 
-Upload PDFs, images, slides, docs, and code — then query everything with:
-
-```bash
-recall "transformer positional encoding"
-```
+Upload PDFs, images, slides, docs, and code — then ask Recall across your library from the app or via the API.
 
 ## Stack
 

@@ -1,16 +1,13 @@
-import { LandingView } from "@/components/views/landing-view";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/auth";
-import { listLibrariesWithRoles } from "@/lib/library/libraries";
-import { libraryHome } from "@/lib/client/routes";
+import { getPostAuthHref } from "@/lib/onboarding/onboarding";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-  let libraryHref: string | null = null;
-
   if (user) {
-    const libraries = await listLibrariesWithRoles(user.id);
-    if (libraries[0]) libraryHref = libraryHome(libraries[0].id);
+    redirect(await getPostAuthHref(user.id));
   }
 
-  return <LandingView isLoggedIn={!!user} libraryHref={libraryHref} />;
+  const { LandingView } = await import("@/components/views/landing-view");
+  return <LandingView isLoggedIn={false} libraryHref={null} />;
 }
