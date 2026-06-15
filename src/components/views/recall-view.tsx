@@ -23,7 +23,7 @@ type AgentStreamEvent =
   | {
       type: "done";
       sessionId: string;
-      session: { id: string; title: string | null; turnCount: number };
+      session: RecallChatSessionSummary;
       turn: RecallTurn;
     }
   | { type: "error"; error: string };
@@ -42,7 +42,6 @@ export function RecallView() {
     scope,
     setScope,
     updateSessionMeta,
-    refreshSessions,
   } = useRecallChat();
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -151,14 +150,7 @@ export function RecallView() {
         } else if (event.type === "done") {
           setTurns((prev) => [...prev, event.turn]);
           setStreamingTurn(null);
-          updateSessionMeta({
-            id: event.session.id,
-            title: event.session.title,
-            turnCount: event.session.turnCount,
-            updatedAt: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-          });
-          refreshSessions();
+          updateSessionMeta(event.session);
           notifyUsageUpdated();
         } else if (event.type === "error") {
           streamError = event.error;
@@ -202,7 +194,6 @@ export function RecallView() {
     scope,
     activeSessionId,
     updateSessionMeta,
-    refreshSessions,
   ]);
 
   function openResult(result: RecallResult) {

@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { LibraryIcon } from "@/components/icons/library-icon";
 import { apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
 import { libraryHome } from "@/lib/client/routes";
 import { Logo } from "@/components/logo";
@@ -118,8 +119,9 @@ export function InviteView({ token }: Props) {
           <CardTitle>Workspace invitation</CardTitle>
           <CardDescription>
             {inviter} invited you to join{" "}
-            <span className="font-medium text-foreground">
-              {invite.library.icon} {invite.library.name}
+            <span className="inline-flex items-center gap-1.5 align-middle font-medium text-foreground">
+              <LibraryIcon icon={invite.library.icon} className="size-4" />
+              {invite.library.name}
             </span>
           </CardDescription>
         </CardHeader>

@@ -331,27 +331,32 @@ export function FolderSidebar(props: Props) {
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">No chats yet</p>
               )}
               {recallChat.sessions.map((session) => (
-                <div key={session.id} className="group flex items-center gap-0.5">
-                  <Button
+                <div
+                  key={session.id}
+                  className={cn(
+                    "group flex h-8 items-center gap-0.5 rounded-md pr-1 hover:bg-sidebar-accent",
+                    recallChat.activeSessionId === session.id &&
+                      "sidebar-item-active font-medium text-sidebar-foreground"
+                  )}
+                >
+                  <button
                     type="button"
-                    variant="ghost"
-                    className={cn(
-                      "h-8 min-w-0 flex-1 justify-start gap-2 px-2",
-                      recallChat.activeSessionId === session.id &&
-                        "sidebar-item-active font-medium text-sidebar-foreground"
-                    )}
+                    className="flex h-full min-w-0 flex-1 items-center justify-start gap-2 px-2 text-left"
                     onClick={() => recallChat.selectSession(session.id)}
                   >
                     <MessageSquare className="size-3.5 shrink-0 opacity-60" />
                     <span className="truncate text-sm">{sessionLabel(session)}</span>
-                  </Button>
+                  </button>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="ml-auto shrink-0 opacity-0 group-hover:opacity-100"
+                    className="shrink-0 opacity-0 hover:bg-transparent group-hover:opacity-100"
                     title="Delete chat"
-                    onClick={() => void recallChat.deleteSession(session.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void recallChat.deleteSession(session.id);
+                    }}
                   >
                     <Trash2 className="size-3.5" />
                   </Button>

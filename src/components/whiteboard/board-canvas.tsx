@@ -19,12 +19,22 @@ import {
   type BoardDoc,
   type BoardElement,
   type BoardPatch,
+  type ConnectorElement,
+  type ConnectorEndpoint,
 } from "@/lib/boards/board-schema";
-import { localBounds, scaleElement } from "@/components/whiteboard/board-geometry";
+import {
+  absBounds,
+  computeSnap,
+  localBounds,
+  resolveConnector,
+  scaleElement,
+  type Box,
+  type SnapLine,
+} from "@/components/whiteboard/board-geometry";
 import { BoardImageNode } from "@/components/whiteboard/board-image";
 import { readImageSize } from "@/lib/canvas/image";
 import { BoardToolbar, type Tool } from "@/components/whiteboard/board-toolbar";
-import type { LockHolder, LockMap } from "@/components/whiteboard/use-board-collab";
+import type { LockHolder, LockMap, RemoteCursor } from "@/components/whiteboard/use-board-collab";
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 5;
@@ -46,11 +56,19 @@ type Props = {
   libraryId: string;
   folderId: string | null;
   remoteLocks: LockMap;
+  remoteCursors: RemoteCursor[];
   onPatch: (patch: BoardPatch) => void;
   requestLock: (ids: string[]) => Promise<{ granted: string[]; denied: { elementId: string; holder: LockHolder }[] }>;
   releaseLock: (ids: string[]) => void;
+  publishCursor: (pos: { x: number; y: number } | null) => void;
   registerHandle: (handle: BoardCanvasHandle | null) => void;
 };
+
+const CURSOR_THROTTLE_MS = 45;
+/** Distance (screen px) within which a dragged element snaps to another's edge/center. */
+const SNAP_THRESHOLD_PX = 6;
+/** Minimum travel (scene units) before a new pen point is recorded — bounds path size. */
+const MIN_PEN_DISTANCE = 1.5;
 
 export function BoardCanvas({
   scene,
@@ -58,9 +76,11 @@ export function BoardCanvas({
   libraryId,
   folderId,
   remoteLocks,
+  remoteCursors,
   onPatch,
   requestLock,
   releaseLock,
+  publishCursor,
   registerHandle,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -80,9 +100,11 @@ export function BoardCanvas({
   const [draft, setDraft] = useState<BoardElement | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [denied, setDenied] = useState<LockHolder | null>(null);
+  const [guides, setGuides] = useState<SnapLine[]>([]);
 
   const drawingRef = useRef(false);
   const startRef = useRef<{ x: number; y: number } | null>(null);
+  const lastCursorSentRef = useRef(0);
 
   // --- Container sizing ---
   useEffect(() => {
@@ -164,9 +186,19 @@ export function BoardCanvas({
     if (!selectedId) return;
     const id = selectedId;
     setSelectedId(null);
-    onPatch({ deletes: [id] });
+    // Also remove any connectors anchored to the deleted element.
+    const deletes = [id];
+    for (const otherId of scene.elementOrder) {
+      const el = scene.elements[otherId];
+      if (el?.type !== "connector") continue;
+      const refs =
+        (el.start.kind === "element" && el.start.elementId === id) ||
+        (el.end.kind === "element" && el.end.elementId === id);
+      if (refs) deletes.push(otherId);
+    }
+    onPatch({ deletes });
     releaseLock([id]);
-  }, [selectedId, onPatch, releaseLock]);
+  }, [selectedId, scene.elementOrder, scene.elements, onPatch, releaseLock]);
 
   // Z-order is the element array order (later = drawn on top).
   const reorderSelected = useCallback(
@@ -198,6 +230,22 @@ export function BoardCanvas({
         deleteSelected();
         return;
       }
+      // Arrow-key nudge of the selected element (Shift = larger step).
+      if (
+        selectedId &&
+        !readOnly &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")
+      ) {
+        const el = scene.elements[selectedId];
+        if (el && el.type !== "connector") {
+          e.preventDefault();
+          const step = e.shiftKey ? 10 : 1;
+          const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+          const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+          onPatch({ upserts: { [el.id]: { ...el, x: el.x + dx, y: el.y + dy } } });
+          return;
+        }
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const map: Record<string, Tool> = {
         v: "select",
@@ -207,6 +255,7 @@ export function BoardCanvas({
         o: "ellipse",
         l: "line",
         a: "arrow",
+        c: "connector",
         t: "text",
         s: "sticky",
       };
@@ -222,7 +271,7 @@ export function BoardCanvas({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedId, editingId, readOnly, deleteSelected]);
+  }, [selectedId, editingId, readOnly, deleteSelected, scene.elements, onPatch]);
 
   // --- Pointer helpers ---
   const relativePointer = useCallback(() => {
@@ -230,6 +279,24 @@ export function BoardCanvas({
     if (!stage) return null;
     return stage.getRelativePointerPosition();
   }, []);
+
+  // Topmost non-connector element whose bounds contain a scene point (for
+  // attaching connector endpoints to shapes).
+  const hitTest = useCallback(
+    (pos: { x: number; y: number }): string | null => {
+      for (let i = scene.elementOrder.length - 1; i >= 0; i--) {
+        const id = scene.elementOrder[i];
+        const el = scene.elements[id];
+        if (!el || el.type === "connector") continue;
+        const b = absBounds(el);
+        if (pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h) {
+          return id;
+        }
+      }
+      return null;
+    },
+    [scene.elementOrder, scene.elements]
+  );
 
   const panning = tool === "pan" || spaceHeld;
 
@@ -276,7 +343,19 @@ export function BoardCanvas({
       drawingRef.current = true;
       startRef.current = pos;
       const id = newId();
-      if (tool === "pen") {
+      if (tool === "connector") {
+        const startHit = hitTest(pos);
+        setDraft({
+          id,
+          type: "connector",
+          x: 0,
+          y: 0,
+          start: startHit ? { kind: "element", elementId: startHit } : { kind: "point", x: pos.x, y: pos.y },
+          end: { kind: "point", x: pos.x, y: pos.y },
+          stroke: color,
+          strokeWidth,
+        });
+      } else if (tool === "pen") {
         setDraft({ id, type: "path", x: pos.x, y: pos.y, points: [0, 0], stroke: color, strokeWidth });
       } else if (tool === "arrow") {
         setDraft({ id, type: "arrow", x: pos.x, y: pos.y, points: [0, 0, 0, 0], stroke: color, strokeWidth });
@@ -288,27 +367,45 @@ export function BoardCanvas({
         setDraft({ id, type: "shape", shape: "ellipse", x: pos.x, y: pos.y, w: 0, h: 0, stroke: color, strokeWidth, fill });
       }
     },
-    [panning, tool, readOnly, deselect, relativePointer, color, fill, strokeWidth, commitElement, requestLock]
+    [panning, tool, readOnly, deselect, relativePointer, color, fill, strokeWidth, commitElement, requestLock, hitTest]
   );
 
   const handleStageMouseMove = useCallback(() => {
-    if (!drawingRef.current || !startRef.current) return;
     const pos = relativePointer();
-    if (!pos) return;
+
+    // Broadcast our pointer to collaborators (throttled), independent of drawing.
+    if (pos) {
+      const now = Date.now();
+      if (now - lastCursorSentRef.current > CURSOR_THROTTLE_MS) {
+        lastCursorSentRef.current = now;
+        publishCursor(pos);
+      }
+    }
+
+    if (!drawingRef.current || !startRef.current || !pos) return;
     const start = startRef.current;
 
     setDraft((prev) => {
       if (!prev) return prev;
       if (prev.type === "path") {
-        return { ...prev, points: [...prev.points, pos.x - prev.x, pos.y - prev.y] };
+        const nx = pos.x - prev.x;
+        const ny = pos.y - prev.y;
+        const lastX = prev.points[prev.points.length - 2];
+        const lastY = prev.points[prev.points.length - 1];
+        // Skip points that barely moved so long strokes don't bloat the scene.
+        if ((nx - lastX) ** 2 + (ny - lastY) ** 2 < MIN_PEN_DISTANCE ** 2) return prev;
+        return { ...prev, points: [...prev.points, nx, ny] };
       }
       if (prev.type === "arrow") {
         return { ...prev, points: [0, 0, pos.x - start.x, pos.y - start.y] };
       }
+      if (prev.type === "connector") {
+        return { ...prev, end: { kind: "point", x: pos.x, y: pos.y } };
+      }
       // shapes
       return { ...prev, w: pos.x - start.x, h: pos.y - start.y } as BoardElement;
     });
-  }, [relativePointer]);
+  }, [relativePointer, publishCursor]);
 
   const handleStageMouseUp = useCallback(() => {
     if (!drawingRef.current) return;
@@ -317,6 +414,31 @@ export function BoardCanvas({
     const el = draft;
     setDraft(null);
     if (!el) return;
+
+    // Connectors: bind the end to whatever shape it was released over.
+    if (el.type === "connector") {
+      const pos = relativePointer();
+      const endHit = pos ? hitTest(pos) : null;
+      const end: ConnectorEndpoint = endHit
+        ? { kind: "element", elementId: endHit }
+        : pos
+          ? { kind: "point", x: pos.x, y: pos.y }
+          : el.end;
+      // Discard degenerate connectors (same shape both ends, or zero-length).
+      const sameElement =
+        el.start.kind === "element" && end.kind === "element" && el.start.elementId === end.elementId;
+      const resolved = resolveConnector({ ...el, end }, scene.elements);
+      const tooShort =
+        !resolved ||
+        (Math.abs(resolved[0] - resolved[2]) < 4 && Math.abs(resolved[1] - resolved[3]) < 4);
+      if (sameElement || tooShort) {
+        setTool("select");
+        return;
+      }
+      commitElement({ ...el, end }, true);
+      setTool("select");
+      return;
+    }
 
     // Normalize shapes that were drawn right-to-left / bottom-to-top.
     let finalized = el;
@@ -332,7 +454,7 @@ export function BoardCanvas({
 
     commitElement(finalized, true);
     if (tool !== "pen") setTool("select");
-  }, [draft, commitElement, tool]);
+  }, [draft, commitElement, tool, relativePointer, hitTest, scene.elements]);
 
   // --- Wheel: pan, or zoom with ctrl/cmd ---
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -360,8 +482,29 @@ export function BoardCanvas({
   }, []);
 
   // --- Element drag / transform commit ---
+  // --- Smart snapping while dragging ---
+  const handleDragMove = useCallback(
+    (el: BoardElement, node: Konva.Group) => {
+      if (readOnly) return;
+      const lb = localBounds(el);
+      const moving: Box = { x: node.x() + lb.x, y: node.y() + lb.y, w: lb.w, h: lb.h };
+      const others: Box[] = [];
+      for (const id of scene.elementOrder) {
+        if (id === el.id) continue;
+        const other = scene.elements[id];
+        if (other && other.type !== "connector") others.push(absBounds(other));
+      }
+      const { dx, dy, lines } = computeSnap(moving, others, SNAP_THRESHOLD_PX / viewport.zoom);
+      if (dx !== 0) node.x(node.x() + dx);
+      if (dy !== 0) node.y(node.y() + dy);
+      setGuides(lines);
+    },
+    [readOnly, scene.elementOrder, scene.elements, viewport.zoom]
+  );
+
   const commitMove = useCallback(
     (el: BoardElement, node: Konva.Group) => {
+      setGuides([]);
       commitElement({ ...el, x: node.x(), y: node.y() }, false);
     },
     [commitElement]
@@ -490,7 +633,12 @@ export function BoardCanvas({
             const el = selectedId ? scene.elements[selectedId] : null;
             if (el && !readOnly) {
               if (el.type === "text") commitElement({ ...el, color: c }, false);
-              else if (el.type === "shape" || el.type === "path" || el.type === "arrow")
+              else if (
+                el.type === "shape" ||
+                el.type === "path" ||
+                el.type === "arrow" ||
+                el.type === "connector"
+              )
                 commitElement({ ...el, stroke: c } as BoardElement, false);
             }
           }}
@@ -506,7 +654,14 @@ export function BoardCanvas({
           onStrokeChange={(w) => {
             setStrokeWidth(w);
             const el = selectedId ? scene.elements[selectedId] : null;
-            if (el && !readOnly && (el.type === "shape" || el.type === "path" || el.type === "arrow")) {
+            if (
+              el &&
+              !readOnly &&
+              (el.type === "shape" ||
+                el.type === "path" ||
+                el.type === "arrow" ||
+                el.type === "connector")
+            ) {
               commitElement({ ...el, strokeWidth: w } as BoardElement, false);
             }
           }}
@@ -542,6 +697,7 @@ export function BoardCanvas({
           onMouseDown={handleStageMouseDown}
           onMouseMove={handleStageMouseMove}
           onMouseUp={handleStageMouseUp}
+          onMouseLeave={() => publishCursor(null)}
           onDragEnd={(e) => {
             if (e.target === stageRef.current) {
               setViewport((prev) => ({ ...prev, x: e.target.x(), y: e.target.y() }));
@@ -550,34 +706,74 @@ export function BoardCanvas({
           style={{ cursor }}
         >
           <Layer>
-            {orderedElements.map((el) => (
-              <ElementNode
-                key={el.id}
-                element={el}
-                lockedBy={remoteLocks[el.id] ?? null}
-                draggable={canDragElements && !remoteLocks[el.id]}
-                onRef={(node) => {
-                  if (node) nodeMap.current.set(el.id, node);
-                  else nodeMap.current.delete(el.id);
-                }}
-                onSelect={() => {
-                  if (tool === "select" && !panning) void selectElement(el.id);
-                }}
-                onDblClick={() => {
-                  if (readOnly || remoteLocks[el.id]) return;
-                  if (el.type === "text" || el.type === "sticky") {
-                    setSelectedId(el.id);
-                    setEditingId(el.id);
-                    void requestLock([el.id]);
-                  }
-                }}
-                onDragEnd={(node) => commitMove(el, node)}
-                onTransformEnd={(node) => commitTransform(el, node)}
-                hideText={editingId === el.id}
+            {orderedElements.map((el) =>
+              el.type === "connector" ? (
+                <ConnectorNode
+                  key={el.id}
+                  connector={el}
+                  points={resolveConnector(el, scene.elements)}
+                  lockedBy={remoteLocks[el.id] ?? null}
+                  listening={tool === "select" && !panning}
+                  onSelect={() => {
+                    if (tool === "select" && !panning) void selectElement(el.id);
+                  }}
+                />
+              ) : (
+                <ElementNode
+                  key={el.id}
+                  element={el}
+                  lockedBy={remoteLocks[el.id] ?? null}
+                  draggable={canDragElements && !remoteLocks[el.id]}
+                  onRef={(node) => {
+                    if (node) nodeMap.current.set(el.id, node);
+                    else nodeMap.current.delete(el.id);
+                  }}
+                  onSelect={() => {
+                    if (tool === "select" && !panning) void selectElement(el.id);
+                  }}
+                  onDblClick={() => {
+                    if (readOnly || remoteLocks[el.id]) return;
+                    if (el.type === "text" || el.type === "sticky") {
+                      setSelectedId(el.id);
+                      setEditingId(el.id);
+                      void requestLock([el.id]);
+                    }
+                  }}
+                  onDragMove={(node) => handleDragMove(el, node)}
+                  onDragEnd={(node) => commitMove(el, node)}
+                  onTransformEnd={(node) => commitTransform(el, node)}
+                  hideText={editingId === el.id}
+                />
+              )
+            )}
+
+            {draft &&
+              (draft.type === "connector" ? (
+                <ConnectorNode
+                  connector={draft}
+                  points={resolveConnector(draft, scene.elements)}
+                  lockedBy={null}
+                  preview
+                />
+              ) : (
+                <ElementNode element={draft} lockedBy={null} draggable={false} preview />
+              ))}
+
+            {guides.map((g, i) => (
+              <Line
+                key={`guide-${i}`}
+                points={
+                  g.axis === "x"
+                    ? [g.pos, g.from, g.pos, g.to]
+                    : [g.from, g.pos, g.to, g.pos]
+                }
+                stroke="#ec4899"
+                strokeWidth={1}
+                dash={[4, 4]}
+                listening={false}
+                strokeScaleEnabled={false}
               />
             ))}
-
-            {draft && <ElementNode element={draft} lockedBy={null} draggable={false} preview />}
 
             <Transformer
               ref={trRef}
@@ -591,6 +787,35 @@ export function BoardCanvas({
           </Layer>
         </Stage>
       )}
+
+      {remoteCursors.map((c) => (
+        <div
+          key={c.userId}
+          className="pointer-events-none absolute z-20 will-change-transform"
+          style={{
+            left: viewport.x + c.x * viewport.zoom,
+            top: viewport.y + c.y * viewport.zoom,
+          }}
+        >
+          <svg
+            width={18}
+            height={18}
+            viewBox="0 0 24 24"
+            fill={c.color}
+            stroke="#fff"
+            strokeWidth={1.5}
+            className="drop-shadow-sm"
+          >
+            <path d="M5 3l14 7-6 1.5L9 18 5 3z" />
+          </svg>
+          <span
+            className="absolute left-3.5 top-3.5 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium text-white shadow-sm"
+            style={{ backgroundColor: c.color }}
+          >
+            {c.name}
+          </span>
+        </div>
+      ))}
 
       {editingBox && (
         <textarea
@@ -638,6 +863,57 @@ export function BoardCanvas({
   );
 }
 
+function ConnectorNode({
+  connector,
+  points,
+  lockedBy,
+  listening,
+  onSelect,
+  preview,
+}: {
+  connector: ConnectorElement;
+  points: [number, number, number, number] | null;
+  lockedBy: LockHolder | null;
+  listening?: boolean;
+  onSelect?: () => void;
+  preview?: boolean;
+}) {
+  if (!points) return null;
+  return (
+    <>
+      {lockedBy && (
+        <Line
+          points={points}
+          stroke={lockedBy.color}
+          strokeWidth={connector.strokeWidth + 6}
+          opacity={0.35}
+          lineCap="round"
+          listening={false}
+          strokeScaleEnabled={false}
+        />
+      )}
+      <Arrow
+        points={points}
+        stroke={connector.stroke}
+        fill={connector.stroke}
+        strokeWidth={connector.strokeWidth}
+        pointerLength={10}
+        pointerWidth={10}
+        hitStrokeWidth={16}
+        listening={!preview && !lockedBy && Boolean(listening)}
+        onMouseDown={onSelect}
+        onTap={onSelect}
+      />
+      {lockedBy && (
+        <Label x={points[0]} y={points[1] - 22}>
+          <Tag fill={lockedBy.color} cornerRadius={3} />
+          <KonvaText text={lockedBy.name} fontSize={11} fill="#fff" padding={4} />
+        </Label>
+      )}
+    </>
+  );
+}
+
 function ElementNode({
   element,
   lockedBy,
@@ -645,6 +921,7 @@ function ElementNode({
   onRef,
   onSelect,
   onDblClick,
+  onDragMove,
   onDragEnd,
   onTransformEnd,
   hideText,
@@ -656,6 +933,7 @@ function ElementNode({
   onRef?: (node: Konva.Group | null) => void;
   onSelect?: () => void;
   onDblClick?: () => void;
+  onDragMove?: (node: Konva.Group) => void;
   onDragEnd?: (node: Konva.Group) => void;
   onTransformEnd?: (node: Konva.Group) => void;
   hideText?: boolean;
@@ -677,6 +955,7 @@ function ElementNode({
       onTap={onSelect}
       onDblClick={onDblClick}
       onDblTap={onDblClick}
+      onDragMove={(e) => onDragMove?.(e.target as Konva.Group)}
       onDragEnd={(e) => onDragEnd?.(e.target as Konva.Group)}
       onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
     >
@@ -738,10 +1017,24 @@ function ElementNode({
       {el.type === "image" && <BoardImageNode element={el} />}
 
       {lockedBy && (
-        <Label x={bounds.x} y={bounds.y - 22}>
-          <Tag fill={lockedBy.color} cornerRadius={3} />
-          <KonvaText text={lockedBy.name} fontSize={11} fill="#fff" padding={4} />
-        </Label>
+        <>
+          <Rect
+            x={bounds.x - 4}
+            y={bounds.y - 4}
+            width={bounds.w + 8}
+            height={bounds.h + 8}
+            stroke={lockedBy.color}
+            strokeWidth={1.5}
+            dash={[6, 4]}
+            cornerRadius={4}
+            listening={false}
+            strokeScaleEnabled={false}
+          />
+          <Label x={bounds.x} y={bounds.y - 22}>
+            <Tag fill={lockedBy.color} cornerRadius={3} />
+            <KonvaText text={lockedBy.name} fontSize={11} fill="#fff" padding={4} />
+          </Label>
+        </>
       )}
     </Group>
   );

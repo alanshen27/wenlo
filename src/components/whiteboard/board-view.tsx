@@ -220,13 +220,15 @@ export function BoardView() {
         libraryId={board.libraryId}
         folderId={board.folderId}
         remoteLocks={collab.remoteLocks}
+        remoteCursors={collab.remoteCursors}
         onPatch={handlePatch}
         requestLock={collab.acquireLocks}
         releaseLock={collab.releaseLocks}
+        publishCursor={collab.publishCursor}
         registerHandle={registerHandle}
       />
     );
-  }, [board, scene, readOnly, collab.remoteLocks, collab.acquireLocks, collab.releaseLocks, handlePatch, registerHandle]);
+  }, [board, scene, readOnly, collab.remoteLocks, collab.remoteCursors, collab.acquireLocks, collab.releaseLocks, collab.publishCursor, handlePatch, registerHandle]);
 
   if (!board) {
     return (

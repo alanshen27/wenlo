@@ -3,7 +3,7 @@
 // collaboration-friendly shape the deck uses, so element-level patches from
 // different editors never collide (different keys → no merge needed).
 
-export const BOARD_VERSION = 1 as const;
+export const BOARD_VERSION = 2 as const;
 
 export type Viewport = { x: number; y: number; zoom: number };
 
@@ -66,13 +66,36 @@ export type ImageElement = ElementBase & {
   documentId?: string;
 };
 
+/**
+ * A connector endpoint is either bound to an element (so it re-routes when that
+ * element moves/resizes) or pinned to a free point in scene space.
+ */
+export type ConnectorEndpoint =
+  | { kind: "element"; elementId: string }
+  | { kind: "point"; x: number; y: number };
+
+/**
+ * An arrow that links two endpoints. Unlike `ArrowElement` (a free-drawn
+ * segment), a connector's geometry is derived from its endpoints at render time,
+ * so element-bound ends follow their shapes. `x`/`y` are unused (kept at 0 for
+ * the shared element base).
+ */
+export type ConnectorElement = ElementBase & {
+  type: "connector";
+  start: ConnectorEndpoint;
+  end: ConnectorEndpoint;
+  stroke: string;
+  strokeWidth: number;
+};
+
 export type BoardElement =
   | PathElement
   | ShapeElement
   | TextElement
   | StickyElement
   | ArrowElement
-  | ImageElement;
+  | ImageElement
+  | ConnectorElement;
 
 export type BoardElementType = BoardElement["type"];
 

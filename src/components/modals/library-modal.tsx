@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { IconPicker } from "@/components/modals/icon-picker";
+import { DEFAULT_LIBRARY_ICON } from "@/components/icons/library-icon";
 
 type Props = {
   open: boolean;
@@ -27,7 +28,7 @@ export function LibraryModal({
   open,
   mode,
   initialName = "",
-  initialIcon = "📚",
+  initialIcon = DEFAULT_LIBRARY_ICON,
   onOpenChange,
   onSubmit,
 }: Props) {

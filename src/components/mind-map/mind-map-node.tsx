@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { FileText } from "lucide-react";
 import { FolderIcon } from "@/components/icons/folder-icon";
+import { LibraryIcon } from "@/components/icons/library-icon";
 import type { MindMapNodeData } from "@/lib/pages/mind-map-layout";
 import { getFolderColorHex } from "@/lib/library/folder-colors";
 import { cn } from "@/lib/core/utils";
@@ -31,9 +32,7 @@ function MindMapNodeComponent({ data, selected }: NodeProps) {
             : undefined
         }
       >
-        {kind === "library" && (
-          <span className="shrink-0 text-lg leading-none">{libraryIcon ?? "📚"}</span>
-        )}
+        {kind === "library" && <LibraryIcon icon={libraryIcon} className="size-5" />}
         {kind === "folder" && color && (
           <FolderIcon color={color} className="size-4 shrink-0" />
         )}

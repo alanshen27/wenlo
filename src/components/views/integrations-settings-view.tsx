@@ -6,6 +6,7 @@ import { ArrowLeft, Copy, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LibraryIcon } from "@/components/icons/library-icon";
 import { libraryHome, readStoredLibraryId } from "@/lib/client/routes";
 import { apiDelete, apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
 
@@ -166,7 +167,7 @@ export function IntegrationsSettingsView() {
                   <option value="">All libraries</option>
                   {libraries.map((lib) => (
                     <option key={lib.id} value={lib.id}>
-                      {lib.icon} {lib.name}
+                      {lib.name}
                     </option>
                   ))}
                 </select>
@@ -185,9 +186,17 @@ export function IntegrationsSettingsView() {
                   <li key={key.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
                     <div className="min-w-0">
                       <p className="font-medium">{key.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {key.keyPrefix}…
-                        {key.library ? ` · ${key.library.icon} ${key.library.name}` : " · all libraries"}
+                      <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                        <span className="truncate">{key.keyPrefix}…</span>
+                        {key.library ? (
+                          <span className="inline-flex items-center gap-1 truncate">
+                            ·
+                            <LibraryIcon icon={key.library.icon} className="size-3.5" />
+                            <span className="truncate">{key.library.name}</span>
+                          </span>
+                        ) : (
+                          <span>· all libraries</span>
+                        )}
                       </p>
                     </div>
                     <Button

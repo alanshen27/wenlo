@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { getLibraryRole, requireLibraryAccess, type LibraryRole } from "@/lib/library/library-access";
+import { DEFAULT_LIBRARY_ICON } from "@/lib/library/folder-colors";
 
 export type LibrarySummary = {
   id: string;
@@ -49,7 +50,7 @@ export async function requireLibrary(userId: string, libraryId: string) {
   return library;
 }
 
-export async function createLibrary(userId: string, name: string, icon = "📚") {
+export async function createLibrary(userId: string, name: string, icon = DEFAULT_LIBRARY_ICON) {
   return prisma.library.create({
     data: { name: name.trim(), icon, userId },
   });
@@ -63,7 +64,7 @@ async function ensureDefaultLibrary(userId: string) {
   if (existing) return existing;
 
   return prisma.library.create({
-    data: { name: "My Library", icon: "📚", userId },
+    data: { name: "My Library", icon: DEFAULT_LIBRARY_ICON, userId },
   });
 }
 

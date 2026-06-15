@@ -1,6 +1,7 @@
 "use client";
 
 import { FolderIcon } from "@/components/icons/folder-icon";
+import { LibraryIcon } from "@/components/icons/library-icon";
 import {
   Select,
   SelectContent,
@@ -37,7 +38,7 @@ function ScopeLabel({
   if (kind === "all") {
     return (
       <>
-        <span className="shrink-0 text-base leading-none">{libraryIcon ?? "📚"}</span>
+        <LibraryIcon icon={libraryIcon} className="size-4" />
         <span className="truncate">{libraryName ?? "Library"}</span>
       </>
     );

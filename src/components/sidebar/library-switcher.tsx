@@ -3,6 +3,7 @@
 import { Check, ChevronDown, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { LibraryIcon } from "@/components/icons/library-icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +49,7 @@ export function LibrarySwitcher({
           />
         }
       >
-        <span className="text-base leading-none">{active?.icon ?? "📚"}</span>
+        <LibraryIcon icon={active?.icon} className="size-5" />
         <span className="min-w-0 flex-1 truncate text-left">{active?.name ?? "Library"}</span>
         {active?.isShared && (
           <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
@@ -60,7 +61,7 @@ export function LibrarySwitcher({
       <DropdownMenuContent align="start" className="w-56">
         {libraries.map((library) => (
           <DropdownMenuItem key={library.id} onClick={() => onSelect(library.id)}>
-            <span>{library.icon}</span>
+            <LibraryIcon icon={library.icon} className="size-5" />
             <span className="flex-1 truncate">{library.name}</span>
             {library.isShared && (
               <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">

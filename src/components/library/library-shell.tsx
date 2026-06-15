@@ -14,6 +14,7 @@ import { FolderSidebar } from "@/components/sidebar/folder-sidebar";
 import type { Library } from "@/components/sidebar/library-switcher";
 import { FolderModal } from "@/components/modals/folder-modal";
 import { LibraryModal } from "@/components/modals/library-modal";
+import { DEFAULT_LIBRARY_ICON } from "@/components/icons/library-icon";
 import { ConfirmModal } from "@/components/modals/confirm-modal";
 import { MoveModal } from "@/components/modals/move-modal";
 import { ShareLibraryModal } from "@/components/modals/share-library-modal";
@@ -717,7 +718,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           open={modal.kind === "library-create" || modal.kind === "library-edit"}
           mode={modal.kind === "library-edit" ? "edit" : "create"}
           initialName={modal.kind === "library-edit" ? modal.library.name : ""}
-          initialIcon={modal.kind === "library-edit" ? modal.library.icon : "📚"}
+          initialIcon={modal.kind === "library-edit" ? modal.library.icon : DEFAULT_LIBRARY_ICON}
           onOpenChange={(open) => !open && setModal({ kind: "none" })}
           onSubmit={handleLibrarySubmit}
         />

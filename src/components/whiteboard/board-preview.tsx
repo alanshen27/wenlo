@@ -1,8 +1,20 @@
-import type { BoardDoc, BoardElement } from "@/lib/boards/board-schema";
-import { localBounds } from "./board-geometry";
+import type { BoardDoc, BoardElement, ConnectorElement } from "@/lib/boards/board-schema";
+import { localBounds, resolveConnector } from "./board-geometry";
 import { cn } from "@/lib/core/utils";
 
 const FONT = "Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+/** Triangle points for an arrowhead at (x2,y2) pointing away from (x1,y1). */
+function arrowHeadPoints(x1: number, y1: number, x2: number, y2: number, size: number): string {
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const a1 = angle + Math.PI - 0.45;
+  const a2 = angle + Math.PI + 0.45;
+  return [
+    `${x2},${y2}`,
+    `${x2 + Math.cos(a1) * size},${y2 + Math.sin(a1) * size}`,
+    `${x2 + Math.cos(a2) * size},${y2 + Math.sin(a2) * size}`,
+  ].join(" ");
+}
 
 function globalBounds(el: BoardElement) {
   const b = localBounds(el);
@@ -43,12 +55,30 @@ export function BoardPreview({
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
+  const extend = (x: number, y: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
   for (const el of elements) {
+    if (el.type === "connector") {
+      const pts = resolveConnector(el, scene.elements);
+      if (pts) {
+        extend(pts[0], pts[1]);
+        extend(pts[2], pts[3]);
+      }
+      continue;
+    }
     const b = globalBounds(el);
-    minX = Math.min(minX, b.x);
-    minY = Math.min(minY, b.y);
-    maxX = Math.max(maxX, b.x + b.w);
-    maxY = Math.max(maxY, b.y + b.h);
+    extend(b.x, b.y);
+    extend(b.x + b.w, b.y + b.h);
+  }
+  if (!Number.isFinite(minX)) {
+    minX = 0;
+    minY = 0;
+    maxX = 1;
+    maxY = 1;
   }
 
   const pad = 32;
@@ -67,10 +97,27 @@ export function BoardPreview({
       role="img"
       aria-label="Whiteboard preview"
     >
-      {elements.map((el) => (
-        <PreviewElement key={el.id} el={el} />
-      ))}
+      {elements.map((el) =>
+        el.type === "connector" ? (
+          <PreviewConnector key={el.id} el={el} scene={scene} />
+        ) : (
+          <PreviewElement key={el.id} el={el} />
+        )
+      )}
     </svg>
+  );
+}
+
+function PreviewConnector({ el, scene }: { el: ConnectorElement; scene: BoardDoc }) {
+  const pts = resolveConnector(el, scene.elements);
+  if (!pts) return null;
+  const [x1, y1, x2, y2] = pts;
+  const size = Math.max(8, el.strokeWidth * 2.5);
+  return (
+    <g opacity={el.opacity ?? 1}>
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={el.stroke} strokeWidth={el.strokeWidth} strokeLinecap="round" />
+      <polygon points={arrowHeadPoints(x1, y1, x2, y2, size)} fill={el.stroke} />
+    </g>
   );
 }
 
@@ -92,19 +139,32 @@ function PreviewElement({ el }: { el: BoardElement }) {
           opacity={opacity}
         />
       );
-    case "arrow":
+    case "arrow": {
+      const n = el.points.length;
+      const head =
+        n >= 4
+          ? arrowHeadPoints(
+              el.points[n - 4],
+              el.points[n - 3],
+              el.points[n - 2],
+              el.points[n - 1],
+              Math.max(8, el.strokeWidth * 2.5)
+            )
+          : null;
       return (
-        <polyline
-          points={pointsStr(el.points)}
-          fill="none"
-          stroke={el.stroke}
-          strokeWidth={el.strokeWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          transform={transform}
-          opacity={opacity}
-        />
+        <g transform={transform} opacity={opacity}>
+          <polyline
+            points={pointsStr(el.points)}
+            fill="none"
+            stroke={el.stroke}
+            strokeWidth={el.strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {head && <polygon points={head} fill={el.stroke} />}
+        </g>
       );
+    }
     case "shape":
       if (el.shape === "rect") {
         return (

@@ -7,6 +7,7 @@ import {
   getRecallChatSessionForUser,
   getRecallChatTurns,
   recallScopeKey,
+  type RecallChatSessionSummary,
   type RecallTurn,
 } from "@/lib/recall-chat/recall-chat";
 import { getOpenAI, hasOpenAI, OPENAI_MODELS } from "@/lib/search/openai";
@@ -24,7 +25,7 @@ type AgentStreamEvent =
   | {
       type: "done";
       sessionId: string;
-      session: { id: string; title: string | null; turnCount: number };
+      session: RecallChatSessionSummary;
       turn: RecallTurn;
     }
   | { type: "error"; error: string };
@@ -176,7 +177,7 @@ export async function POST(req: NextRequest) {
           createdAt: new Date().toISOString(),
         };
 
-        const { turns, title } = await appendRecallChatTurn(
+        const { session } = await appendRecallChatTurn(
           sessionIdForStream,
           user.id,
           turn
@@ -185,7 +186,7 @@ export async function POST(req: NextRequest) {
         send({
           type: "done",
           sessionId: sessionIdForStream,
-          session: { id: sessionIdForStream, title, turnCount: turns.length },
+          session,
           turn,
         });
         controller.close();

@@ -1,7 +1,7 @@
 "use client";
 
 import { PickerOptionButton } from "@/components/modals/picker-option-button";
-import { LIBRARY_ICONS } from "@/lib/library/folder-colors";
+import { LibraryIcon, LIBRARY_ICON_DEFS } from "@/components/icons/library-icon";
 
 type Props = {
   value: string;
@@ -11,14 +11,14 @@ type Props = {
 export function IconPicker({ value, onChange }: Props) {
   return (
     <div className="flex flex-wrap gap-2">
-      {LIBRARY_ICONS.map((emoji) => (
+      {LIBRARY_ICON_DEFS.map((def) => (
         <PickerOptionButton
-          key={emoji}
-          selected={value === emoji}
-          title={emoji}
-          onClick={() => onChange(emoji)}
+          key={def.id}
+          selected={value === def.id}
+          title={def.label}
+          onClick={() => onChange(def.id)}
         >
-          <span className="text-base leading-none">{emoji}</span>
+          <LibraryIcon icon={def.id} className="size-6" />
         </PickerOptionButton>
       ))}
     </div>

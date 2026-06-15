@@ -13,6 +13,7 @@ import {
   PaintBucket,
   Pencil,
   SendToBack,
+  Spline,
   Square,
   StickyNote,
   Trash2,
@@ -55,6 +56,7 @@ export type Tool =
   | "ellipse"
   | "line"
   | "arrow"
+  | "connector"
   | "text"
   | "sticky"
   | "image";
@@ -67,6 +69,7 @@ const TOOLS: { id: Tool; label: string; icon: typeof Pencil }[] = [
   { id: "ellipse", label: "Ellipse (O)", icon: Circle },
   { id: "line", label: "Line (L)", icon: Minus },
   { id: "arrow", label: "Arrow (A)", icon: ArrowUpRight },
+  { id: "connector", label: "Connector (C)", icon: Spline },
   { id: "text", label: "Text (T)", icon: Type },
   { id: "sticky", label: "Sticky note (S)", icon: StickyNote },
   { id: "image", label: "Image", icon: ImageIcon },

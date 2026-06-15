@@ -16,4 +16,4 @@ export function getFolderColorHex(colorId: string | null | undefined): string {
   return FOLDER_COLORS.find((c) => c.id === colorId)?.hex ?? FOLDER_COLORS[0].hex;
 }
 
-export const LIBRARY_ICONS = ["📚", "🧠", "💻", "🔬", "📐", "🏆", "📝", "🎯", "⚡", "🌐"] as const;
+export const DEFAULT_LIBRARY_ICON = "books";

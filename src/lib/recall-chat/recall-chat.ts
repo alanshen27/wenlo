@@ -91,7 +91,7 @@ export async function appendRecallChatTurn(
   sessionId: string,
   userId: string,
   turn: RecallTurn
-): Promise<{ turns: RecallTurn[]; title: string | null }> {
+): Promise<{ turns: RecallTurn[]; session: RecallChatSessionSummary }> {
   const session = await getRecallChatSessionForUser(userId, sessionId);
   if (!session) throw new Error("Session not found");
 
@@ -99,12 +99,13 @@ export async function appendRecallChatTurn(
   const turns = [...existing, turn].slice(-MAX_RECALL_TURNS);
   const title = session.title ?? titleFromQuestion(turn.question);
 
-  await prisma.recallChatSession.update({
+  const updated = await prisma.recallChatSession.update({
     where: { id: sessionId },
     data: { turns, title },
+    select: { id: true, title: true, turns: true, updatedAt: true, createdAt: true },
   });
 
-  return { turns, title };
+  return { turns, session: toSummary(updated) };
 }
 
 export async function deleteRecallChatSession(userId: string, sessionId: string): Promise<boolean> {

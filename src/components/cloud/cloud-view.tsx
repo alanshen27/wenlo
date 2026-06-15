@@ -40,6 +40,7 @@ import { ConfirmModal } from "@/components/modals/confirm-modal";
 import { MoveModal } from "@/components/modals/move-modal";
 import { getFolderContents } from "@/lib/library/folders";
 import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
+import { LibraryIcon } from "@/components/icons/library-icon";
 import type { FolderColorId } from "@/lib/library/folder-colors";
 import { apiDelete } from "@/lib/client/api";
 import { documentOpenRoute, folderHome, pageRoute } from "@/lib/client/routes";
@@ -395,7 +396,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   const headerIcon = selectedFolder ? (
     <FolderArtwork color={selectedFolder.color} className="size-8" />
   ) : (
-    <span className="text-2xl leading-none">{activeLibrary?.icon ?? "📚"}</span>
+    <LibraryIcon icon={activeLibrary?.icon} className="size-8" />
   );
 
   const title = selectedFolder ? selectedFolder.name : (activeLibrary?.name ?? "Home");
