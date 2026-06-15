@@ -11,7 +11,6 @@ export type BoardTemplate = {
   id: string;
   label: string;
   title: string;
-  accent: string;
   build: () => BoardDoc;
 };
 
@@ -64,8 +63,8 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "brainstorm",
     label: "Brainstorm",
     title: "Brainstorm",
-    accent: "#f59e0b",
     build: () => {
+      const canvas = columnBg(0, 0, 780, 560, "#fffbeb");
       const title = label(80, 24, "Brainstorm — Q3 feature ideas", "#b45309");
       const s1 = sticky(60, 80, "AI summary across libraries", "#fef08a");
       const s2 = sticky(280, 60, "Shared templates marketplace", "#bfdbfe");
@@ -77,6 +76,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
       return {
         version: 2,
         elements: {
+          [canvas.id]: canvas,
           [title.id]: title,
           [s1.id]: s1,
           [s2.id]: s2,
@@ -86,7 +86,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
           [s6.id]: s6,
           [s7.id]: s7,
         },
-        elementOrder: [title.id, s1.id, s2.id, s3.id, s4.id, s5.id, s6.id, s7.id],
+        elementOrder: [canvas.id, title.id, s1.id, s2.id, s3.id, s4.id, s5.id, s6.id, s7.id],
       };
     },
   },
@@ -94,7 +94,6 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "retro",
     label: "Retro board",
     title: "Retro",
-    accent: "#10b981",
     build: () => {
       const col1 = columnBg(20, 56, 230, 420, "#ecfdf5");
       const col2 = columnBg(270, 56, 230, 420, "#fffbeb");
@@ -126,7 +125,6 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "kanban",
     label: "Kanban",
     title: "Kanban board",
-    accent: "#3b82f6",
     build: () => {
       const col1 = columnBg(20, 56, 230, 420, "#f1f5f9");
       const col2 = columnBg(270, 56, 230, 420, "#eff6ff");

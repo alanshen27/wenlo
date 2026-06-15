@@ -233,7 +233,6 @@ export type PresentationTemplate = {
   id: string;
   label: string;
   title: string;
-  accent: string;
   build: () => Slide[];
 };
 
@@ -248,7 +247,6 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
     id: "pitch",
     label: "Pitch deck",
     title: "Pitch deck",
-    accent: "#2563eb",
     build: () => [
       titleSlide("Acme", "Reimagining how teams capture and recall knowledge", PITCH_THEME),
       titleContentSlide(
@@ -280,7 +278,6 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
     id: "project-update",
     label: "Project update",
     title: "Project update",
-    accent: "#0891b2",
     build: () => [
       titleSlide("Q2 project update", "Platform team · June 2026", UPDATE_THEME),
       titleContentSlide(
@@ -306,7 +303,6 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
     id: "lesson",
     label: "Lesson",
     title: "Lesson",
-    accent: "#9333ea",
     build: () => [
       titleSlide("Intro to product discovery", "A practical guide for builders", LESSON_THEME),
       sectionSlide("Learning objectives", { ...LESSON_THEME, bg: "#581c87", accent: "#e879f9" }),
@@ -332,7 +328,6 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
     id: "photo-story",
     label: "Photo story",
     title: "Photo story",
-    accent: "#ea580c",
     build: () => [
       titleSlide("Summer retreat 2026", "Lake Tahoe · June 12–14", STORY_THEME),
       titleImageSlide(

@@ -149,6 +149,7 @@ async function seedTasksDatabase(documentId: string): Promise<void> {
   const statusOptions: SelectOption[] = [
     { id: newLocalId(), label: "Todo", color: "gray" },
     { id: newLocalId(), label: "In progress", color: "blue" },
+    { id: newLocalId(), label: "Blocked", color: "red" },
     { id: newLocalId(), label: "Done", color: "green" },
   ];
 
@@ -242,9 +243,10 @@ async function seedRoadmapDatabase(documentId: string): Promise<void> {
     { id: newLocalId(), label: "Shipped", color: "green" },
   ];
   const quarterOptions: SelectOption[] = [
-    { id: newLocalId(), label: "Q1", color: "purple" },
+    { id: newLocalId(), label: "Q1", color: "blue" },
     { id: newLocalId(), label: "Q2", color: "purple" },
-    { id: newLocalId(), label: "Q3", color: "purple" },
+    { id: newLocalId(), label: "Q3", color: "orange" },
+    { id: newLocalId(), label: "Q4", color: "pink" },
   ];
 
   await prisma.$transaction(async (tx) => {

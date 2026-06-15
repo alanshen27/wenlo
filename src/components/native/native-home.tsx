@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDownAZ, ArrowUpZA, ChevronDown, Loader2, Plus, Search } from "lucide-react";
@@ -384,38 +384,22 @@ function TemplateCard({
   disabled: boolean;
   onClick: () => void;
 }) {
-  const accent = template.accent ?? NATIVE_TYPES[kind].accent;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="group flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-all hover:-translate-y-0.5 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
-      style={{ "--tpl-accent": accent } as CSSProperties}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = `${accent}66`;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "";
-      }}
+      className="group flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
     >
       {loading ? (
-        <span
-          className="flex h-28 items-center justify-center"
-          style={{ backgroundColor: `${accent}14` }}
-        >
+        <span className="flex h-28 items-center justify-center bg-muted/40">
           <Loader2 className="size-7 animate-spin text-muted-foreground" />
         </span>
       ) : (
-        <TemplateThumbnail kind={kind} template={template} accent={accent} />
+        <TemplateThumbnail kind={kind} template={template} />
       )}
-      <span className="flex items-center gap-2 border-t border-border px-3 py-2.5">
-        <span
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: accent }}
-          aria-hidden
-        />
-        <span className="text-sm font-medium">{template.label}</span>
+      <span className="border-t border-border px-3 py-2.5 text-sm font-medium">
+        {template.label}
       </span>
     </button>
   );
@@ -424,30 +408,19 @@ function TemplateCard({
 function TemplateThumbnail({
   kind,
   template,
-  accent,
 }: {
   kind: NativeKind;
   template: NativeTemplateEntry;
-  accent: string;
 }) {
   if (template.preview) {
     return (
-      <span
-        className="flex h-28 justify-center overflow-hidden pt-3"
-        style={{ backgroundColor: `${accent}18` }}
-      >
-        <span className="relative flex h-full w-[78%] flex-col overflow-hidden rounded-t-sm bg-white shadow-sm">
-          <span className="h-1.5 w-full shrink-0" style={{ backgroundColor: accent }} />
-          <span className="flex flex-1 flex-col gap-1 overflow-hidden px-3 pt-2 text-slate-700">
-            <span
-              className="line-clamp-2 text-[9px] font-semibold leading-tight"
-              style={{ color: accent }}
-            >
-              {template.title}
-            </span>
-            <span className="whitespace-pre-wrap wrap-break-word text-[6.5px] leading-[1.45] text-slate-500">
-              {template.preview}
-            </span>
+      <span className="flex h-28 justify-center overflow-hidden bg-muted/40 pt-3">
+        <span className="relative flex h-full w-[78%] flex-col gap-1 overflow-hidden rounded-t-sm bg-white px-3 pt-3 text-slate-700 shadow-sm">
+          <span className="line-clamp-2 text-[9px] font-semibold leading-tight text-slate-900">
+            {template.title}
+          </span>
+          <span className="whitespace-pre-wrap wrap-break-word text-[6.5px] leading-[1.45] text-slate-500">
+            {template.preview}
           </span>
           <span className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-white to-transparent" />
         </span>
@@ -457,14 +430,8 @@ function TemplateThumbnail({
   if (kind === "slides") {
     const slide = presentationThumbnailSlide(template.id);
     return (
-      <span
-        className="flex h-28 items-center justify-center overflow-hidden p-3"
-        style={{ backgroundColor: `${accent}18` }}
-      >
-        <span
-          className="w-full overflow-hidden rounded-sm shadow-sm"
-          style={{ boxShadow: `0 1px 3px ${accent}33` }}
-        >
+      <span className="flex h-28 items-center justify-center overflow-hidden bg-muted/40 p-3">
+        <span className="w-full overflow-hidden rounded-sm border border-border/60 shadow-sm">
           <DeckSlideSvg slide={slide} className="w-full" />
         </span>
       </span>
@@ -473,43 +440,28 @@ function TemplateThumbnail({
   if (kind === "whiteboards") {
     const scene = getBoardTemplate(template.id).build();
     return (
-      <span
-        className="flex h-28 items-center justify-center overflow-hidden p-2"
-        style={{ backgroundColor: `${accent}14` }}
-      >
+      <span className="flex h-28 items-center justify-center overflow-hidden bg-muted/40 p-2">
         <BoardPreview scene={scene} className="h-full w-full" />
       </span>
     );
   }
   if (kind === "flowcharts") {
-    return <FlowTemplateThumb templateId={template.id} accent={accent} />;
+    return <FlowTemplateThumb templateId={template.id} />;
   }
   return (
-    <span
-      className="flex h-28 items-center justify-center"
-      style={{ backgroundColor: `${accent}18` }}
-    >
+    <span className="flex h-28 items-center justify-center bg-muted/40">
       <FileArtwork type={NATIVE_TYPES[kind].artworkType} className="size-12" />
     </span>
   );
 }
 
 /** Minimal node diagram for flowchart template cards. */
-function FlowTemplateThumb({
-  templateId,
-  accent,
-}: {
-  templateId: string;
-  accent: string;
-}) {
+function FlowTemplateThumb({ templateId }: { templateId: string }) {
   const scene = getFlowTemplate(templateId).build();
   const nodes = scene.nodeOrder.map((id) => scene.nodes[id]).filter(Boolean);
   if (nodes.length === 0) {
     return (
-      <span
-        className="flex h-28 items-center justify-center"
-        style={{ backgroundColor: `${accent}18` }}
-      >
+      <span className="flex h-28 items-center justify-center bg-muted/40">
         <FileArtwork type="FLOWCHART" className="size-12" />
       </span>
     );
@@ -528,10 +480,7 @@ function FlowTemplateThumb({
   const w = Math.max(1, maxX - minX + pad * 2);
   const h = Math.max(1, maxY - minY + pad * 2);
   return (
-    <span
-      className="flex h-28 items-center justify-center overflow-hidden p-3"
-      style={{ backgroundColor: `${accent}14` }}
-    >
+    <span className="flex h-28 items-center justify-center overflow-hidden bg-muted/40 p-3">
       <svg
         viewBox={`${minX - pad} ${minY - pad} ${w} ${h}`}
         className="h-full w-full"
@@ -550,7 +499,7 @@ function FlowTemplateThumb({
               y1={a.y + 24}
               x2={b.x + 60}
               y2={b.y + 24}
-              stroke={`${accent}88`}
+              stroke="#94a3b8"
               strokeWidth={2}
             />
           );
