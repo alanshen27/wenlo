@@ -8,6 +8,7 @@ import { LibraryIcon } from "@/components/icons/library-icon";
 import { CollaboratorAvatars } from "@/components/cloud/collaborator-avatars";
 import { pinTargetForItem, setPin } from "@/lib/client/pins";
 import { AppLauncher } from "@/components/native/app-launcher";
+import { HeaderUserMenu } from "@/components/native/header-user-menu";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -210,8 +211,9 @@ export function NativeHome({ kind }: { kind: NativeKind }) {
             className="h-9 w-full rounded-lg border border-sidebar-border bg-sidebar-accent/50 pl-9 pr-3 text-sm text-sidebar-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-sidebar-border focus:bg-sidebar-accent"
           />
         </div>
-        <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-1">
           <AppLauncher />
+          <HeaderUserMenu />
         </div>
       </header>
 
