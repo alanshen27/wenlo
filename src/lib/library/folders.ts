@@ -12,6 +12,8 @@ export type FolderNode = {
     sizeBytes?: number | null;
     pending?: boolean;
     processing?: boolean;
+    /** Indexing/embedding status: PROCESSING | READY | FAILED. */
+    status?: string;
   }[];
 };
 
@@ -54,6 +56,7 @@ export function buildFolderTree(
           title,
           type,
           sizeBytes,
+          status,
           processing: status === "PROCESSING",
         })),
     });
@@ -83,6 +86,7 @@ export function buildFolderTree(
         title,
         type,
         sizeBytes,
+        status,
         processing: status === "PROCESSING",
       })),
   };

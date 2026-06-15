@@ -37,6 +37,7 @@ import {
   removeOptimisticDocument,
   replaceOptimisticDocument,
   setDocumentProcessing,
+  setDocumentStatus,
 } from "@/lib/client/tree-mutations";
 import { uploadFile } from "@/lib/documents/upload";
 import {
@@ -92,6 +93,7 @@ type LibraryContextValue = {
   contextFolderId: string | null;
   refreshTree: () => Promise<void>;
   uploadToFolder: (folderId: string | null, files: FileList | File[]) => Promise<void>;
+  reindexDocument: (documentId: string) => Promise<void>;
   breadcrumbHref: (item: BreadcrumbItem) => string | null;
   setHeader: (state: HeaderState) => void;
   createPage: (folderId: string | null) => Promise<void>;
@@ -460,7 +462,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           `/api/documents/${documentId}/status`
         );
         if (status !== "PROCESSING") {
-          setTree((prev) => setDocumentProcessing(prev, documentId, false));
+          setTree((prev) => setDocumentStatus(prev, documentId, status));
           return;
         }
       } catch {
@@ -474,6 +476,19 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     };
     window.setTimeout(tick, 2000);
   }, []);
+
+  const reindexDocument = useCallback(
+    async (documentId: string) => {
+      setTree((prev) => setDocumentStatus(prev, documentId, "PROCESSING"));
+      try {
+        await apiPost(`/api/documents/${documentId}/reindex`, {});
+        pollDocumentStatus(documentId);
+      } catch {
+        setTree((prev) => setDocumentStatus(prev, documentId, "FAILED"));
+      }
+    },
+    [pollDocumentStatus]
+  );
 
   const uploadToFolder = useCallback(
     async (folderId: string | null, files: FileList | File[]) => {
@@ -489,7 +504,11 @@ export function LibraryShell({ children }: { children: ReactNode }) {
             const uploaded = await uploadFile({ libraryId, folderId, file });
             const processing = uploaded.status === "PROCESSING";
             setTree((prev) =>
-              replaceOptimisticDocument(prev, tempId, { ...uploaded, processing })
+              replaceOptimisticDocument(prev, tempId, {
+                ...uploaded,
+                processing,
+                status: uploaded.status,
+              })
             );
             if (processing) pollDocumentStatus(uploaded.id);
           } catch {
@@ -582,6 +601,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       contextFolderId,
       refreshTree,
       uploadToFolder,
+      reindexDocument,
       breadcrumbHref,
       setHeader: setHeaderState,
       createPage,
@@ -609,6 +629,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       contextFolderId,
       refreshTree,
       uploadToFolder,
+      reindexDocument,
       breadcrumbHref,
       setHeaderState,
       createPage,

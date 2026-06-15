@@ -193,7 +193,7 @@ function forceLayout(
 function toFlowEdge(edge: GraphEdge, mode: MindMapLayoutMode): Edge {
   const isLink = edge.kind === "link";
   // In graph mode the cross-links are the story, so fade containment edges.
-  const containOpacity = mode === "graph" ? 0.35 : 1;
+  const baseOpacity = isLink ? 1 : mode === "graph" ? 0.35 : 1;
 
   return {
     id: `${edge.source}-${edge.target}-${edge.kind}`,
@@ -202,9 +202,9 @@ function toFlowEdge(edge: GraphEdge, mode: MindMapLayoutMode): Edge {
     type: isLink ? "smoothstep" : "default",
     animated: isLink,
     style: isLink
-      ? { stroke: "#a78bfa", strokeWidth: 2, strokeDasharray: "6 4" }
-      : { stroke: "var(--border)", strokeWidth: 1.5, opacity: containOpacity },
-    data: { kind: edge.kind },
+      ? { stroke: "#a78bfa", strokeWidth: 2, strokeDasharray: "6 4", opacity: baseOpacity }
+      : { stroke: "var(--border)", strokeWidth: 1.5, opacity: baseOpacity },
+    data: { kind: edge.kind, baseOpacity },
   };
 }
 

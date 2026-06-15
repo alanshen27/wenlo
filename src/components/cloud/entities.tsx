@@ -4,7 +4,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { Check, FolderInput, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  CircleCheck,
+  FolderInput,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,6 +44,8 @@ export type CloudItem =
       sizeBytes?: number | null;
       pending?: boolean;
       processing?: boolean;
+      /** Indexing/embedding status: PROCESSING | READY | FAILED. */
+      status?: string;
     };
 
 /** Per-item selection wiring passed down to a card or row. */
@@ -52,6 +64,7 @@ type ItemActions = {
   onEdit?: () => void;
   onDelete?: () => void;
   onMove?: () => void;
+  onReindex?: () => void;
 };
 
 /**
@@ -213,14 +226,16 @@ function ActionMenu({
   onEdit,
   onDelete,
   onMove,
+  onReindex,
   className,
 }: {
   onEdit?: () => void;
   onDelete?: () => void;
   onMove?: () => void;
+  onReindex?: () => void;
   className?: string;
 }) {
-  if (!onEdit && !onDelete && !onMove) return null;
+  if (!onEdit && !onDelete && !onMove && !onReindex) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -262,6 +277,17 @@ function ActionMenu({
             Move to…
           </DropdownMenuItem>
         )}
+        {onReindex && (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onReindex();
+            }}
+          >
+            <RefreshCw className="size-3.5" />
+            Reindex
+          </DropdownMenuItem>
+        )}
         {onDelete && (
           <DropdownMenuItem
             variant="destructive"
@@ -296,6 +322,45 @@ function cardMeta(item: CloudItem): string {
   if (item.processing) return "Processing…";
   const size = formatBytes(item.sizeBytes);
   return size ? `${getDocumentLabel(item.type)} · ${size}` : getDocumentLabel(item.type);
+}
+
+/** Resolves a document's effective indexing status for display. */
+function docStatus(item: CloudItem): "PROCESSING" | "READY" | "FAILED" | null {
+  if (item.kind !== "document" || item.pending) return null;
+  if (item.processing) return "PROCESSING";
+  if (item.status === "FAILED") return "FAILED";
+  if (item.status === "PROCESSING") return "PROCESSING";
+  // Treat missing status as indexed (older docs / optimistic moves).
+  return "READY";
+}
+
+/** Compact "is this searchable?" indicator shown on document cards and rows. */
+function IndexStatusBadge({ item, className }: { item: CloudItem; className?: string }) {
+  const status = docStatus(item);
+  if (!status) return null;
+
+  if (status === "PROCESSING") {
+    return (
+      <span className={cn("inline-flex items-center gap-1 text-muted-foreground", className)}>
+        <Loader2 className="size-3 animate-spin" />
+        Indexing…
+      </span>
+    );
+  }
+  if (status === "FAILED") {
+    return (
+      <span className={cn("inline-flex items-center gap-1 text-destructive", className)}>
+        <AlertCircle className="size-3" />
+        Not indexed
+      </span>
+    );
+  }
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-500", className)}>
+      <CircleCheck className="size-3" />
+      Indexed
+    </span>
+  );
 }
 
 /** Small illustrative artwork glyph for a card footer (spinner overlay while busy). */
@@ -445,13 +510,14 @@ export function EntityCard({
   onEdit,
   onDelete,
   onMove,
+  onReindex,
   enableDnd,
   selection,
 }: { item: CloudItem; enableDnd?: boolean; selection?: SelectionState } & ItemActions) {
   const pending = item.kind === "document" && item.pending;
   const processing = item.kind === "document" && item.processing && !pending;
   const busy = pending || processing;
-  const hasActions = !pending && (onEdit || onDelete || onMove);
+  const hasActions = !pending && (onEdit || onDelete || onMove || onReindex);
   const handleOpen = useOpenInteraction(href, onOpen);
   const canSelect = Boolean(selection?.selectable);
   const isSelected = Boolean(selection?.selected);
@@ -510,8 +576,14 @@ export function EntityCard({
               <span className="block truncate text-sm font-medium leading-tight text-foreground">
                 {item.title}
               </span>
-              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                {cardMeta(item)}
+              <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                <span className="truncate">{cardMeta(item)}</span>
+                {item.kind === "document" && !item.pending && !item.processing && (
+                  <>
+                    <span className="text-border">·</span>
+                    <IndexStatusBadge item={item} className="text-[11px]" />
+                  </>
+                )}
               </span>
             </span>
           </div>
@@ -523,6 +595,7 @@ export function EntityCard({
               onEdit={onEdit}
               onDelete={onDelete}
               onMove={onMove}
+              onReindex={onReindex}
               className="bg-background/80 backdrop-blur"
             />
           </div>
@@ -556,6 +629,7 @@ export function EntityTable({
     onEdit?: () => void;
     onDelete?: () => void;
     onMove?: () => void;
+    onReindex?: () => void;
   };
   enableDnd?: boolean;
   selection?: TableSelection;
@@ -572,6 +646,7 @@ export function EntityTable({
         <span className="min-w-0 flex-1">Name</span>
         <span className="hidden w-20 shrink-0 text-right sm:inline">Size</span>
         <span className="hidden w-28 shrink-0 sm:inline">Type</span>
+        <span className="hidden w-28 shrink-0 md:inline">Status</span>
         <span className="w-7 shrink-0" aria-hidden />
       </div>
       <div className="py-1">
@@ -604,6 +679,7 @@ function EntityRow({
   onEdit,
   onDelete,
   onMove,
+  onReindex,
   enableDnd,
   selection,
 }: { item: CloudItem; enableDnd?: boolean; selection?: SelectionState } & ItemActions) {
@@ -633,6 +709,9 @@ function EntityRow({
       </span>
       <span className="hidden w-28 shrink-0 truncate text-xs text-muted-foreground sm:inline">
         {itemLabel(item)}
+      </span>
+      <span className="hidden w-28 shrink-0 truncate text-xs md:inline">
+        {item.kind === "document" && !item.pending ? <IndexStatusBadge item={item} /> : null}
       </span>
     </>
   );
@@ -681,7 +760,7 @@ function EntityRow({
           </Link>
         )}
         <div className="w-7 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100">
-          <ActionMenu onEdit={onEdit} onDelete={onDelete} onMove={onMove} />
+          <ActionMenu onEdit={onEdit} onDelete={onDelete} onMove={onMove} onReindex={onReindex} />
         </div>
       </div>
     </DndShell>

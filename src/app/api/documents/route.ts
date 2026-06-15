@@ -188,9 +188,10 @@ export async function POST(req: NextRequest) {
 
     // Process + embed/chunk in the background so the upload responds
     // immediately. The client shows a processing spinner and polls until the
-    // status flips. For images / scanned PDFs / unknown files we first run an
-    // OpenAI vision+file pass to produce searchable text.
-    const runAiPass = Boolean(aiEligible) && OPENAI_FILE_PROCESSING_ENABLED && hasOpenAI();
+    // status flips. We attempt an OpenAI vision+file pass on EVERY upload so
+    // files native parsing can't read (handwriting/GoodNotes exports, scanned
+    // PDFs, images, unknown binaries) still get searchable text.
+    const runAiPass = OPENAI_FILE_PROCESSING_ENABLED && hasOpenAI();
     after(async () => {
       try {
         let indexedContent = document.content;
@@ -201,10 +202,17 @@ export async function POST(req: NextRequest) {
             await extractWithOpenAI(buffer, file.type, file.name, user.id).catch(() => "")
           ).trim();
           if (aiText) {
-            indexedContent = aiText;
+            // `aiEligible` means native parsing produced no real text (just a
+            // placeholder), so replace it. Otherwise keep the good native text
+            // and append the AI pass (image/handwriting descriptions) so we
+            // enrich rather than risk truncating long extractions.
+            indexedContent =
+              aiEligible || !document.content.trim()
+                ? aiText
+                : `${document.content}\n\n${aiText}`;
             await prisma.document.update({
               where: { id: document.id },
-              data: { content: aiText },
+              data: { content: indexedContent },
             });
           }
         }

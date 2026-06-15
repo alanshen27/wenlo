@@ -102,6 +102,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     canEdit,
     refreshTree,
     uploadToFolder,
+    reindexDocument,
     createPage,
     createBoard,
     createDeck,
@@ -184,6 +185,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             sizeBytes: d.sizeBytes,
             pending: d.pending,
             processing: d.processing,
+            status: d.status,
           })),
         ],
         sort
@@ -368,6 +370,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
       onOpen,
       onMove: () =>
         beginMove({ type: "document", id: item.id, title: item.title, docType: item.type }),
+      onReindex: () => reindexDocument(item.id),
       onDelete: () => beginDeleteDocument({ id: item.id, title: item.title }),
     };
   }

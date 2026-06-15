@@ -131,11 +131,17 @@ async function extractXlsxText(buffer: Buffer): Promise<string> {
 }
 
 const OPENAI_EXTRACTION_PROMPT =
-  "You are an OCR and document-understanding engine. Extract ALL readable text " +
-  "from this file verbatim, preserving reading order. If it is an image, chart, " +
-  "or diagram, also append a concise description of the visual content (objects, " +
-  "tables, layout, data) so it can be found via search. Respond with plain text " +
-  "only — no preamble and no markdown code fences.";
+  "You are a meticulous OCR and document-understanding engine indexing a file for " +
+  "full-text search. Be exhaustive and detailed:\n" +
+  "1. Transcribe ALL readable text verbatim, in natural reading order — including " +
+  "handwriting, sketched notes, annotations, headers, footers, captions, footnotes, " +
+  "and any text embedded inside images or screenshots.\n" +
+  "2. For every image, screenshot, diagram, chart, table, or figure, add a detailed " +
+  "description of the visual content: layout, objects, people, UI elements, colors, " +
+  "axes and labels, and the underlying data or numbers. Reproduce tables as text.\n" +
+  "3. Preserve document structure (pages, slides, sections) with simple headings so " +
+  "context is searchable.\n" +
+  "Respond with plain text only — no preamble, no commentary, and no markdown code fences.";
 
 /**
  * Extract searchable text from a file using an OpenAI vision/file model.

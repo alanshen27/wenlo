@@ -152,7 +152,7 @@ export function addOptimisticDocuments(
 export function replaceOptimisticDocument(
   tree: FolderNode[],
   tempId: string,
-  document: { id: string; title: string; type: string; processing?: boolean }
+  document: { id: string; title: string; type: string; processing?: boolean; status?: string }
 ): FolderNode[] {
   const next = cloneTree(tree);
   walkNodes(next, (node) => {
@@ -162,6 +162,7 @@ export function replaceOptimisticDocument(
       id: document.id,
       title: document.title,
       type: document.type,
+      status: document.status,
       processing: document.processing,
     };
   });
@@ -178,6 +179,23 @@ export function setDocumentProcessing(
   walkNodes(next, (node) => {
     const doc = node.documents.find((d) => d.id === id);
     if (doc) doc.processing = processing;
+  });
+  return next;
+}
+
+/** Sets a document's indexing status (and keeps the spinner flag in sync). */
+export function setDocumentStatus(
+  tree: FolderNode[],
+  id: string,
+  status: string
+): FolderNode[] {
+  const next = cloneTree(tree);
+  walkNodes(next, (node) => {
+    const doc = node.documents.find((d) => d.id === id);
+    if (doc) {
+      doc.status = status;
+      doc.processing = status === "PROCESSING";
+    }
   });
   return next;
 }
