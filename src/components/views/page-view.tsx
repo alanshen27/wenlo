@@ -16,7 +16,15 @@ import { useCollabSession } from "@/hooks/use-collab-session";
 import { usePageCollaboration } from "@/hooks/use-page-collaboration";
 import { isCollabClientConfigured } from "@/lib/collab/config";
 import { colorForUser } from "@/lib/collab/user-colors";
-import { apiGet, apiPatch, apiPost } from "@/lib/client/api";
+import {
+  apiGet,
+  apiPatch,
+  apiPost,
+  getApiErrorMessage,
+  isCanceledError,
+  isNotFoundError,
+} from "@/lib/client/api";
+import { ViewError, ViewScroll } from "@/components/ui/view";
 import { libraryHome, pageRoute } from "@/lib/client/routes";
 
 type Page = {
@@ -46,6 +54,8 @@ export function PageView() {
   const [syncKey, setSyncKey] = useState(0);
   const [syncedContent, setSyncedContent] = useState<unknown>(null);
   const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editorEpoch, setEditorEpoch] = useState(0);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,6 +167,7 @@ export function PageView() {
     setTitleDraft("");
     setSaveStatus("idle");
     setRemoteNotice(null);
+    setLoadError(null);
     (async () => {
       try {
         const data = await apiGet<Page>(`/api/pages/${pageId}`);
@@ -168,14 +179,19 @@ export function PageView() {
         setPage(data);
         setTitleDraft(data.title);
         if (!collabEnabled) noteSaved(data.updatedAt);
-      } catch {
-        if (!cancelled) router.replace(libraryHome(libraryId));
+      } catch (err) {
+        if (cancelled || isCanceledError(err)) return;
+        if (isNotFoundError(err)) {
+          router.replace(libraryHome(libraryId));
+          return;
+        }
+        setLoadError(getApiErrorMessage(err, "We couldn't load this page."));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [pageId, libraryId, router, noteSaved, collabEnabled]);
+  }, [pageId, libraryId, router, noteSaved, collabEnabled, reloadKey]);
 
   useEffect(() => {
     if (!page || page.id !== pageId) return;
@@ -251,6 +267,18 @@ export function PageView() {
     noteSaved,
     collabEnabled,
   ]);
+
+  if (loadError) {
+    return (
+      <ViewScroll>
+        <ViewError
+          title="Couldn't load this page"
+          message={loadError}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </ViewScroll>
+    );
+  }
 
   if (!page) {
     return <PageSkeleton />;

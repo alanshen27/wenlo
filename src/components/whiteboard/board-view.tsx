@@ -17,7 +17,14 @@ import {
   type BoardPatch,
 } from "@/lib/boards/board-schema";
 import { isCollabClientConfigured } from "@/lib/collab/config";
-import { apiGet, apiPatch } from "@/lib/client/api";
+import {
+  apiGet,
+  apiPatch,
+  getApiErrorMessage,
+  isCanceledError,
+  isNotFoundError,
+} from "@/lib/client/api";
+import { ViewError } from "@/components/ui/view";
 import { boardRoute, libraryHome } from "@/lib/client/routes";
 
 const BoardCanvas = dynamic(
@@ -80,6 +87,8 @@ export function BoardView() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [me, setMe] = useState<Me | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const handleRef = useRef<BoardCanvasHandle | null>(null);
   const pendingRef = useRef<BoardPatch | null>(null);
@@ -113,6 +122,7 @@ export function BoardView() {
     setBoard(null);
     setScene(createEmptyBoard());
     setSaveStatus("idle");
+    setLoadError(null);
     void (async () => {
       try {
         const data = await apiGet<BoardData>(`/api/boards/${boardId}`);
@@ -124,14 +134,19 @@ export function BoardView() {
         setBoard(data);
         setScene(normalizeBoard(data.scene));
         setTitle(data.title);
-      } catch {
-        if (!cancelled) router.replace(libraryHome(libraryId));
+      } catch (err) {
+        if (cancelled || isCanceledError(err)) return;
+        if (isNotFoundError(err)) {
+          router.replace(libraryHome(libraryId));
+          return;
+        }
+        setLoadError(getApiErrorMessage(err, "We couldn't load this whiteboard."));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [boardId, libraryId, router]);
+  }, [boardId, libraryId, router, reloadKey]);
 
   const flush = useCallback(() => {
     if (saveTimer.current) {
@@ -229,6 +244,16 @@ export function BoardView() {
       />
     );
   }, [board, scene, readOnly, collab.remoteLocks, collab.remoteCursors, collab.acquireLocks, collab.releaseLocks, collab.publishCursor, handlePatch, registerHandle]);
+
+  if (loadError) {
+    return (
+      <ViewError
+        title="Couldn't load this whiteboard"
+        message={loadError}
+        onRetry={() => setReloadKey((k) => k + 1)}
+      />
+    );
+  }
 
   if (!board) {
     return (

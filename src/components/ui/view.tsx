@@ -1,5 +1,7 @@
 import * as React from "react";
+import { RotateCw, TriangleAlert } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/core/utils";
 
 /**
@@ -79,5 +81,46 @@ function SectionLabel({ className, ...props }: React.ComponentProps<"p">) {
   );
 }
 
-export { ViewScroll, ViewContainer, ViewHeader, SectionLabel, VIEW_WIDTHS };
+type ViewErrorProps = {
+  title?: string;
+  message?: string;
+  onRetry?: () => void;
+  className?: string;
+};
+
+/**
+ * Centered failure state for a view that couldn't load. Use for transient
+ * errors (network/server) where retrying is sensible — not for missing
+ * resources, which should redirect away instead.
+ */
+function ViewError({
+  title = "Couldn't load this",
+  message,
+  onRetry,
+  className,
+}: ViewErrorProps) {
+  return (
+    <div
+      className={cn(
+        "flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center",
+        className
+      )}
+      role="alert"
+    >
+      <TriangleAlert className="size-8 text-muted-foreground" aria-hidden />
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        {message && <p className="max-w-sm text-sm text-muted-foreground">{message}</p>}
+      </div>
+      {onRetry && (
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RotateCw className="size-4" />
+          Try again
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export { ViewScroll, ViewContainer, ViewHeader, SectionLabel, ViewError, VIEW_WIDTHS };
 export type { ViewWidth };

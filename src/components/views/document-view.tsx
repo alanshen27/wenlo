@@ -7,9 +7,9 @@ import { useLibrary } from "@/components/library/library-shell";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ViewContainer, ViewScroll } from "@/components/ui/view";
+import { ViewContainer, ViewError, ViewScroll } from "@/components/ui/view";
 import { documentRoute, libraryHome } from "@/lib/client/routes";
-import { apiGet } from "@/lib/client/api";
+import { apiGet, getApiErrorMessage, isCanceledError, isNotFoundError } from "@/lib/client/api";
 import { FileArtwork, getDocumentLabel } from "@/lib/client/file-icons";
 import { cn, formatBytes } from "@/lib/core/utils";
 
@@ -33,11 +33,14 @@ export function DocumentView() {
 
   const [document, setDocument] = useState<Document | null>(null);
   const [mediaError, setMediaError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setDocument(null);
     setMediaError(false);
+    setError(null);
     (async () => {
       try {
         const data = await apiGet<Document>(`/api/documents/${documentId}`);
@@ -47,19 +50,38 @@ export function DocumentView() {
           return;
         }
         setDocument(data);
-      } catch {
-        if (!cancelled) router.replace(libraryHome(libraryId));
+      } catch (err) {
+        if (cancelled || isCanceledError(err)) return;
+        // Missing or inaccessible document: leave for the library home.
+        if (isNotFoundError(err)) {
+          router.replace(libraryHome(libraryId));
+          return;
+        }
+        // Transient failure (network/server): show a retryable error instead.
+        setError(getApiErrorMessage(err, "We couldn't load this document."));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [documentId, libraryId, router]);
+  }, [documentId, libraryId, router, reloadKey]);
 
   useEffect(() => {
     if (!document || document.id !== documentId) return;
     setHeader({ folderIdFallback: document.folderId });
   }, [document, documentId, setHeader]);
+
+  if (error) {
+    return (
+      <ViewScroll>
+        <ViewError
+          title="Couldn't load this document"
+          message={error}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      </ViewScroll>
+    );
+  }
 
   if (!document) {
     return (

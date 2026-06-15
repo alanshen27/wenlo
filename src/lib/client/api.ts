@@ -4,12 +4,15 @@ import axios, { isAxiosError, type AxiosRequestConfig } from "axios";
 export class ApiError extends Error {
   readonly status: number;
   readonly data: unknown;
+  /** True when the request was aborted rather than failing on the server. */
+  readonly canceled: boolean;
 
-  constructor(message: string, status: number, data?: unknown) {
+  constructor(message: string, status: number, data?: unknown, canceled = false) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.data = data;
+    this.canceled = canceled;
   }
 }
 
@@ -26,6 +29,22 @@ export function getApiErrorMessage(error: unknown, fallback = "Something went wr
   return fallback;
 }
 
+/** Status used for transport-level failures with no HTTP response. */
+export const NETWORK_ERROR_STATUS = 0;
+
+/** True when a request was aborted (e.g. component unmount / cancel token). */
+export function isCanceledError(error: unknown): boolean {
+  return error instanceof ApiError && error.canceled;
+}
+
+/**
+ * True for "the resource is gone or you can't see it" responses (404/403).
+ * Views use this to redirect home instead of showing a retryable error.
+ */
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 404 || error.status === 403);
+}
+
 export const apiClient = axios.create({
   withCredentials: true,
 });
@@ -33,12 +52,26 @@ export const apiClient = axios.create({
 apiClient.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
-    if (isAxiosError(error) && error.response) {
-      const { status, data } = error.response;
+    if (isAxiosError(error)) {
+      if (error.response) {
+        const { status, data } = error.response;
+        const message =
+          messageFromResponseBody(data) ?? error.message ?? `Request failed (${status})`;
+        throw new ApiError(message, status, data);
+      }
+      // Request was made but no response arrived: cancellation, timeout, or a
+      // transport failure (offline, DNS, CORS). Normalize all of these so
+      // callers only ever have to handle ApiError.
+      if (error.code === "ERR_CANCELED") {
+        throw new ApiError("Request was canceled", NETWORK_ERROR_STATUS, undefined, true);
+      }
       const message =
-        messageFromResponseBody(data) ?? error.message ?? `Request failed (${status})`;
-      throw new ApiError(message, status, data);
+        error.code === "ECONNABORTED"
+          ? "The request timed out. Check your connection and try again."
+          : "Network error. Check your connection and try again.";
+      throw new ApiError(message, NETWORK_ERROR_STATUS, undefined);
     }
+    // Non-axios error (programming error, etc.) — surface as-is.
     throw error;
   }
 );

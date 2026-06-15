@@ -25,6 +25,7 @@ import { DatabaseTable } from "@/components/database/database-table";
 import { DatabaseBoard } from "@/components/database/database-board";
 import { DatabaseCalendar } from "@/components/database/database-calendar";
 import { apiPatch } from "@/lib/client/api";
+import { ViewError } from "@/components/ui/view";
 import { libraryHome } from "@/lib/client/routes";
 import { VIEW_TYPE_LABELS, type ViewType } from "@/lib/databases/database-schema";
 import { cn } from "@/lib/core/utils";
@@ -40,7 +41,8 @@ export function DatabaseView() {
   const { databaseId } = useParams<{ databaseId: string }>();
   const { libraryId, canEdit, setHeader, refreshTree } = useLibrary();
   const controller = useDatabase(databaseId, !canEdit);
-  const { scene, saveStatus, readOnly, notFound, activeViewId, setActiveViewId } = controller;
+  const { scene, saveStatus, readOnly, notFound, loadError, reload, activeViewId, setActiveViewId } =
+    controller;
 
   const [title, setTitle] = useState("");
 
@@ -67,6 +69,16 @@ export function DatabaseView() {
       /* keep local title */
     }
   }, [databaseId, title, readOnly, scene, refreshTree]);
+
+  if (loadError) {
+    return (
+      <ViewError
+        title="Couldn't load this database"
+        message={loadError}
+        onRetry={reload}
+      />
+    );
+  }
 
   if (!scene) {
     return (

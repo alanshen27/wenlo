@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SaveStatus } from "@/components/library/main-header";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/client/api";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  getApiErrorMessage,
+  isCanceledError,
+  isNotFoundError,
+} from "@/lib/client/api";
 import { usePersistentState } from "@/lib/client/use-persistent-state";
 import type {
   CellValue,
@@ -23,6 +31,10 @@ export type DatabaseController = {
   saveStatus: SaveStatus;
   readOnly: boolean;
   notFound: boolean;
+  /** Transient load failure (network/server); null when none. */
+  loadError: string | null;
+  /** Re-attempt the initial load after a transient failure. */
+  reload: () => void;
   activeViewId: string | null;
   setActiveViewId: (id: string) => void;
   setCell: (rowId: string, propertyId: string, value: CellValue) => void;
@@ -42,6 +54,8 @@ export type DatabaseController = {
 export function useDatabase(databaseId: string, readOnly: boolean): DatabaseController {
   const [scene, setScene] = useState<DatabaseScene | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [activeViewId, setActiveViewIdState] = usePersistentState<string | null>(
     `recalls:db-view:${databaseId}`,
@@ -56,6 +70,7 @@ export function useDatabase(databaseId: string, readOnly: boolean): DatabaseCont
     let cancelled = false;
     setScene(null);
     setNotFound(false);
+    setLoadError(null);
     void (async () => {
       try {
         const data = await apiGet<DatabaseScene>(`/api/databases/${databaseId}`);
@@ -64,8 +79,12 @@ export function useDatabase(databaseId: string, readOnly: boolean): DatabaseCont
         setActiveViewIdState((prev) =>
           prev && data.views.some((v) => v.id === prev) ? prev : (data.views[0]?.id ?? null)
         );
-      } catch {
-        if (!cancelled) setNotFound(true);
+      } catch (err) {
+        if (cancelled || isCanceledError(err)) return;
+        // Missing/forbidden → let the view redirect home; otherwise surface a
+        // retryable error instead of bouncing the user out on a network blip.
+        if (isNotFoundError(err)) setNotFound(true);
+        else setLoadError(getApiErrorMessage(err, "We couldn't load this database."));
       }
     })();
     return () => {
@@ -73,7 +92,9 @@ export function useDatabase(databaseId: string, readOnly: boolean): DatabaseCont
     };
     // setActiveViewIdState is stable from usePersistentState.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [databaseId]);
+  }, [databaseId, reloadKey]);
+
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   const markSaved = useCallback(() => {
     setSaveStatus("saved");
@@ -294,6 +315,8 @@ export function useDatabase(databaseId: string, readOnly: boolean): DatabaseCont
     saveStatus,
     readOnly,
     notFound,
+    loadError,
+    reload,
     activeViewId,
     setActiveViewId,
     setCell,

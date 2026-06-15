@@ -26,7 +26,14 @@ import { Loader2, Plus, Trash2, Wand2, Maximize } from "lucide-react";
 import { useLibrary } from "@/components/library/library-shell";
 import type { SaveStatus } from "@/components/library/main-header";
 import { Button } from "@/components/ui/button";
-import { apiGet, apiPatch } from "@/lib/client/api";
+import { ViewError } from "@/components/ui/view";
+import {
+  apiGet,
+  apiPatch,
+  getApiErrorMessage,
+  isCanceledError,
+  isNotFoundError,
+} from "@/lib/client/api";
 import { flowchartRoute, libraryHome } from "@/lib/client/routes";
 import {
   createEmptyFlow,
@@ -41,11 +48,16 @@ import {
   type FlowPatch,
   type NodeShape,
 } from "@/lib/flowcharts/flowchart-schema";
+import { shapePolygonSvgPoints } from "@/lib/canvas/shapes";
 import { cn } from "@/lib/core/utils";
 
 const SAVE_DEBOUNCE_MS = 600;
 const NODE_W = 168;
 const NODE_H = 56;
+// A diamond is the only node with multiple source handles, so only its two
+// outputs need ids (a single in/out handle matches a null handle on old edges).
+const HANDLE_YES = "yes";
+const HANDLE_NO = "no";
 
 type FlowNodeData = {
   label: string;
@@ -88,12 +100,73 @@ const FlowNodeView = memo(function FlowNodeView({ id, data, selected }: NodeProp
         ? "rounded-[50%]"
         : "rounded-lg";
 
+  const labelBody = editing ? (
+    <textarea
+      ref={inputRef}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          commit();
+        }
+        if (e.key === "Escape") {
+          setDraft(d.label);
+          setEditing(false);
+        }
+      }}
+      rows={1}
+      className="w-full resize-none bg-transparent text-center text-xs font-medium outline-none"
+      style={{ color: style.text }}
+    />
+  ) : (
+    <span className="line-clamp-3 break-words">{d.label || "Untitled"}</span>
+  );
+
+  const handleClass = "!size-2 !bg-current !opacity-50";
+
+  // Diamond = decision node: drawn as an SVG polygon (so the border, label, and
+  // handles stay axis-aligned) with one input on top and two labeled outputs.
+  if (isDiamond) {
+    return (
+      <div
+        className="relative flex items-center justify-center text-center text-xs font-medium"
+        style={{ width: NODE_W, height: NODE_H, color: style.text }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          if (!d.readOnly) setEditing(true);
+        }}
+      >
+        <svg
+          className="pointer-events-none absolute inset-0 overflow-visible"
+          width={NODE_W}
+          height={NODE_H}
+        >
+          <polygon
+            points={shapePolygonSvgPoints("diamond", NODE_W, NODE_H) ?? ""}
+            fill={style.bg}
+            stroke={style.border}
+            strokeWidth={2}
+            className={cn("transition-[stroke]", selected && "stroke-primary")}
+          />
+        </svg>
+        <Handle type="target" position={Position.Top} className={handleClass} />
+        <div className="relative px-3" style={{ width: NODE_W * 0.6 }}>
+          {labelBody}
+        </div>
+        <Handle id={HANDLE_YES} type="source" position={Position.Bottom} className={handleClass} />
+        <Handle id={HANDLE_NO} type="source" position={Position.Right} className={handleClass} />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
         "relative flex items-center justify-center border-2 text-center text-xs font-medium shadow-sm transition-shadow",
-        !isDiamond && shapeClass,
-        selected && "ring-2 ring-offset-2 ring-primary/60"
+        shapeClass,
+        selected && "ring-2 ring-offset-1 ring-primary/60"
       )}
       style={{
         width: NODE_W,
@@ -101,43 +174,15 @@ const FlowNodeView = memo(function FlowNodeView({ id, data, selected }: NodeProp
         background: style.bg,
         borderColor: style.border,
         color: style.text,
-        ...(isDiamond ? { transform: "rotate(45deg)", borderRadius: 8 } : {}),
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
         if (!d.readOnly) setEditing(true);
       }}
     >
-      <Handle type="target" position={Position.Top} className="!size-2 !bg-current !opacity-50" />
-      <div
-        className={cn("px-2", isDiamond && "[transform:rotate(-45deg)]")}
-        style={isDiamond ? { width: NODE_W * 0.72 } : undefined}
-      >
-        {editing ? (
-          <textarea
-            ref={inputRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                commit();
-              }
-              if (e.key === "Escape") {
-                setDraft(d.label);
-                setEditing(false);
-              }
-            }}
-            rows={2}
-            className="w-full resize-none bg-transparent text-center text-xs font-medium outline-none"
-            style={{ color: style.text }}
-          />
-        ) : (
-          <span className="line-clamp-3 break-words">{d.label || "Untitled"}</span>
-        )}
-      </div>
-      <Handle type="source" position={Position.Bottom} className="!size-2 !bg-current !opacity-50" />
+      <Handle type="target" position={Position.Top} className={handleClass} />
+      <div className="px-2">{labelBody}</div>
+      <Handle type="source" position={Position.Bottom} className={handleClass} />
     </div>
   );
 });
@@ -172,6 +217,8 @@ function toRfEdges(scene: FlowDoc): Edge[] {
       id: e.id,
       source: e.source,
       target: e.target,
+      sourceHandle: e.sourceHandle,
+      targetHandle: e.targetHandle,
       label: e.label,
       markerEnd: { type: MarkerType.ArrowClosed },
     }));
@@ -199,6 +246,8 @@ function fromRf(nodes: Node[], edges: Edge[]): FlowDoc {
       id: e.id,
       source: e.source,
       target: e.target,
+      sourceHandle: e.sourceHandle ?? undefined,
+      targetHandle: e.targetHandle ?? undefined,
       label: typeof e.label === "string" ? e.label : undefined,
     };
     edgeOrder.push(e.id);
@@ -278,6 +327,8 @@ export function FlowchartView() {
   const readOnly = !canEdit;
 
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [title, setTitle] = useState("");
   const [folderId, setFolderId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -291,6 +342,9 @@ export function FlowchartView() {
   const lastSavedRef = useRef<FlowDoc>(createEmptyFlow());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mirror `loaded` in a ref so `flush` can bail before the scene is in — the
+  // initial empty graph must never be diffed/patched over the real content.
+  const loadedRef = useRef(false);
 
   const onCommitLabel = useCallback(
     (id: string, label: string) => {
@@ -305,6 +359,7 @@ export function FlowchartView() {
   useEffect(() => {
     let cancelled = false;
     setLoaded(false);
+    setLoadError(null);
     void (async () => {
       try {
         const data = await apiGet<FlowData>(`/api/flowcharts/${flowchartId}`);
@@ -320,20 +375,28 @@ export function FlowchartView() {
         setNodes(toRfNodes(scene, !canEdit, onCommitLabel));
         setEdges(toRfEdges(scene));
         setLoaded(true);
-      } catch {
-        if (!cancelled) router.replace(libraryHome(libraryId));
+      } catch (err) {
+        if (cancelled || isCanceledError(err)) return;
+        if (isNotFoundError(err)) {
+          router.replace(libraryHome(libraryId));
+          return;
+        }
+        setLoadError(getApiErrorMessage(err, "We couldn't load this flowchart."));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [flowchartId, libraryId, canEdit, onCommitLabel, router, setNodes, setEdges]);
+  }, [flowchartId, libraryId, canEdit, onCommitLabel, router, setNodes, setEdges, reloadKey]);
 
   const flush = useCallback(() => {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
+    // Never persist until the scene has loaded (avoids patching the empty
+    // initial graph) and never from a read-only session.
+    if (!loadedRef.current || readOnly) return;
     const next = fromRf(rfRef.current?.getNodes() ?? nodes, rfRef.current?.getEdges() ?? edges);
     const patch = diffFlow(lastSavedRef.current, next);
     if (!patch) return;
@@ -346,7 +409,7 @@ export function FlowchartView() {
         savedTimer.current = setTimeout(() => setSaveStatus("idle"), 1500);
       })
       .catch(() => setSaveStatus("error"));
-  }, [flowchartId, nodes, edges]);
+  }, [flowchartId, nodes, edges, readOnly]);
 
   const scheduleSave = useCallback(() => {
     if (readOnly) return;
@@ -354,21 +417,34 @@ export function FlowchartView() {
     saveTimer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
   }, [flush, readOnly]);
 
+  // Keep the ref in lock-step with the loaded flag for `flush`'s guard.
+  useEffect(() => {
+    loadedRef.current = loaded;
+  }, [loaded]);
+
   // Persist whenever the graph changes (debounced; diff skips no-ops).
   useEffect(() => {
     if (!loaded || readOnly) return;
     scheduleSave();
   }, [nodes, edges, loaded, readOnly, scheduleSave]);
 
+  // Flush on real unmount / tab close only. Reading `flush` via a ref keeps
+  // this effect from re-subscribing (and flushing a stale closure) on every
+  // graph change.
+  const flushRef = useRef(flush);
   useEffect(() => {
-    const onBeforeUnload = () => flush();
+    flushRef.current = flush;
+  }, [flush]);
+
+  useEffect(() => {
+    const onBeforeUnload = () => flushRef.current();
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
-      flush();
+      flushRef.current();
       if (savedTimer.current) clearTimeout(savedTimer.current);
     };
-  }, [flush]);
+  }, []);
 
   useEffect(() => {
     if (!loaded) return;
@@ -378,8 +454,18 @@ export function FlowchartView() {
   const onConnect = useCallback(
     (connection: Connection) => {
       if (readOnly) return;
+      // Auto-label diamond branches from the handle they leave.
+      const label =
+        connection.sourceHandle === HANDLE_YES
+          ? "Yes"
+          : connection.sourceHandle === HANDLE_NO
+            ? "No"
+            : undefined;
       setEdges((eds) =>
-        addEdge({ ...connection, id: newFlowId(), markerEnd: { type: MarkerType.ArrowClosed } }, eds)
+        addEdge(
+          { ...connection, id: newFlowId(), label, markerEnd: { type: MarkerType.ArrowClosed } },
+          eds
+        )
       );
     },
     [readOnly, setEdges]
@@ -452,6 +538,16 @@ export function FlowchartView() {
     () => nodes.some((n) => n.selected) || edges.some((e) => e.selected),
     [nodes, edges]
   );
+
+  if (loadError) {
+    return (
+      <ViewError
+        title="Couldn't load this flowchart"
+        message={loadError}
+        onRetry={() => setReloadKey((k) => k + 1)}
+      />
+    );
+  }
 
   if (!loaded) {
     return (
@@ -598,6 +694,6 @@ function ShapeGlyph({ shape }: { shape: NodeShape }) {
   if (shape === "ellipse") return <span className="block size-3.5 rounded-full border-2 border-current" />;
   if (shape === "rounded") return <span className="block h-2.5 w-3.5 rounded-full border-2 border-current" />;
   if (shape === "diamond")
-    return <span className="block size-3 rotate-45 border-2 border-current" />;
+    return <span className="block h-3.5 w-3.5 size-3 rotate-45 border-2 border-current" />;
   return <span className="block size-3.5 rounded-[3px] border-2 border-current" />;
 }

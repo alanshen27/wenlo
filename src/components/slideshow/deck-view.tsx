@@ -16,7 +16,14 @@ import {
   type Slide,
 } from "@/lib/decks/deck-schema";
 import { createSlideFromTemplate } from "@/lib/decks/deck-templates";
-import { apiGet, apiPatch } from "@/lib/client/api";
+import {
+  apiGet,
+  apiPatch,
+  getApiErrorMessage,
+  isCanceledError,
+  isNotFoundError,
+} from "@/lib/client/api";
+import { ViewError } from "@/components/ui/view";
 import { deckRoute, libraryHome } from "@/lib/client/routes";
 
 const DeckCanvas = dynamic(
@@ -63,6 +70,8 @@ export function DeckView() {
   const [title, setTitle] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [presentFrom, setPresentFrom] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,6 +86,7 @@ export function DeckView() {
     setMeta(null);
     setDeck(createEmptyDeck());
     setSaveStatus("idle");
+    setLoadError(null);
     void (async () => {
       try {
         const data = await apiGet<DeckData>(`/api/decks/${deckId}`);
@@ -91,14 +101,19 @@ export function DeckView() {
         latestDeck.current = normalized;
         setActiveSlideId(normalized.slideOrder[0]);
         setTitle(data.title);
-      } catch {
-        if (!cancelled) router.replace(libraryHome(libraryId));
+      } catch (err) {
+        if (cancelled || isCanceledError(err)) return;
+        if (isNotFoundError(err)) {
+          router.replace(libraryHome(libraryId));
+          return;
+        }
+        setLoadError(getApiErrorMessage(err, "We couldn't load this deck."));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [deckId, libraryId, router]);
+  }, [deckId, libraryId, router, reloadKey]);
 
   // --- Save ---
   const flush = useCallback(() => {
@@ -318,6 +333,16 @@ export function DeckView() {
     deck.slideOrder,
     activeSlideId,
   ]);
+
+  if (loadError) {
+    return (
+      <ViewError
+        title="Couldn't load this deck"
+        message={loadError}
+        onRetry={() => setReloadKey((k) => k + 1)}
+      />
+    );
+  }
 
   if (!meta) {
     return (

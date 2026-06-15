@@ -22,6 +22,10 @@ export type FlowEdge = {
   id: string;
   source: string;
   target: string;
+  /** Originating handle id on the source node (e.g. a diamond's "yes"/"no"). */
+  sourceHandle?: string;
+  /** Receiving handle id on the target node. */
+  targetHandle?: string;
   label?: string;
 };
 
