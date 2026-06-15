@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDownAZ, ArrowUpZA, ChevronDown, Loader2, Plus, Search } from "lucide-react";
+import { ArrowDownAZ, ArrowUpZA, ChevronDown, Loader2, Pin, Plus, Search } from "lucide-react";
 import { LibraryIcon } from "@/components/icons/library-icon";
+import { CollaboratorAvatars } from "@/components/cloud/collaborator-avatars";
+import { pinTargetForItem, setPin } from "@/lib/client/pins";
 import { AppLauncher } from "@/components/native/app-launcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,18 +17,15 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DeckSlideSvg } from "@/components/slideshow/deck-slide-svg";
-import { BoardPreview } from "@/components/whiteboard/board-preview";
+import {
+  ItemThumbnail,
+  recentItemPreviewSource,
+} from "@/components/cloud/item-previews";
 import { FileArtwork } from "@/lib/client/file-icons";
 import { apiGet } from "@/lib/client/api";
-import type { Slide } from "@/lib/decks/deck-schema";
-import type { BoardDoc } from "@/lib/boards/board-schema";
 import { createBlankNative, createFromNativeTemplate } from "@/lib/native/create-from-template";
 import { listNativeTemplates, type NativeTemplateEntry } from "@/lib/native/native-templates";
-import { getBoardTemplate } from "@/lib/native/board-templates";
-import { getFlowTemplate } from "@/lib/native/flow-templates";
-import { flowColorStyle } from "@/lib/flowcharts/flowchart-schema";
-import { presentationThumbnailSlide } from "@/lib/decks/presentation-templates";
+import { templateItemPreviewSource } from "@/lib/native/template-preview-source";
 import { NATIVE_TYPES, type NativeKind } from "@/lib/native/native-types";
 import type { RecentItem } from "@/lib/native/recents";
 import {
@@ -34,11 +33,19 @@ import {
   nativeEditorRoute,
   readStoredLibraryId,
 } from "@/lib/client/routes";
-import { formatRelativeTime } from "@/lib/core/utils";
+import { cn, formatRelativeTime } from "@/lib/core/utils";
 
 type Library = { id: string; name: string; icon: string; role?: string };
 
 type SortMode = "recent" | "name-asc" | "name-desc";
+
+type OwnerFilter = "all" | "mine" | "shared";
+
+const OWNER_LABELS: Record<OwnerFilter, string> = {
+  all: "All",
+  mine: "Mine",
+  shared: "Shared",
+};
 
 const SORT_LABELS: Record<SortMode, string> = {
   recent: "Recent",
@@ -56,7 +63,24 @@ export function NativeHome({ kind }: { kind: NativeKind }) {
   const [creatingId, setCreatingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [libraryFilter, setLibraryFilter] = useState<string>("all");
+  const [owner, setOwner] = useState<OwnerFilter>("all");
   const [sort, setSort] = useState<SortMode>("recent");
+
+  const togglePin = useCallback((item: RecentItem) => {
+    const next = !item.pinned;
+    setItems((prev) =>
+      prev
+        ? prev.map((i) => (i.id === item.id ? { ...i, pinned: next } : i))
+        : prev
+    );
+    void setPin(pinTargetForItem(item.type, item.id), next).catch(() => {
+      setItems((prev) =>
+        prev
+          ? prev.map((i) => (i.id === item.id ? { ...i, pinned: !next } : i))
+          : prev
+      );
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +129,9 @@ export function NativeHome({ kind }: { kind: NativeKind }) {
     if (libraryFilter !== "all") {
       list = list.filter((i) => i.libraryId === libraryFilter);
     }
+    if (owner !== "all") {
+      list = list.filter((i) => (owner === "shared" ? i.shared : !i.shared));
+    }
     if (trimmedQuery) {
       list = list.filter(
         (i) =>
@@ -123,14 +150,18 @@ export function NativeHome({ kind }: { kind: NativeKind }) {
       );
     }
     return list;
-  }, [items, trimmedQuery, libraryFilter, sort]);
+  }, [items, trimmedQuery, libraryFilter, owner, sort]);
 
-  const hasActiveFilters = trimmedQuery.length > 0 || libraryFilter !== "all" || sort !== "recent";
+  const hasActiveFilters =
+    trimmedQuery.length > 0 || libraryFilter !== "all" || owner !== "all" || sort !== "recent";
 
-  const featured = hasActiveFilters ? [] : filtered.slice(0, 4);
-  // The full list always shows every item — featured cards are just a highlight
-  // on top, not a removal from the list.
-  const rest = filtered;
+  const pinnedItems = useMemo(() => filtered.filter((i) => i.pinned), [filtered]);
+  const unpinned = useMemo(() => filtered.filter((i) => !i.pinned), [filtered]);
+
+  // Only carve out a "Recent" grid when there are enough items to also fill the
+  // list below; otherwise everything lives in the filterable "All …" list.
+  const featured = !hasActiveFilters && unpinned.length > 4 ? unpinned.slice(0, 4) : [];
+  const rest = unpinned.slice(featured.length);
 
   const handleCreateBlank = useCallback(async () => {
     if (!cfg.creatable || !activeLibraryId || creatingId) return;
@@ -190,23 +221,23 @@ export function NativeHome({ kind }: { kind: NativeKind }) {
             <h2 className="mb-3 text-sm font-medium text-muted-foreground">
               Create new
             </h2>
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              <li>
+            <ul className="-mx-6 flex gap-3 overflow-x-auto px-6 pb-2 pt-1 scrollbar-none">
+              <li className="w-60 shrink-0">
                 <button
                   type="button"
                   onClick={handleCreateBlank}
                   disabled={!!creatingId || !activeLibraryId}
-                  className="group flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
+                  className="group flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-colors hover:border-foreground/30 disabled:pointer-events-none disabled:opacity-60"
                 >
                   <span
-                    className="flex h-28 items-center justify-center"
+                    className="flex aspect-4/3 items-center justify-center"
                     style={{ backgroundColor: `${cfg.accent}14` }}
                   >
                     {creatingId === "blank" ? (
                       <Loader2 className="size-7 animate-spin text-muted-foreground" />
                     ) : (
                       <span
-                        className="flex size-11 items-center justify-center rounded-full text-white shadow-sm transition-transform group-hover:scale-105"
+                        className="flex size-11 items-center justify-center rounded-full text-white"
                         style={{ backgroundColor: cfg.accent }}
                       >
                         <Plus className="size-6" />
@@ -219,7 +250,7 @@ export function NativeHome({ kind }: { kind: NativeKind }) {
                 </button>
               </li>
               {templates.map((template) => (
-                <li key={template.id}>
+                <li key={template.id} className="w-60 shrink-0">
                   <TemplateCard
                     kind={kind}
                     template={template}
@@ -233,139 +264,170 @@ export function NativeHome({ kind }: { kind: NativeKind }) {
           </section>
         )}
 
-        <section>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              {hasActiveFilters ? "Results" : "Recent"}
-            </h2>
-            {items && items.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-1.5 border-border bg-background"
-                      />
-                    }
-                  >
-                    {libraryFilter === "all" ? (
-                      <span className="text-muted-foreground">All libraries</span>
-                    ) : (
-                      <>
-                        <LibraryIcon
-                          icon={
-                            libraries?.find((l) => l.id === libraryFilter)?.icon ?? ""
-                          }
-                          className="size-4"
-                        />
-                        <span className="max-w-32 truncate">
-                          {libraries?.find((l) => l.id === libraryFilter)?.name ??
-                            "Library"}
-                        </span>
-                      </>
-                    )}
-                    <ChevronDown className="size-3.5 opacity-70" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={() => setLibraryFilter("all")}>
-                      All libraries
-                    </DropdownMenuItem>
-                    {(libraries ?? []).map((library) => (
-                      <DropdownMenuItem
-                        key={library.id}
-                        onClick={() => setLibraryFilter(library.id)}
-                      >
-                        <LibraryIcon icon={library.icon} className="size-4" />
-                        <span className="truncate">{library.name}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-1.5 border-border bg-background"
-                      />
-                    }
-                  >
-                    {sort === "name-desc" ? (
-                      <ArrowUpZA className="size-3.5" />
-                    ) : (
-                      <ArrowDownAZ className="size-3.5" />
-                    )}
-                    <span className="hidden sm:inline">{SORT_LABELS[sort]}</span>
-                    <ChevronDown className="size-3.5 opacity-70" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuRadioGroup
-                      value={sort}
-                      onValueChange={(v) => setSort(v as SortMode)}
-                    >
-                      <DropdownMenuRadioItem value="recent">
-                        {SORT_LABELS.recent}
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="name-asc">
-                        {SORT_LABELS["name-asc"]}
-                      </DropdownMenuRadioItem>
-                      <DropdownMenuRadioItem value="name-desc">
-                        {SORT_LABELS["name-desc"]}
-                      </DropdownMenuRadioItem>
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
-          </div>
-
-          {items === null ? (
-            <RecentsSkeleton />
-          ) : items.length === 0 ? (
-            <EmptyState kind={kind} canCreate={cfg.creatable} />
-          ) : filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-12 text-center text-sm text-muted-foreground">
-              {trimmedQuery
-                ? `No ${cfg.plural.toLowerCase()} match “${query.trim()}”.`
-                : libraryFilter !== "all"
-                  ? `No ${cfg.plural.toLowerCase()} in this library.`
-                  : `No ${cfg.plural.toLowerCase()} match your filters.`}
-            </div>
-          ) : (
-            <>
-              {featured.length > 0 && (
+        {items === null ? (
+          <RecentsSkeleton />
+        ) : items.length === 0 ? (
+          <EmptyState kind={kind} canCreate={cfg.creatable} />
+        ) : (
+          <div className="space-y-8">
+            {pinnedItems.length > 0 && (
+              <section>
+                <h2 className="mb-4 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                  <Pin className="size-3.5" />
+                  Pinned
+                </h2>
                 <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {featured.map((item) => (
+                  {pinnedItems.map((item) => (
                     <li key={item.id}>
-                      <RecentCard item={item} kind={kind} />
+                      <RecentCard item={item} kind={kind} onTogglePin={togglePin} />
                     </li>
                   ))}
                 </ul>
-              )}
+              </section>
+            )}
 
-              {rest.length > 0 && (
-                <>
-                  {!hasActiveFilters && (
-                    <h3 className="mb-2 mt-8 text-sm font-medium text-muted-foreground">
-                      All {cfg.plural.toLowerCase()}
-                    </h3>
-                  )}
-                  <ul className="overflow-hidden rounded-xl border border-border divide-y divide-border">
-                    {rest.map((item) => (
-                      <li key={item.id}>
-                        <RecentRow item={item} kind={kind} />
-                      </li>
+            {featured.length > 0 && (
+              <section>
+                <h2 className="mb-4 text-sm font-medium text-muted-foreground">Recent</h2>
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {featured.map((item) => (
+                    <li key={item.id}>
+                      <RecentCard item={item} kind={kind} onTogglePin={togglePin} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-sm font-medium text-muted-foreground">
+                  {hasActiveFilters ? "Results" : `All ${cfg.plural.toLowerCase()}`}
+                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex h-8 items-center rounded-md border border-border bg-background p-0.5">
+                    {(["all", "mine", "shared"] as OwnerFilter[]).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={owner === value}
+                        onClick={() => setOwner(value)}
+                        className={cn(
+                          "rounded-[5px] px-2.5 text-xs font-medium transition-colors",
+                          owner === value
+                            ? "bg-muted text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {OWNER_LABELS[value]}
+                      </button>
                     ))}
-                  </ul>
-                </>
+                  </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 border-border bg-background"
+                        />
+                      }
+                    >
+                      {libraryFilter === "all" ? (
+                        <span className="text-muted-foreground">All libraries</span>
+                      ) : (
+                        <>
+                          <LibraryIcon
+                            icon={
+                              libraries?.find((l) => l.id === libraryFilter)?.icon ?? ""
+                            }
+                            className="size-4"
+                          />
+                          <span className="max-w-32 truncate">
+                            {libraries?.find((l) => l.id === libraryFilter)?.name ??
+                              "Library"}
+                          </span>
+                        </>
+                      )}
+                      <ChevronDown className="size-3.5 opacity-70" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onClick={() => setLibraryFilter("all")}>
+                        All libraries
+                      </DropdownMenuItem>
+                      {(libraries ?? []).map((library) => (
+                        <DropdownMenuItem
+                          key={library.id}
+                          onClick={() => setLibraryFilter(library.id)}
+                        >
+                          <LibraryIcon icon={library.icon} className="size-4" />
+                          <span className="truncate">{library.name}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 border-border bg-background"
+                        />
+                      }
+                    >
+                      {sort === "name-desc" ? (
+                        <ArrowUpZA className="size-3.5" />
+                      ) : (
+                        <ArrowDownAZ className="size-3.5" />
+                      )}
+                      <span className="hidden sm:inline">{SORT_LABELS[sort]}</span>
+                      <ChevronDown className="size-3.5 opacity-70" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuRadioGroup
+                        value={sort}
+                        onValueChange={(v) => setSort(v as SortMode)}
+                      >
+                        <DropdownMenuRadioItem value="recent">
+                          {SORT_LABELS.recent}
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="name-asc">
+                          {SORT_LABELS["name-asc"]}
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="name-desc">
+                          {SORT_LABELS["name-desc"]}
+                        </DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {rest.length > 0 ? (
+                <ul className="overflow-hidden rounded-xl border border-border divide-y divide-border">
+                  {rest.map((item) => (
+                    <li key={item.id}>
+                      <RecentRow item={item} kind={kind} onTogglePin={togglePin} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-12 text-center text-sm text-muted-foreground">
+                  {trimmedQuery
+                    ? `No ${cfg.plural.toLowerCase()} match “${query.trim()}”.`
+                    : libraryFilter !== "all"
+                      ? `No ${cfg.plural.toLowerCase()} in this library.`
+                      : owner !== "all"
+                        ? `No ${owner} ${cfg.plural.toLowerCase()}.`
+                        : `No more ${cfg.plural.toLowerCase()}.`}
+                </div>
               )}
-            </>
-          )}
-        </section>
+            </section>
+          </div>
+        )}
       </main>
     </div>
   );
@@ -389,10 +451,10 @@ function TemplateCard({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="group flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
+      className="group flex w-full flex-col overflow-hidden rounded-xl border border-border bg-card text-left transition-colors hover:border-foreground/30 disabled:pointer-events-none disabled:opacity-60"
     >
       {loading ? (
-        <span className="flex h-28 items-center justify-center bg-muted/40">
+        <span className="flex aspect-4/3 items-center justify-center bg-muted/40">
           <Loader2 className="size-7 animate-spin text-muted-foreground" />
         </span>
       ) : (
@@ -412,164 +474,104 @@ function TemplateThumbnail({
   kind: NativeKind;
   template: NativeTemplateEntry;
 }) {
-  if (template.preview) {
-    return (
-      <span className="flex h-28 justify-center overflow-hidden bg-muted/40 pt-3">
-        <span className="relative flex h-full w-[78%] flex-col gap-1 overflow-hidden rounded-t-sm bg-white px-3 pt-3 text-slate-700 shadow-sm">
-          <span className="line-clamp-2 text-[9px] font-semibold leading-tight text-slate-900">
-            {template.title}
-          </span>
-          <span className="whitespace-pre-wrap wrap-break-word text-[6.5px] leading-[1.45] text-slate-500">
-            {template.preview}
-          </span>
-          <span className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-white to-transparent" />
-        </span>
-      </span>
-    );
-  }
-  if (kind === "slides") {
-    const slide = presentationThumbnailSlide(template.id);
-    return (
-      <span className="flex h-28 items-center justify-center overflow-hidden bg-muted/40 p-3">
-        <span className="w-full overflow-hidden rounded-sm border border-border/60 shadow-sm">
-          <DeckSlideSvg slide={slide} className="w-full" />
-        </span>
-      </span>
-    );
-  }
-  if (kind === "whiteboards") {
-    const scene = getBoardTemplate(template.id).build();
-    return (
-      <span className="flex h-28 items-center justify-center overflow-hidden bg-muted/40 p-2">
-        <BoardPreview scene={scene} className="h-full w-full" />
-      </span>
-    );
-  }
-  if (kind === "flowcharts") {
-    return <FlowTemplateThumb templateId={template.id} />;
-  }
-  return (
-    <span className="flex h-28 items-center justify-center bg-muted/40">
-      <FileArtwork type={NATIVE_TYPES[kind].artworkType} className="size-12" />
-    </span>
-  );
+  return <ItemThumbnail source={templateItemPreviewSource(kind, template)} className="aspect-4/3 w-full" />;
 }
 
-/** Minimal node diagram for flowchart template cards. */
-function FlowTemplateThumb({ templateId }: { templateId: string }) {
-  const scene = getFlowTemplate(templateId).build();
-  const nodes = scene.nodeOrder.map((id) => scene.nodes[id]).filter(Boolean);
-  if (nodes.length === 0) {
-    return (
-      <span className="flex h-28 items-center justify-center bg-muted/40">
-        <FileArtwork type="FLOWCHART" className="size-12" />
-      </span>
-    );
-  }
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const n of nodes) {
-    minX = Math.min(minX, n.x);
-    minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x + 120);
-    maxY = Math.max(maxY, n.y + 48);
-  }
-  const pad = 24;
-  const w = Math.max(1, maxX - minX + pad * 2);
-  const h = Math.max(1, maxY - minY + pad * 2);
+/** Pin/unpin toggle shown on recent cards and rows. */
+function PinButton({
+  item,
+  onTogglePin,
+  className,
+}: {
+  item: RecentItem;
+  onTogglePin: (item: RecentItem) => void;
+  className?: string;
+}) {
   return (
-    <span className="flex h-28 items-center justify-center overflow-hidden bg-muted/40 p-3">
-      <svg
-        viewBox={`${minX - pad} ${minY - pad} ${w} ${h}`}
-        className="h-full w-full"
-        preserveAspectRatio="xMidYMid meet"
-        aria-hidden
-      >
-        {scene.edgeOrder.map((eid) => {
-          const e = scene.edges[eid];
-          const a = scene.nodes[e.source];
-          const b = scene.nodes[e.target];
-          if (!a || !b) return null;
-          return (
-            <line
-              key={eid}
-              x1={a.x + 60}
-              y1={a.y + 24}
-              x2={b.x + 60}
-              y2={b.y + 24}
-              stroke="#94a3b8"
-              strokeWidth={2}
-            />
-          );
-        })}
-        {nodes.map((n) => {
-          const style = flowColorStyle(n.color);
-          return (
-            <g key={n.id}>
-              <rect
-                x={n.x}
-                y={n.y}
-                width={120}
-                height={48}
-                rx={n.shape === "diamond" ? 4 : 8}
-                fill={style.bg}
-                stroke={style.border}
-                strokeWidth={2}
-              />
-              <text
-                x={n.x + 60}
-                y={n.y + 28}
-                textAnchor="middle"
-                fontSize={9}
-                fill={style.text}
-                fontFamily="system-ui, sans-serif"
-              >
-                {n.label.length > 16 ? `${n.label.slice(0, 14)}…` : n.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </span>
-  );
-}
-
-/** Featured preview card (used for the most-recent items). */
-function RecentCard({ item, kind }: { item: RecentItem; kind: NativeKind }) {
-  return (
-    <Link
-      href={nativeEditorRoute(kind, item.id)}
-      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-md"
+    <button
+      type="button"
+      aria-label={item.pinned ? "Unpin" : "Pin"}
+      title={item.pinned ? "Unpin" : "Pin"}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onTogglePin(item);
+      }}
+      className={cn(
+        "flex size-7 shrink-0 items-center justify-center rounded-md border transition-colors",
+        item.pinned
+          ? "border-primary/40 text-primary"
+          : "border-transparent text-muted-foreground opacity-0 hover:border-border hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100",
+        className
+      )}
     >
-      <RecentThumbnail item={item} />
-      <span className="flex flex-col gap-1 border-t border-border px-3 py-2.5">
-        <span className="truncate text-sm font-medium" title={item.title}>
-          {item.title || "Untitled"}
+      <Pin className={cn("size-3.5", item.pinned && "fill-current")} />
+    </button>
+  );
+}
+
+/** Featured preview card (used for pinned + most-recent items). */
+function RecentCard({
+  item,
+  kind,
+  onTogglePin,
+}: {
+  item: RecentItem;
+  kind: NativeKind;
+  onTogglePin: (item: RecentItem) => void;
+}) {
+  return (
+    <div className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-foreground/30">
+      <Link href={nativeEditorRoute(kind, item.id)} className="flex flex-col">
+        <RecentThumbnail item={item} />
+        <span className="flex flex-col gap-1 border-t border-border px-3 py-2.5">
+          <span className="truncate text-sm font-medium" title={item.title}>
+            {item.title || "Untitled"}
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <LibraryIcon icon={item.libraryIcon} className="size-3.5" />
+            <span className="truncate">{item.libraryName}</span>
+            <span aria-hidden>·</span>
+            <span className="shrink-0">{formatRelativeTime(item.updatedAt)}</span>
+            {item.collaborators.length > 0 && (
+              <CollaboratorAvatars people={item.collaborators} size="xs" className="ml-auto" />
+            )}
+          </span>
         </span>
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <LibraryIcon icon={item.libraryIcon} className="size-3.5" />
-          <span className="truncate">{item.libraryName}</span>
-          <span aria-hidden>·</span>
-          <span className="shrink-0">{formatRelativeTime(item.updatedAt)}</span>
-        </span>
-      </span>
-    </Link>
+      </Link>
+      <PinButton
+        item={item}
+        onTogglePin={onTogglePin}
+        className="absolute right-2 top-2 z-10 bg-background/90 backdrop-blur"
+      />
+    </div>
   );
 }
 
 /** Compact list row for the remaining (older / searched) items. */
-function RecentRow({ item, kind }: { item: RecentItem; kind: NativeKind }) {
+function RecentRow({
+  item,
+  kind,
+  onTogglePin,
+}: {
+  item: RecentItem;
+  kind: NativeKind;
+  onTogglePin: (item: RecentItem) => void;
+}) {
   return (
-    <Link
-      href={nativeEditorRoute(kind, item.id)}
-      className="flex items-center gap-3 bg-card px-3 py-2.5 transition-colors hover:bg-muted/50"
-    >
-      <FileArtwork type={item.type} className="size-7 shrink-0" />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium" title={item.title}>
-        {item.title || "Untitled"}
-      </span>
+    <div className="group flex items-center gap-3 bg-card px-3 py-2.5 transition-colors hover:bg-muted/50">
+      <Link
+        href={nativeEditorRoute(kind, item.id)}
+        className="flex min-w-0 flex-1 items-center gap-3"
+      >
+        <FileArtwork type={item.type} className="size-7 shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium" title={item.title}>
+          {item.title || "Untitled"}
+        </span>
+      </Link>
+      {item.collaborators.length > 0 && (
+        <CollaboratorAvatars people={item.collaborators} size="xs" className="hidden sm:flex" />
+      )}
       <span className="hidden min-w-0 items-center gap-1.5 text-xs text-muted-foreground sm:flex">
         <LibraryIcon icon={item.libraryIcon} className="size-3.5" />
         <span className="max-w-40 truncate">{item.libraryName}</span>
@@ -577,103 +579,14 @@ function RecentRow({ item, kind }: { item: RecentItem; kind: NativeKind }) {
       <span className="shrink-0 text-xs text-muted-foreground">
         {formatRelativeTime(item.updatedAt)}
       </span>
-    </Link>
+      <PinButton item={item} onTogglePin={onTogglePin} className={item.pinned ? "" : "opacity-100 sm:opacity-0"} />
+    </div>
   );
 }
 
-/**
- * Card thumbnail: a miniature white "page" rendering the doc's actual text for
- * content-bearing items, falling back to the type artwork for canvas/file types.
- */
 function RecentThumbnail({ item }: { item: RecentItem }) {
-  if (item.preview) {
-    return (
-      <span className="flex h-28 justify-center overflow-hidden bg-muted/40 pt-3">
-        <span className="relative flex h-full w-[78%] flex-col gap-1 overflow-hidden rounded-t-sm bg-white px-3 pt-3 text-slate-700 shadow-sm">
-          <span className="line-clamp-2 text-[9px] font-semibold leading-tight text-slate-900">
-            {item.title || "Untitled"}
-          </span>
-          <span className="whitespace-pre-wrap wrap-break-word text-[6.5px] leading-[1.45] text-slate-500">
-            {item.preview}
-          </span>
-          <span className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-white to-transparent" />
-        </span>
-      </span>
-    );
-  }
-  if (item.type === "DECK") return <DeckThumbnail id={item.id} />;
-  if (item.type === "WHITEBOARD") return <BoardThumbnail id={item.id} />;
   return (
-    <span className="flex h-28 items-center justify-center bg-muted/40">
-      <FileArtwork type={item.type} className="size-12" />
-    </span>
-  );
-}
-
-const deckSlideCache = new Map<string, Slide | null>();
-
-/** First-slide render for a deck card thumbnail (fetched lazily, cached). */
-function DeckThumbnail({ id }: { id: string }) {
-  const [slide, setSlide] = useState<Slide | null | undefined>(
-    deckSlideCache.get(id)
-  );
-
-  useEffect(() => {
-    if (slide !== undefined) return;
-    let cancelled = false;
-    apiGet<{ deck: { slideOrder: string[]; slides: Record<string, Slide> } }>(
-      `/api/decks/${id}`
-    )
-      .then((d) => {
-        const first = d.deck.slides[d.deck.slideOrder[0]] ?? null;
-        deckSlideCache.set(id, first);
-        if (!cancelled) setSlide(first);
-      })
-      .catch(() => !cancelled && setSlide(null));
-    return () => {
-      cancelled = true;
-    };
-  }, [id, slide]);
-
-  return (
-    <span className="flex h-28 items-center justify-center overflow-hidden bg-muted/40 p-3">
-      <span className="w-full overflow-hidden rounded-sm border border-border/60 shadow-sm">
-        <DeckSlideSvg slide={slide ?? undefined} className="w-full" />
-      </span>
-    </span>
-  );
-}
-
-const boardSceneCache = new Map<string, BoardDoc | null>();
-
-/** Scaled scene render for a whiteboard card thumbnail (fetched lazily, cached). */
-function BoardThumbnail({ id }: { id: string }) {
-  const [scene, setScene] = useState<BoardDoc | null | undefined>(
-    boardSceneCache.get(id)
-  );
-
-  useEffect(() => {
-    if (scene !== undefined) return;
-    let cancelled = false;
-    apiGet<{ scene: BoardDoc }>(`/api/boards/${id}`)
-      .then((d) => {
-        boardSceneCache.set(id, d.scene);
-        if (!cancelled) setScene(d.scene);
-      })
-      .catch(() => !cancelled && setScene(null));
-    return () => {
-      cancelled = true;
-    };
-  }, [id, scene]);
-
-  return (
-    <span className="flex h-28 items-center justify-center overflow-hidden bg-muted/40 p-2">
-      {scene ? (
-        <BoardPreview scene={scene} className="h-full w-full" />
-      ) : (
-        <FileArtwork type="WHITEBOARD" className="size-12" />
-      )}
-    </span>
+    <ItemThumbnail source={recentItemPreviewSource(item)} className="aspect-4/3 w-full" />
   );
 }
 
@@ -685,7 +598,7 @@ function RecentsSkeleton() {
           key={i}
           className="overflow-hidden rounded-xl border border-border bg-card"
         >
-          <div className="h-28 animate-pulse bg-muted/50" />
+          <div className="aspect-4/3 animate-pulse bg-muted/50" />
           <div className="space-y-2 border-t border-border px-3 py-2.5">
             <div className="h-3.5 w-3/4 animate-pulse rounded bg-muted" />
             <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />

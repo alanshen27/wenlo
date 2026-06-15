@@ -18,6 +18,7 @@ model User {
   id                         String   @id @default(cuid())
   email                      String   @unique
   name                       String?
+  avatarUrl                  String?
   plan                       Plan     @default(FREE)
   tokensUsed                 Int      @default(0)
   usagePeriodStart           DateTime @default(now())
@@ -37,6 +38,7 @@ model User {
   pagePresence PagePresence[]
   pageVersions PageVersion[]
   recallChatSessions RecallChatSession[]
+  pins      Pin[]
 }
 
 model Library {
@@ -147,6 +149,7 @@ model Page {
   chunks  Chunk[]
   presence PagePresence[]
   versions PageVersion[]
+  pins    Pin[]
 
   @@index([userId])
   @@index([libraryId])
@@ -260,10 +263,30 @@ model Document {
   databaseProperties DatabaseProperty[]
   databaseRows       DatabaseRow[]
   databaseViews      DatabaseView[]
+  pins               Pin[]
 
   @@index([userId])
   @@index([libraryId])
   @@index([folderId])
+}
+
+// Per-user pin (favorite) of a page or document. Exactly one of pageId /
+// documentId is set. Pins are private to the user and surface in the native
+// home pages and the library/cloud view.
+model Pin {
+  id         String   @id @default(cuid())
+  userId     String
+  pageId     String?
+  documentId String?
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page     Page?     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pageId])
+  @@unique([userId, documentId])
+  @@index([userId])
 }
 
 // A queryable, Notion-style database lives inside a DATABASE Document. Its

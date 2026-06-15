@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { badRequest, HttpError, withAuth } from "@/lib/api/http";
 import { isCollabConfigured } from "@/lib/collab/config";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/collab/encoding";
-import { mergePageYjsUpdate, readPageYjsState, seedPageYjsStateFromContent } from "@/lib/collab/yjs-store";
+import { mergePageYjsUpdate, resolvePageYjsState } from "@/lib/collab/yjs-store";
 import { requirePage } from "@/lib/pages/page-access";
 import { broadcastPageAwareness, broadcastPageYjsUpdate } from "@/lib/realtime/pusher-server";
 
@@ -17,10 +17,7 @@ export async function GET(_req: NextRequest, ctx: RouteParams) {
     const pageId = params.id;
     const page = await requirePage(user.id, pageId);
 
-    let state = await readPageYjsState(pageId);
-    if (!state) {
-      state = (await seedPageYjsStateFromContent(pageId, page.content)) as Uint8Array<ArrayBuffer>;
-    }
+    let state = await resolvePageYjsState(pageId, page.content);
     return NextResponse.json({ state: state ? uint8ToBase64(state) : null });
   });
 }

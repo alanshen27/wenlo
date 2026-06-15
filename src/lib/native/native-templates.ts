@@ -46,7 +46,6 @@ export function listNativeTemplates(kind: NativeKind): NativeTemplateEntry[] {
         id: t.id,
         label: t.label,
         title: t.title,
-        preview: t.preview,
       }));
     default:
       return [];

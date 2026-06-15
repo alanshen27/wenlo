@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, ctx: RouteParams) {
     prisma.libraryMember.findMany({
       where: { libraryId },
       include: {
-        user: { select: { id: true, email: true, name: true } },
+        user: { select: { id: true, email: true, name: true, avatarUrl: true } },
       },
       orderBy: { createdAt: "asc" },
     }),
@@ -35,16 +35,18 @@ export async function GET(_req: NextRequest, ctx: RouteParams) {
 
   const owner = await prisma.user.findUniqueOrThrow({
     where: { id: library.userId },
-    select: { id: true, email: true, name: true },
+    select: { id: true, email: true, name: true, avatarUrl: true },
   });
 
   return NextResponse.json({
     owner,
+    currentUserId: user.id,
     members: members.map((m) => ({
       id: m.id,
       userId: m.userId,
       email: m.user.email,
       name: m.user.name,
+      avatarUrl: m.user.avatarUrl,
       role: m.role,
       createdAt: m.createdAt,
     })),

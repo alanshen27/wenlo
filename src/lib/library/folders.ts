@@ -4,7 +4,7 @@ export type FolderNode = {
   color: string;
   parentId: string | null;
   children: FolderNode[];
-  pages: { id: string; title: string }[];
+  pages: { id: string; title: string; pinned?: boolean }[];
   documents: {
     id: string;
     title: string;
@@ -12,10 +12,19 @@ export type FolderNode = {
     sizeBytes?: number | null;
     pending?: boolean;
     processing?: boolean;
+    pinned?: boolean;
     /** Indexing/embedding status: PROCESSING | READY | FAILED. */
     status?: string;
   }[];
 };
+
+/** Page/document ids the current user has pinned, used to flag tree nodes. */
+export type PinnedSets = {
+  pageIds: Set<string>;
+  documentIds: Set<string>;
+};
+
+const EMPTY_PINS: PinnedSets = { pageIds: new Set(), documentIds: new Set() };
 
 type FlatFolder = {
   id: string;
@@ -37,9 +46,24 @@ type FlatDoc = {
 export function buildFolderTree(
   folders: FlatFolder[],
   pages: FlatPage[],
-  documents: FlatDoc[]
+  documents: FlatDoc[],
+  pinned: PinnedSets = EMPTY_PINS
 ): FolderNode[] {
   const map = new Map<string, FolderNode>();
+  const mapPage = ({ id, title }: FlatPage) => ({
+    id,
+    title,
+    pinned: pinned.pageIds.has(id),
+  });
+  const mapDoc = ({ id, title, type, status, sizeBytes }: FlatDoc) => ({
+    id,
+    title,
+    type,
+    sizeBytes,
+    status,
+    processing: status === "PROCESSING",
+    pinned: pinned.documentIds.has(id),
+  });
 
   for (const f of folders) {
     map.set(f.id, {
@@ -48,17 +72,8 @@ export function buildFolderTree(
       color: f.color,
       parentId: f.parentId,
       children: [],
-      pages: pages.filter((p) => p.folderId === f.id).map(({ id, title }) => ({ id, title })),
-      documents: documents
-        .filter((d) => d.folderId === f.id)
-        .map(({ id, title, type, status, sizeBytes }) => ({
-          id,
-          title,
-          type,
-          sizeBytes,
-          status,
-          processing: status === "PROCESSING",
-        })),
+      pages: pages.filter((p) => p.folderId === f.id).map(mapPage),
+      documents: documents.filter((d) => d.folderId === f.id).map(mapDoc),
     });
   }
 
@@ -78,17 +93,8 @@ export function buildFolderTree(
     color: "gray",
     parentId: null,
     children: [],
-    pages: pages.filter((p) => !p.folderId).map(({ id, title }) => ({ id, title })),
-    documents: documents
-      .filter((d) => !d.folderId)
-      .map(({ id, title, type, status, sizeBytes }) => ({
-        id,
-        title,
-        type,
-        sizeBytes,
-        status,
-        processing: status === "PROCESSING",
-      })),
+    pages: pages.filter((p) => !p.folderId).map(mapPage),
+    documents: documents.filter((d) => !d.folderId).map(mapDoc),
   };
 
   if (rootVirtual.pages.length > 0 || rootVirtual.documents.length > 0) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
@@ -12,9 +12,15 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
+  Pin,
+  PinOff,
   RefreshCw,
   Trash2,
 } from "lucide-react";
+import {
+  CollaboratorAvatars,
+  type CollaboratorLike,
+} from "@/components/cloud/collaborator-avatars";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,14 +34,17 @@ import {
   getDocumentLabel,
 } from "@/lib/client/file-icons";
 import { folderDropId, itemDragId, type SidebarDragItem } from "@/lib/client/sidebar-dnd";
-import { apiGet } from "@/lib/client/api";
-import { DeckSlideSvg } from "@/components/slideshow/deck-slide-svg";
-import type { Slide } from "@/lib/decks/deck-schema";
+import {
+  cloudItemPreviewSource,
+  FileTypePreview,
+  ItemPreviewBody,
+  ItemPreviewPane,
+} from "@/components/cloud/item-previews";
 import { cn, formatBytes } from "@/lib/core/utils";
 
 export type CloudItem =
   | { kind: "folder"; id: string; title: string; color: string; count: number }
-  | { kind: "page"; id: string; title: string }
+  | { kind: "page"; id: string; title: string; pinned?: boolean }
   | {
       kind: "document";
       id: string;
@@ -44,6 +53,7 @@ export type CloudItem =
       sizeBytes?: number | null;
       pending?: boolean;
       processing?: boolean;
+      pinned?: boolean;
       /** Indexing/embedding status: PROCESSING | READY | FAILED. */
       status?: string;
     };
@@ -65,7 +75,13 @@ type ItemActions = {
   onDelete?: () => void;
   onMove?: () => void;
   onReindex?: () => void;
+  onTogglePin?: () => void;
 };
+
+/** True when the item supports a personal pin (pages + documents). */
+function itemPinned(item: CloudItem): boolean {
+  return (item.kind === "page" || item.kind === "document") && Boolean(item.pinned);
+}
 
 /**
  * Single click opens the item in the preview sidebar; double click navigates to
@@ -223,19 +239,23 @@ function DndShell({
 }
 
 function ActionMenu({
+  pinned,
+  onTogglePin,
   onEdit,
   onDelete,
   onMove,
   onReindex,
   className,
 }: {
+  pinned?: boolean;
+  onTogglePin?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onMove?: () => void;
   onReindex?: () => void;
   className?: string;
 }) {
-  if (!onEdit && !onDelete && !onMove && !onReindex) return null;
+  if (!onTogglePin && !onEdit && !onDelete && !onMove && !onReindex) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -255,6 +275,17 @@ function ActionMenu({
         <MoreHorizontal className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
+        {onTogglePin && (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin();
+            }}
+          >
+            {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+            {pinned ? "Unpin" : "Pin"}
+          </DropdownMenuItem>
+        )}
         {onEdit && (
           <DropdownMenuItem
             onClick={(e) => {
@@ -375,108 +406,24 @@ function renderTypeChip(type: string, busy?: boolean) {
   );
 }
 
-// Cache page excerpts so re-renders / re-mounts don't refetch the same page.
-const pageExcerptCache = new Map<string, string>();
-
-async function fetchPageExcerpt(pageId: string): Promise<string> {
-  const cached = pageExcerptCache.get(pageId);
-  if (cached !== undefined) return cached;
-  const data = await apiGet<{ plainText?: string }>(`/api/pages/${pageId}`);
-  const text = (data.plainText ?? "").trim();
-  pageExcerptCache.set(pageId, text);
-  return text;
-}
-
-/** A faux "paper" thumbnail rendering the first lines of a page's text. */
-function PagePreview({ pageId, title }: { pageId: string; title: string }) {
-  const [text, setText] = useState<string | null>(pageExcerptCache.get(pageId) ?? null);
-
-  useEffect(() => {
-    if (text !== null) return;
-    let cancelled = false;
-    fetchPageExcerpt(pageId)
-      .then((value) => {
-        if (!cancelled) setText(value);
-      })
-      .catch(() => {
-        if (!cancelled) setText("");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pageId, text]);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden bg-white px-4 pt-3.5 dark:bg-zinc-50">
-      <p className="line-clamp-1 text-[9px] font-semibold leading-tight text-slate-800">{title}</p>
-      <p className="mt-1.5 line-clamp-6 whitespace-pre-wrap text-[7.5px] leading-[1.7] text-slate-500">
-        {text}
-      </p>
-    </div>
-  );
-}
-
-// Cache deck first-slides so re-renders / re-mounts don't refetch the same deck.
-const deckSlideCache = new Map<string, Slide | null>();
-
-async function fetchDeckFirstSlide(deckId: string): Promise<Slide | null> {
-  const cached = deckSlideCache.get(deckId);
-  if (cached !== undefined) return cached;
-  const data = await apiGet<{ deck: { slideOrder: string[]; slides: Record<string, Slide> } }>(
-    `/api/decks/${deckId}`
-  );
-  const slide = data.deck.slides[data.deck.slideOrder[0]] ?? null;
-  deckSlideCache.set(deckId, slide);
-  return slide;
-}
-
-/** A scaled, read-only render of a deck's first slide for the card thumbnail. */
-function DeckPreview({ deckId }: { deckId: string }) {
-  const [slide, setSlide] = useState<Slide | null | undefined>(deckSlideCache.get(deckId));
-
-  useEffect(() => {
-    if (slide !== undefined) return;
-    let cancelled = false;
-    fetchDeckFirstSlide(deckId)
-      .then((value) => {
-        if (!cancelled) setSlide(value);
-      })
-      .catch(() => {
-        if (!cancelled) setSlide(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [deckId, slide]);
-
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-muted/40 p-2.5">
-      <div className="w-full overflow-hidden rounded-sm border border-border/60 shadow-sm">
-        <DeckSlideSvg slide={slide ?? undefined} className="w-full" />
-      </div>
-    </div>
-  );
-}
-
 /**
- * Top preview pane for a file/page card: real thumbnails for images, an inline
- * (non-interactive) iframe for PDFs, a text sheet for pages, a first-slide
- * render for decks, and a tinted file glyph for everything else.
+ * Top preview pane for a file/page card: page text, deck slide, board scene,
+ * flowchart, database table, image/pdf embed, or file glyph fallback.
  */
 function CardPreview({ item }: { item: CloudItem }) {
   const [imageOk, setImageOk] = useState(true);
   const ready = !(item.kind === "document" && (item.pending || item.processing));
   const isImage = item.kind === "document" && item.type === "IMAGE" && ready;
   const isPdf = item.kind === "document" && item.type === "PDF" && ready;
-  const isDeck = item.kind === "document" && item.type === "DECK" && ready;
-  const previewType = item.kind === "page" ? "PAGE" : item.kind === "document" ? item.type : "OTHER";
+  const isRichDoc =
+    item.kind === "document" &&
+    ["DECK", "WHITEBOARD", "FLOWCHART", "DATABASE"].includes(item.type) &&
+    ready;
 
   return (
-    <div className="relative flex aspect-4/3 items-center justify-center overflow-hidden border-b border-border/60 bg-muted/30">
-      {item.kind === "page" ? (
-        <PagePreview pageId={item.id} title={item.title} />
-      ) : isDeck ? (
-        <DeckPreview deckId={item.id} />
+    <ItemPreviewPane className="aspect-4/3 border-b border-border/60">
+      {item.kind === "page" || isRichDoc ? (
+        <ItemPreviewBody source={cloudItemPreviewSource(item)} />
       ) : isImage && imageOk ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -495,10 +442,12 @@ function CardPreview({ item }: { item: CloudItem }) {
           aria-hidden
           className="pointer-events-none absolute inset-0 size-full border-0 bg-white"
         />
+      ) : item.kind === "document" ? (
+        <ItemPreviewBody source={cloudItemPreviewSource(item)} />
       ) : (
-        <FileArtwork type={previewType} className="size-14" />
+        <FileTypePreview type="OTHER" />
       )}
-    </div>
+    </ItemPreviewPane>
   );
 }
 
@@ -511,13 +460,21 @@ export function EntityCard({
   onDelete,
   onMove,
   onReindex,
+  onTogglePin,
   enableDnd,
   selection,
-}: { item: CloudItem; enableDnd?: boolean; selection?: SelectionState } & ItemActions) {
+  collaborators,
+}: {
+  item: CloudItem;
+  enableDnd?: boolean;
+  selection?: SelectionState;
+  collaborators?: CollaboratorLike[];
+} & ItemActions) {
   const pending = item.kind === "document" && item.pending;
   const processing = item.kind === "document" && item.processing && !pending;
   const busy = pending || processing;
-  const hasActions = !pending && (onEdit || onDelete || onMove || onReindex);
+  const pinned = itemPinned(item);
+  const hasActions = !pending && (onTogglePin || onEdit || onDelete || onMove || onReindex);
   const handleOpen = useOpenInteraction(href, onOpen);
   const canSelect = Boolean(selection?.selectable);
   const isSelected = Boolean(selection?.selected);
@@ -584,14 +541,28 @@ export function EntityCard({
                     <IndexStatusBadge item={item} className="text-[11px]" />
                   </>
                 )}
+                {collaborators && collaborators.length > 0 && (
+                  <CollaboratorAvatars people={collaborators} size="xs" className="ml-auto pl-1" />
+                )}
               </span>
             </span>
           </div>
         </div>
 
+        {pinned && (
+          <span
+            className="absolute right-1.5 top-1.5 z-0 flex size-6 items-center justify-center rounded-md bg-background/80 text-primary backdrop-blur transition-opacity group-hover/card:opacity-0"
+            aria-hidden
+          >
+            <Pin className="size-3.5 fill-current" />
+          </span>
+        )}
+
         {hasActions && (
           <div className="absolute right-1.5 top-1.5 z-10 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100">
             <ActionMenu
+              pinned={pinned}
+              onTogglePin={onTogglePin}
               onEdit={onEdit}
               onDelete={onDelete}
               onMove={onMove}
@@ -621,6 +592,7 @@ export function EntityTable({
   actionsFor,
   enableDnd,
   selection,
+  collaborators,
 }: {
   items: CloudItem[];
   hrefFor: (item: CloudItem) => string;
@@ -630,9 +602,11 @@ export function EntityTable({
     onDelete?: () => void;
     onMove?: () => void;
     onReindex?: () => void;
+    onTogglePin?: () => void;
   };
   enableDnd?: boolean;
   selection?: TableSelection;
+  collaborators?: CollaboratorLike[];
 }) {
   return (
     <div>
@@ -656,6 +630,7 @@ export function EntityTable({
             item={item}
             href={hrefFor(item)}
             enableDnd={enableDnd}
+            collaborators={collaborators}
             selection={
               selection && {
                 selectable: selection.isSelectable(item),
@@ -680,12 +655,20 @@ function EntityRow({
   onDelete,
   onMove,
   onReindex,
+  onTogglePin,
   enableDnd,
   selection,
-}: { item: CloudItem; enableDnd?: boolean; selection?: SelectionState } & ItemActions) {
+  collaborators,
+}: {
+  item: CloudItem;
+  enableDnd?: boolean;
+  selection?: SelectionState;
+  collaborators?: CollaboratorLike[];
+} & ItemActions) {
   const pending = item.kind === "document" && item.pending;
   const processing = item.kind === "document" && item.processing && !pending;
   const busy = pending || processing;
+  const pinned = itemPinned(item);
   const handleOpen = useOpenInteraction(href, onOpen);
   const canSelect = Boolean(selection?.selectable);
   const isSelected = Boolean(selection?.selected);
@@ -704,6 +687,10 @@ function EntityRow({
         )}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm text-foreground">{item.title}</span>
+      {pinned && <Pin className="size-3 shrink-0 fill-current text-primary" aria-hidden />}
+      {collaborators && collaborators.length > 0 && (
+        <CollaboratorAvatars people={collaborators} size="xs" className="hidden shrink-0 md:flex" />
+      )}
       <span className="hidden w-20 shrink-0 truncate text-right text-xs text-muted-foreground sm:inline">
         {sizeLabel ?? ""}
       </span>
@@ -760,7 +747,14 @@ function EntityRow({
           </Link>
         )}
         <div className="w-7 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100">
-          <ActionMenu onEdit={onEdit} onDelete={onDelete} onMove={onMove} onReindex={onReindex} />
+          <ActionMenu
+            pinned={pinned}
+            onTogglePin={onTogglePin}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onMove={onMove}
+            onReindex={onReindex}
+          />
         </div>
       </div>
     </DndShell>

@@ -5,6 +5,7 @@ import { resolveLibraryId } from "@/lib/library/libraries";
 import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
 import { buildFolderTree } from "@/lib/library/folders";
+import { listPinnedIds } from "@/lib/pins/pins";
 
 export async function GET(req: NextRequest) {
   return withAuth(undefined, async ({ user }) => {
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
     );
     await requireLibraryAccess(user.id, libraryId, "VIEWER");
 
-    const [folders, pages, documents] = await Promise.all([
+    const [folders, pages, documents, pinned] = await Promise.all([
       prisma.folder.findMany({ where: { libraryId }, orderBy: { name: "asc" } }),
       prisma.page.findMany({
         where: { libraryId },
@@ -33,9 +34,13 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { updatedAt: "desc" },
       }),
+      listPinnedIds(user.id),
     ]);
 
-    return NextResponse.json({ tree: buildFolderTree(folders, pages, documents), folders });
+    return NextResponse.json({
+      tree: buildFolderTree(folders, pages, documents, pinned),
+      folders,
+    });
   });
 }
 

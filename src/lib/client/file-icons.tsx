@@ -159,36 +159,22 @@ function nativeArtwork(type: string, p: ArtPalette): ReactNode | null {
         </>
       );
     case "DATABASE":
-      // Solid board with a tall white database cylinder divided into layers.
+      // Solid board with a clean white stroked database cylinder (classic
+      // stacked-disk glyph), drawn like Lucide for crisp legibility at any size.
       return (
         <>
           <rect x="8" y="4" width="32" height="40" rx="5" fill={p.accent} />
-          <path d="M15 15 v18 a9 3.4 0 0 0 18 0 v-18 Z" fill="#ffffff" />
-          <ellipse cx="24" cy="15" rx="9" ry="3.4" fill="#ffffff" />
-          <path
-            d="M15 21 a9 3.4 0 0 0 18 0"
+          <g
             fill="none"
-            stroke={p.accent}
-            strokeOpacity={0.45}
-            strokeWidth={1.8}
-          />
-          <path
-            d="M15 27 a9 3.4 0 0 0 18 0"
-            fill="none"
-            stroke={p.accent}
-            strokeOpacity={0.45}
-            strokeWidth={1.8}
-          />
-          <ellipse
-            cx="24"
-            cy="15"
-            rx="9"
-            ry="3.4"
-            fill="none"
-            stroke={p.accent}
-            strokeOpacity={0.18}
-            strokeWidth={1}
-          />
+            stroke="#ffffff"
+            strokeWidth={2.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <ellipse cx="24" cy="15" rx="10" ry="3.6" />
+            <path d="M14 15 v18 a10 3.6 0 0 0 20 0 v-18" />
+            <path d="M14 24 a10 3.6 0 0 0 20 0" />
+          </g>
         </>
       );
     case "FLOWCHART":

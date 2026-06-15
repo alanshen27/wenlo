@@ -10,6 +10,11 @@ import {
 } from "y-protocols/awareness";
 import { collabPageChannel, YJS_ORIGIN_REMOTE } from "@/lib/collab/config";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/collab/encoding";
+import {
+  applyPageContentToYjsDoc,
+  isYjsDocEffectivelyEmpty,
+} from "@/lib/collab/yjs-client-seed";
+import { hasSubstantialPageContent } from "@/lib/collab/yjs-content-encoding";
 import type { PageCollaborator } from "@/lib/realtime/page-presence";
 import { apiClient, apiGet, apiPostSilent } from "@/lib/client/api";
 
@@ -199,15 +204,49 @@ export class PusherYjsProvider {
   }
 }
 
-export async function loadOrSeedYjsDoc(doc: Y.Doc, pageId: string): Promise<void> {
-  let data: { state: string | null };
+export async function loadOrSeedYjsDoc(
+  doc: Y.Doc,
+  pageId: string,
+  fallbackContent?: unknown
+): Promise<void> {
+  const canFallback = hasSubstantialPageContent(fallbackContent);
+  let remoteState: string | null = null;
+
   try {
-    data = await apiGet<{ state: string | null }>(`/api/pages/${pageId}/yjs`);
+    const data = await apiGet<{ state: string | null }>(`/api/pages/${pageId}/yjs`);
+    remoteState = data.state;
   } catch {
-    throw new Error("Failed to load collaborative document");
+    if (!canFallback) {
+      throw new Error("Failed to load collaborative document");
+    }
   }
 
-  if (data.state) {
-    Y.applyUpdate(doc, base64ToUint8(data.state), YJS_ORIGIN_REMOTE);
+  if (remoteState) {
+    const probe = new Y.Doc();
+    Y.applyUpdate(probe, base64ToUint8(remoteState), YJS_ORIGIN_REMOTE);
+
+    if (!isYjsDocEffectivelyEmpty(probe)) {
+      Y.applyUpdate(doc, base64ToUint8(remoteState), YJS_ORIGIN_REMOTE);
+      return;
+    }
   }
+
+  if (canFallback) {
+    applyPageContentToYjsDoc(doc, fallbackContent);
+    try {
+      await apiPostSilent(`/api/pages/${pageId}/yjs`, {
+        update: uint8ToBase64(Y.encodeStateAsUpdate(doc)),
+      });
+    } catch {
+      /* local content is still shown */
+    }
+    return;
+  }
+
+  if (remoteState) {
+    Y.applyUpdate(doc, base64ToUint8(remoteState), YJS_ORIGIN_REMOTE);
+    return;
+  }
+
+  throw new Error("Failed to load collaborative document");
 }

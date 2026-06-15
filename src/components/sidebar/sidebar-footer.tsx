@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CreditCard, LogOut, Settings, User } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/blocknote-ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/blocknote-ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,6 +24,7 @@ type MeResponse = {
   id: string;
   email: string;
   name: string | null;
+  avatarUrl: string | null;
   usage: UsageSummary;
 };
 
@@ -121,6 +122,7 @@ export function SidebarFooter() {
 
       <div className="flex items-center gap-2 border-t border-sidebar-border px-2 py-2">
         <Avatar className="size-7 shrink-0">
+          {me.avatarUrl && <AvatarImage src={me.avatarUrl} alt="" />}
           <AvatarFallback className="text-[10px] font-medium">
             {initials(me.name, me.email)}
           </AvatarFallback>

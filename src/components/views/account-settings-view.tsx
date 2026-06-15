@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/blocknote-ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,12 +16,23 @@ import { cn } from "@/lib/core/utils";
 type MeResponse = {
   email: string;
   name: string | null;
+  avatarUrl: string | null;
 };
+
+function initials(name: string | null, email: string): string {
+  if (name?.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
+  return email.slice(0, 2).toUpperCase();
+}
 
 export function AccountSettingsView() {
   const router = useRouter();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [name, setName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -31,6 +43,7 @@ export function AccountSettingsView() {
       const data = await apiGet<MeResponse>("/api/me");
       setMe(data);
       setName(data.name ?? "");
+      setAvatarUrl(data.avatarUrl ?? "");
     } catch {
       router.push("/login");
       return;
@@ -52,8 +65,9 @@ export function AccountSettingsView() {
     setSaved(false);
 
     try {
-      const data = await apiPatch<MeResponse>("/api/me", { name });
-      setMe({ email: data.email, name: data.name });
+      const data = await apiPatch<MeResponse>("/api/me", { name, avatarUrl });
+      setMe({ email: data.email, name: data.name, avatarUrl: data.avatarUrl });
+      setAvatarUrl(data.avatarUrl ?? "");
       setSaved(true);
     } catch (e) {
       setError(getApiErrorMessage(e, "Failed to save"));
@@ -102,6 +116,32 @@ export function AccountSettingsView() {
           </div>
 
           <form onSubmit={handleSave} className="space-y-5 rounded-xl border border-border bg-card p-5">
+            <div className="space-y-2">
+              <Label htmlFor="avatarUrl">Profile picture</Label>
+              <div className="flex items-center gap-3">
+                <Avatar className="size-12 shrink-0">
+                  {avatarUrl.trim() && <AvatarImage src={avatarUrl.trim()} alt="" />}
+                  <AvatarFallback className="text-sm font-medium">
+                    {initials(name || null, me.email)}
+                  </AvatarFallback>
+                </Avatar>
+                <Input
+                  id="avatarUrl"
+                  value={avatarUrl}
+                  onChange={(e) => {
+                    setAvatarUrl(e.target.value);
+                    setSaved(false);
+                  }}
+                  placeholder="https://…/avatar.png"
+                  inputMode="url"
+                  autoComplete="off"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Paste an image URL (e.g. a Supabase Storage public link).
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="name">Display name</Label>
               <Input

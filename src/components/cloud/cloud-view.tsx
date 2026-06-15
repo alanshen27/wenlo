@@ -42,7 +42,9 @@ import { getFolderContents } from "@/lib/library/folders";
 import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
 import { LibraryIcon } from "@/components/icons/library-icon";
 import type { FolderColorId } from "@/lib/library/folder-colors";
-import { apiDelete } from "@/lib/client/api";
+import { apiDelete, apiGet } from "@/lib/client/api";
+import { setPin } from "@/lib/client/pins";
+import type { CollaboratorLike } from "@/components/cloud/collaborator-avatars";
 import { documentOpenRoute, folderHome, pageRoute } from "@/lib/client/routes";
 import {
   parseFolderDropId,
@@ -53,6 +55,12 @@ import { formatBytes } from "@/lib/core/utils";
 
 type Props = {
   folderId?: string | null;
+};
+
+type MembersResponse = {
+  owner: { id: string; email: string; name: string | null; avatarUrl: string | null };
+  currentUserId: string;
+  members: { userId: string; email: string; name: string | null; avatarUrl: string | null }[];
 };
 
 const VIEW_KEY = "recall:cloud-view";
@@ -120,6 +128,35 @@ export function CloudView({ folderId: folderIdProp }: Props) {
 
   const [view, setView] = usePersistentState<ViewMode>(VIEW_KEY, "grid");
   const [sort, setSort] = usePersistentState<SortMode>(SORT_KEY, "name-asc");
+  const [collaborators, setCollaborators] = useState<CollaboratorLike[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setCollaborators([]);
+      try {
+        const data = await apiGet<MembersResponse>(`/api/libraries/${libraryId}/members`);
+        if (cancelled) return;
+        const seen = new Set<string>();
+        const list: CollaboratorLike[] = [];
+        const push = (p: { id: string; name: string | null; email: string; avatarUrl: string | null }) => {
+          if (p.id === data.currentUserId || seen.has(p.id)) return;
+          seen.add(p.id);
+          list.push({ userId: p.id, name: p.name, email: p.email, avatarUrl: p.avatarUrl });
+        };
+        push(data.owner);
+        for (const m of data.members) {
+          push({ id: m.userId, name: m.name, email: m.email, avatarUrl: m.avatarUrl });
+        }
+        setCollaborators(list);
+      } catch {
+        if (!cancelled) setCollaborators([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [libraryId]);
   const [dragging, setDragging] = useState(false);
   const [activeDrag, setActiveDrag] = useState<SidebarDragItem | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -178,7 +215,12 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     () =>
       sortItems(
         [
-          ...contents.pages.map((p) => ({ kind: "page" as const, id: p.id, title: p.title })),
+          ...contents.pages.map((p) => ({
+            kind: "page" as const,
+            id: p.id,
+            title: p.title,
+            pinned: p.pinned,
+          })),
           ...contents.documents.map((d) => ({
             kind: "document" as const,
             id: d.id,
@@ -187,6 +229,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             sizeBytes: d.sizeBytes,
             pending: d.pending,
             processing: d.processing,
+            pinned: d.pinned,
             status: d.status,
           })),
         ],
@@ -194,6 +237,11 @@ export function CloudView({ folderId: folderIdProp }: Props) {
       ),
     [contents.pages, contents.documents, sort]
   );
+
+  const isPinned = (item: CloudItem) =>
+    (item.kind === "page" || item.kind === "document") && Boolean(item.pinned);
+  const pinnedFileItems = useMemo(() => fileItems.filter(isPinned), [fileItems]);
+  const unpinnedFileItems = useMemo(() => fileItems.filter((i) => !isPinned(i)), [fileItems]);
 
   const isEmpty = folderItems.length === 0 && fileItems.length === 0;
 
@@ -340,6 +388,21 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     [canEdit, folderId, uploadToFolder]
   );
 
+  const togglePin = useCallback(
+    async (item: CloudItem) => {
+      if (item.kind !== "page" && item.kind !== "document") return;
+      const target =
+        item.kind === "page" ? { pageId: item.id } : { documentId: item.id };
+      try {
+        await setPin(target, !item.pinned);
+        await refreshTree();
+      } catch {
+        // Best-effort; tree stays as-is on failure.
+      }
+    },
+    [refreshTree]
+  );
+
   function hrefFor(item: CloudItem) {
     if (item.kind === "folder") return folderHome(libraryId, item.id);
     if (item.kind === "page") return pageRoute(libraryId, item.id);
@@ -354,7 +417,13 @@ export function CloudView({ folderId: folderIdProp }: Props) {
         ? () => openDocumentPreview({ id: item.id, title: item.title, type: item.type })
         : undefined;
 
-    if (!canEdit) return { onOpen };
+    // Pins are personal, so viewers can pin too (pages + documents only).
+    const onTogglePin =
+      item.kind === "page" || item.kind === "document"
+        ? () => togglePin(item)
+        : undefined;
+
+    if (!canEdit) return { onOpen, onTogglePin };
     if (item.kind === "folder") {
       return {
         onEdit: () =>
@@ -364,12 +433,14 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     }
     if (item.kind === "page") {
       return {
+        onTogglePin,
         onMove: () => beginMove({ type: "page", id: item.id, title: item.title }),
         onDelete: () => beginDeletePage({ id: item.id, title: item.title }),
       };
     }
     return {
       onOpen,
+      onTogglePin,
       onMove: () =>
         beginMove({ type: "document", id: item.id, title: item.title, docType: item.type }),
       onReindex: () => reindexDocument(item.id),
@@ -391,6 +462,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             href={hrefFor(item)}
             enableDnd={canEdit}
             selection={cardSelection(item)}
+            collaborators={item.kind === "folder" ? undefined : collaborators}
             {...actionsFor(item)}
           />
         ))}
@@ -503,7 +575,15 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             actionsFor={actionsFor}
             enableDnd={canEdit}
             selection={tableSelection}
+            collaborators={collaborators}
           />
+        )}
+
+        {treeLoaded && view === "grid" && pinnedFileItems.length > 0 && (
+          <section className="space-y-3">
+            <SectionLabel>Pinned</SectionLabel>
+            {renderGrid(pinnedFileItems, "file")}
+          </section>
         )}
 
         {treeLoaded && view === "grid" && folderItems.length > 0 && (
@@ -513,10 +593,10 @@ export function CloudView({ folderId: folderIdProp }: Props) {
           </section>
         )}
 
-        {treeLoaded && view === "grid" && fileItems.length > 0 && (
+        {treeLoaded && view === "grid" && unpinnedFileItems.length > 0 && (
           <section className="space-y-3">
             <SectionLabel>Files &amp; pages</SectionLabel>
-            {renderGrid(fileItems, "file")}
+            {renderGrid(unpinnedFileItems, "file")}
           </section>
         )}
 

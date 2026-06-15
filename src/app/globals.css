@@ -8,6 +8,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Hide the scrollbar while keeping the element scrollable (e.g. card rails). */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 :root {
   --card: oklch(1 0.0015 262);
   --card-foreground: oklch(0.21 0.016 262);

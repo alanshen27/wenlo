@@ -46,6 +46,7 @@ export function PageEditor({ readOnly, collab, onEditorReady, ...props }: PageEd
   if (collab) {
     const collabProps: CollabEditorProps = {
       pageId: props.pageId,
+      baselineContent: props.content,
       pageLink,
       doc: collab.doc,
       provider: collab.provider,

@@ -4,6 +4,8 @@ import { libraryIdFromFolder, resolveLibraryId } from "@/lib/library/libraries";
 import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
 import { indexPage } from "@/lib/search/search";
+import { isCollabConfigured } from "@/lib/collab/config";
+import { seedPageYjsStateFromContent } from "@/lib/collab/yjs-store";
 import { EMPTY_BLOCKS, extractPlainText } from "@/lib/editor/editor-content";
 
 export async function GET(req: NextRequest) {
@@ -53,6 +55,12 @@ export async function POST(req: NextRequest) {
     });
 
     await indexPage(page.id, page.title, page.plainText, user.id).catch(() => {});
+
+    if (isCollabConfigured() && normalizedContent !== EMPTY_BLOCKS) {
+      await seedPageYjsStateFromContent(page.id, normalizedContent).catch((err) => {
+        console.error("[pages] yjs seed failed on create", page.id, err);
+      });
+    }
 
     return NextResponse.json(page);
   });

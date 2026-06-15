@@ -9,6 +9,7 @@ import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/editor/blocknot
 import { blocksToPlainText, normalizeEditorContent } from "@/lib/editor/editor-content";
 import { apiUpload, getApiErrorMessage } from "@/lib/client/api";
 import { debounce } from "@/lib/core/utils";
+import { useEditorSaveGuard } from "@/hooks/use-editor-save-guard";
 import type { RecallPartialBlock } from "@/lib/editor/editor-content";
 import type { RecallEditor } from "@/lib/editor/blocknote-schema";
 import type { FolderNode } from "@/lib/library/folders";
@@ -43,15 +44,18 @@ export function BlockEditor({
   onChangeRef.current = onChange;
   onLocalEditRef.current = onLocalEdit;
   const applyingRemoteRef = useRef(false);
+  const { shouldPersist, markPersisted } = useEditorSaveGuard(pageId, content, syncKey);
 
   const initialBlocks = useMemo(() => normalizeEditorContent(content), [content]);
 
   const debouncedSave = useMemo(
     () =>
       debounce((blocks: RecallPartialBlock[]) => {
+        if (!shouldPersist(blocks)) return;
+        markPersisted(blocks);
         onChangeRef.current(blocks, blocksToPlainText(blocks));
       }, 800),
-    []
+    [shouldPersist, markPersisted]
   );
 
   const uploadFile = useCallback(

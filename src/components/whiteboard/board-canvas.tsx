@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Stage,
   Layer,
@@ -22,6 +22,12 @@ import {
   type ConnectorEndpoint,
 } from "@/lib/boards/board-schema";
 import type { ShapeKind } from "@/lib/canvas/shapes";
+
+/** Grow a textarea to fit its content (used for sticky + text inline edit). */
+function fitTextareaHeight(ta: HTMLTextAreaElement) {
+  ta.style.height = "0px";
+  ta.style.height = `${ta.scrollHeight}px`;
+}
 import {
   absBounds,
   computeSnap,
@@ -624,14 +630,20 @@ export function BoardCanvas({
   }, [editingEl, viewport.x, viewport.y, viewport.zoom]);
 
   const commitEditingText = useCallback(
-    (text: string) => {
+    (text: string, stickyHeight?: number) => {
       if (!editingId) return;
       const el = scene.elements[editingId];
       if (el && (el.type === "text" || el.type === "sticky")) {
         if (text.trim() === "" && el.text.trim() === "") {
           onPatch({ deletes: [editingId] });
-        } else if (text !== el.text) {
-          commitElement({ ...el, text }, false);
+        } else {
+          const next =
+            el.type === "sticky" && stickyHeight != null && stickyHeight > el.h
+              ? { ...el, h: stickyHeight }
+              : el;
+          if (text !== el.text || next !== el) {
+            commitElement({ ...next, text }, false);
+          }
         }
       }
       setEditingId(null);
@@ -673,6 +685,13 @@ export function BoardCanvas({
     },
     [relativePointer, viewport, commitElement, libraryId, folderId]
   );
+
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const ta = editTextareaRef.current;
+    if (ta) fitTextareaHeight(ta);
+  }, [editingId, editingBox?.text, editingBox?.width, editingBox?.fontSize]);
 
   const orderedElements = scene.elementOrder
     .map((id) => scene.elements[id])
@@ -921,9 +940,20 @@ export function BoardCanvas({
 
       {editingBox && (
         <textarea
+          ref={editTextareaRef}
           autoFocus
           defaultValue={editingBox.text}
-          onBlur={(e) => commitEditingText(e.target.value)}
+          onInput={(e) => fitTextareaHeight(e.currentTarget)}
+          onBlur={(e) => {
+            const ta = e.currentTarget;
+            let stickyHeight: number | undefined;
+            if (editingEl?.type === "sticky") {
+              const pad = 12;
+              const needed = Math.ceil(ta.scrollHeight / viewport.zoom) + pad * 2;
+              if (needed > editingEl.h) stickyHeight = needed;
+            }
+            commitEditingText(ta.value, stickyHeight);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               e.preventDefault();
@@ -939,7 +969,7 @@ export function BoardCanvas({
             left: editingBox.left,
             top: editingBox.top,
             width: Math.max(40, editingBox.width),
-            height: editingBox.height,
+            minHeight: editingBox.height,
             fontSize: editingBox.fontSize,
             lineHeight: 1.2,
             color: editingBox.color,

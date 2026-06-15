@@ -24,10 +24,13 @@ import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/editor/blocknot
 import { blocksToPlainText } from "@/lib/editor/editor-content";
 import { apiUpload, getApiErrorMessage } from "@/lib/client/api";
 import { debounce } from "@/lib/core/utils";
+import { useEditorSaveGuard } from "@/hooks/use-editor-save-guard";
 import type { FolderNode } from "@/lib/library/folders";
 
 type Props = {
   pageId: string;
+  /** Page JSON used to block mount-time autosaves from wiping templates. */
+  baselineContent: unknown;
   pageLink?: {
     libraryId: string;
     tree: FolderNode[];
@@ -49,7 +52,7 @@ export function CollaborativeBlockEditor(props: Props) {
     setYjsReady(false);
     let cancelled = false;
 
-    void loadOrSeedYjsDoc(props.doc, props.pageId)
+    void loadOrSeedYjsDoc(props.doc, props.pageId, props.baselineContent)
       .then(() => {
         if (!cancelled) setYjsReady(true);
       })
@@ -71,6 +74,7 @@ export function CollaborativeBlockEditor(props: Props) {
 
 function CollaborativeBlockEditorMounted({
   pageId,
+  baselineContent,
   pageLink,
   doc,
   provider,
@@ -90,17 +94,22 @@ function CollaborativeBlockEditorMounted({
   });
 
   const fragment = doc.getXmlFragment(YJS_FRAGMENT);
+  const { shouldPersist, markPersisted } = useEditorSaveGuard(pageId, baselineContent);
+  const shouldPersistRef = useRef(shouldPersist);
+  shouldPersistRef.current = shouldPersist;
 
   const debouncedSave = useMemo(
     () =>
       debounce(
         (editor: BlockNoteEditor<RecallBlockSchema, RecallInlineSchema, RecallStyleSchema>) => {
-        const blocks = editor.document;
-        onChangeRef.current(blocks, blocksToPlainText(blocks));
-      },
-      1200
+          const blocks = editor.document;
+          if (!shouldPersist(blocks)) return;
+          markPersisted(blocks);
+          onChangeRef.current(blocks, blocksToPlainText(blocks));
+        },
+        1200
       ),
-    []
+    [shouldPersist, markPersisted]
   );
 
   const uploadFile = useCallback(
@@ -145,10 +154,10 @@ function CollaborativeBlockEditorMounted({
   useEffect(() => {
     return () => {
       const current = editorRef.current;
-      if (current) {
-        const blocks = current.document;
-        onChangeRef.current(blocks, blocksToPlainText(blocks));
-      }
+      if (!current) return;
+      const blocks = current.document;
+      if (!shouldPersistRef.current(blocks)) return;
+      onChangeRef.current(blocks, blocksToPlainText(blocks));
     };
   }, []);
 

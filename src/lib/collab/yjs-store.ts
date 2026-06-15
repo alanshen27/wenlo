@@ -1,6 +1,10 @@
 import * as Y from "yjs";
-import { YJS_FRAGMENT } from "@/lib/collab/config";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/collab/encoding";
+import {
+  encodeYjsStateFromContent,
+  hasSubstantialPageContent,
+  isYjsStateEffectivelyEmpty,
+} from "@/lib/collab/yjs-content-encoding";
 import { createClient, WatchError, type RedisClientType } from "redis";
 
 let client: RedisClientType | null = null;
@@ -90,39 +94,28 @@ export async function seedPageYjsStateFromContent(pageId: string, content: unkno
   const existing = await readPageYjsState(pageId);
   if (existing) return existing;
 
-  const { BlockNoteEditor } = await import("@blocknote/core");
-  const { blocksToYXmlFragment } = await import("@blocknote/core/yjs");
-  const { blockNoteSchema } = await import("@/lib/editor/blocknote-schema");
-  const { normalizeEditorContent } = await import("@/lib/editor/editor-content");
-
-  const doc = new Y.Doc();
-  const tempEditor = BlockNoteEditor.create({
-    schema: blockNoteSchema,
-    initialContent: normalizeEditorContent(content),
-  });
-
-  blocksToYXmlFragment(tempEditor, tempEditor.document, doc.getXmlFragment(YJS_FRAGMENT));
-
-  const state = Y.encodeStateAsUpdate(doc);
+  const state = await encodeYjsStateFromContent(content);
   await writePageYjsState(pageId, state);
   return state;
 }
 
 export async function overwritePageYjsFromContent(pageId: string, content: unknown) {
-  const { BlockNoteEditor } = await import("@blocknote/core");
-  const { blocksToYXmlFragment } = await import("@blocknote/core/yjs");
-  const { blockNoteSchema } = await import("@/lib/editor/blocknote-schema");
-  const { normalizeEditorContent } = await import("@/lib/editor/editor-content");
-
-  const doc = new Y.Doc();
-  const tempEditor = BlockNoteEditor.create({
-    schema: blockNoteSchema,
-    initialContent: normalizeEditorContent(content),
-  });
-
-  blocksToYXmlFragment(tempEditor, tempEditor.document, doc.getXmlFragment(YJS_FRAGMENT));
-
-  const state = Y.encodeStateAsUpdate(doc);
+  const state = await encodeYjsStateFromContent(content);
   await writePageYjsState(pageId, state);
+  return state;
+}
+
+export async function resolvePageYjsState(pageId: string, content: unknown) {
+  const state = await readPageYjsState(pageId);
+  const substantial = hasSubstantialPageContent(content);
+
+  if (!state && substantial) {
+    return seedPageYjsStateFromContent(pageId, content);
+  }
+
+  if (state && substantial && (await isYjsStateEffectivelyEmpty(state))) {
+    return overwritePageYjsFromContent(pageId, content);
+  }
+
   return state;
 }
