@@ -7,7 +7,7 @@ import { Search, Sparkles } from "lucide-react";
 import { useLibrary } from "@/components/library/library-shell";
 import { ScopeSelect } from "@/components/search/scope-select";
 import { SearchResultCard } from "@/components/search/search-result-card";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { RecallResult } from "@/lib/core/types";
 import { documentRoute, pageRoute, recallRoute } from "@/lib/client/routes";
@@ -134,7 +134,12 @@ export function SearchView() {
               <p className="mb-3 text-sm text-muted-foreground">
                 Try keywords from a lecture, a function name, or a concept you remember.
               </p>
-              <Button variant="outline" size="sm" render={<Link href={recallRoute(libraryId)} className="gap-2" />}>
+              <Button
+                variant="outline"
+                size="sm"
+                nativeButton={false}
+                render={<Link href={recallRoute(libraryId)} className="gap-2" />}
+              >
                 <Sparkles className="size-3.5" />
                 Need a synthesized answer? Try Recall
               </Button>

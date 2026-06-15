@@ -55,7 +55,6 @@ import {
   folderHome,
   libraryHome,
   pageRoute,
-  mindMapRoute,
   persistActiveLibrary,
   recallRoute,
   searchRoute,
@@ -83,7 +82,7 @@ type HeaderState = {
   remoteNotice?: string | null;
 };
 
-type LibraryContextValue = {
+export type LibraryContextValue = {
   libraryId: string;
   libraries: Library[];
   activeLibrary: Library | undefined;
@@ -114,7 +113,7 @@ type LibraryContextValue = {
   closeDocumentPreview: () => void;
 };
 
-const LibraryContext = createContext<LibraryContextValue | null>(null);
+export const LibraryContext = createContext<LibraryContextValue | null>(null);
 
 export function useLibrary() {
   const ctx = useContext(LibraryContext);
@@ -160,18 +159,15 @@ export function LibraryShell({ children }: { children: ReactNode }) {
   const canEdit = libraryRole !== "VIEWER";
   const isSearchPage = pathname.endsWith("/search");
   const isRecallPage = pathname.endsWith("/recall");
-  const isMapPage = pathname.endsWith("/map");
   const isFilesHome =
-    !isSearchPage && !isRecallPage && !isMapPage && !selectedPageId && !selectedDocumentId;
+    !isSearchPage && !isRecallPage && !selectedPageId && !selectedDocumentId;
   const activeNav = isSearchPage
     ? "search"
     : isRecallPage
       ? "recall"
-      : isMapPage
-        ? "map"
-        : isFilesHome
-          ? "home"
-          : null;
+      : isFilesHome
+        ? "home"
+        : null;
 
   useEffect(() => {
     if (selectedFolderId) {
@@ -232,7 +228,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     setHeader({});
     // Close any open file preview when the active view changes.
     setPreviewTarget(null);
-  }, [libraryId, selectedFolderId, selectedPageId, selectedDocumentId, isSearchPage, isRecallPage, isMapPage]);
+  }, [libraryId, selectedFolderId, selectedPageId, selectedDocumentId, isSearchPage, isRecallPage]);
 
   useEffect(() => {
     if (!focusMode) return;
@@ -257,13 +253,6 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       return [
         { id: "__library__", name: libraryName, type: "library" as const },
         { id: "__recall__", name: "Recall", type: "recall" as const },
-      ];
-    }
-
-    if (isMapPage) {
-      return [
-        { id: "__library__", name: libraryName, type: "library" as const },
-        { id: "__map__", name: "Mind map", type: "map" as const },
       ];
     }
 
@@ -294,7 +283,6 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     header.folderIdFallback,
     isSearchPage,
     isRecallPage,
-    isMapPage,
   ]);
 
   useEffect(() => {
@@ -325,8 +313,6 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           return searchRoute(libraryId);
         case "recall":
           return recallRoute(libraryId);
-        case "map":
-          return mindMapRoute(libraryId);
         default:
           return null;
       }
@@ -736,7 +722,6 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           onOpenHome={() => router.push(libraryHome(libraryId))}
           onOpenSearch={() => router.push(searchRoute(libraryId))}
           onOpenRecall={() => router.push(recallRoute(libraryId))}
-          onOpenMindMap={() => router.push(mindMapRoute(libraryId))}
         />
         )}
 

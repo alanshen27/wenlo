@@ -4,6 +4,7 @@
 // client component (use `database-schema.ts` for shared types/helpers).
 
 import { prisma } from "@/lib/db/prisma";
+import type { DatabaseTemplateId } from "@/lib/native/database-templates";
 import { indexDocument } from "@/lib/search/search";
 import {
   columnsToValue,
@@ -127,11 +128,24 @@ export function toDatabaseScene(doc: DocWithDatabase): DatabaseScene {
 }
 
 /**
- * Seed a freshly-created DATABASE document with a sensible starter schema:
- * a primary "Name" text column, a "Status" select, a "Due" date, three rows,
- * and Table / Board / Calendar views.
+ * Seed a freshly-created DATABASE document with a starter schema + sample rows.
  */
-export async function seedDatabase(documentId: string): Promise<void> {
+export async function seedDatabase(
+  documentId: string,
+  template: string = "tasks"
+): Promise<void> {
+  const id = (["tasks", "contacts", "roadmap"] as const).includes(
+    template as DatabaseTemplateId
+  )
+    ? (template as DatabaseTemplateId)
+    : "tasks";
+
+  if (id === "contacts") return seedContactsDatabase(documentId);
+  if (id === "roadmap") return seedRoadmapDatabase(documentId);
+  return seedTasksDatabase(documentId);
+}
+
+async function seedTasksDatabase(documentId: string): Promise<void> {
   const statusOptions: SelectOption[] = [
     { id: newLocalId(), label: "Todo", color: "gray" },
     { id: newLocalId(), label: "In progress", color: "blue" },
@@ -180,6 +194,92 @@ export async function seedDatabase(documentId: string): Promise<void> {
           type: "CALENDAR",
           position: 2,
           config: { datePropertyId: due.id },
+        },
+      ],
+    });
+  });
+}
+
+async function seedContactsDatabase(documentId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const name = await tx.databaseProperty.create({
+      data: { documentId, name: "Name", type: "TEXT", position: 0, width: 200 },
+    });
+    const email = await tx.databaseProperty.create({
+      data: { documentId, name: "Email", type: "TEXT", position: 1, width: 220 },
+    });
+    const company = await tx.databaseProperty.create({
+      data: { documentId, name: "Company", type: "TEXT", position: 2, width: 180 },
+    });
+
+    const seeds = [
+      { name: "Alex Kim", email: "alex@example.com", company: "Acme" },
+      { name: "Jordan Lee", email: "jordan@example.com", company: "Northwind" },
+    ];
+    for (let i = 0; i < seeds.length; i++) {
+      const row = await tx.databaseRow.create({ data: { documentId, position: i } });
+      await tx.databaseCell.createMany({
+        data: [
+          { rowId: row.id, propertyId: name.id, valueText: seeds[i].name },
+          { rowId: row.id, propertyId: email.id, valueText: seeds[i].email },
+          { rowId: row.id, propertyId: company.id, valueText: seeds[i].company },
+        ],
+      });
+    }
+
+    await tx.databaseView.create({
+      data: { documentId, name: "All contacts", type: "TABLE", position: 0, config: {} },
+    });
+  });
+}
+
+async function seedRoadmapDatabase(documentId: string): Promise<void> {
+  const statusOptions: SelectOption[] = [
+    { id: newLocalId(), label: "Planned", color: "gray" },
+    { id: newLocalId(), label: "In progress", color: "blue" },
+    { id: newLocalId(), label: "Shipped", color: "green" },
+  ];
+  const quarterOptions: SelectOption[] = [
+    { id: newLocalId(), label: "Q1", color: "purple" },
+    { id: newLocalId(), label: "Q2", color: "purple" },
+    { id: newLocalId(), label: "Q3", color: "purple" },
+  ];
+
+  await prisma.$transaction(async (tx) => {
+    const feature = await tx.databaseProperty.create({
+      data: { documentId, name: "Feature", type: "TEXT", position: 0, width: 260 },
+    });
+    const status = await tx.databaseProperty.create({
+      data: { documentId, name: "Status", type: "SELECT", position: 1, options: statusOptions },
+    });
+    const quarter = await tx.databaseProperty.create({
+      data: { documentId, name: "Quarter", type: "SELECT", position: 2, options: quarterOptions },
+    });
+
+    const seeds = [
+      { feature: "Launch v1", status: statusOptions[1].id, quarter: quarterOptions[0].id },
+      { feature: "API beta", status: statusOptions[0].id, quarter: quarterOptions[1].id },
+    ];
+    for (let i = 0; i < seeds.length; i++) {
+      const row = await tx.databaseRow.create({ data: { documentId, position: i } });
+      await tx.databaseCell.createMany({
+        data: [
+          { rowId: row.id, propertyId: feature.id, valueText: seeds[i].feature },
+          { rowId: row.id, propertyId: status.id, valueOptionId: seeds[i].status },
+          { rowId: row.id, propertyId: quarter.id, valueOptionId: seeds[i].quarter },
+        ],
+      });
+    }
+
+    await tx.databaseView.createMany({
+      data: [
+        { documentId, name: "All features", type: "TABLE", position: 0, config: {} },
+        {
+          documentId,
+          name: "By status",
+          type: "BOARD",
+          position: 1,
+          config: { groupPropertyId: status.id },
         },
       ],
     });

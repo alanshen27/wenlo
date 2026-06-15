@@ -122,7 +122,7 @@ export function collectFolderIds(folderId: string, folders: FlatFolder[]): strin
 export type BreadcrumbItem = {
   id: string;
   name: string;
-  type: "library" | "folder" | "page" | "document" | "search" | "recall" | "map";
+  type: "library" | "folder" | "page" | "document" | "search" | "recall";
   color?: string;
 };
 

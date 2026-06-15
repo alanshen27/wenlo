@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse, after } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { NextResponse, after, type NextRequest } from "next/server";
+import { badRequest, withAuth } from "@/lib/api/http";
+import { requireDocument } from "@/lib/documents/document-access";
 import { prisma } from "@/lib/db/prisma";
 import { indexDocument } from "@/lib/search/search";
 import { isCollabConfigured } from "@/lib/collab/config";
@@ -12,95 +12,61 @@ import {
   type BoardPatch,
 } from "@/lib/boards/board-schema";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+type Ctx = { params: Promise<{ id: string }> };
 
-  const { id } = await params;
-  const board = await prisma.document.findFirst({ where: { id } });
-  if (!board || board.type !== "WHITEBOARD") {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  try {
-    await requireLibraryAccess(user.id, board.libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
-
-  return NextResponse.json({
-    id: board.id,
-    title: board.title,
-    folderId: board.folderId,
-    libraryId: board.libraryId,
-    scene: normalizeBoard(board.boardContent),
-    updatedAt: board.updatedAt,
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const board = await requireDocument(user.id, params.id, { type: "WHITEBOARD" });
+    return NextResponse.json({
+      id: board.id,
+      title: board.title,
+      folderId: board.folderId,
+      libraryId: board.libraryId,
+      scene: normalizeBoard(board.boardContent),
+      updatedAt: board.updatedAt,
+    });
   });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const existing = await requireDocument(user.id, params.id, {
+      type: "WHITEBOARD",
+      role: "EDITOR",
+    });
 
-  const { id } = await params;
-  const body = (await req.json().catch(() => null)) as {
-    patch?: BoardPatch;
-    socketId?: string;
-  } | null;
+    const body = (await req.json().catch(() => null)) as {
+      patch?: BoardPatch;
+      socketId?: string;
+    } | null;
+    if (!body?.patch) throw badRequest("Missing patch");
 
-  if (!body?.patch) {
-    return NextResponse.json({ error: "Missing patch" }, { status: 400 });
-  }
+    const merged = applyBoardPatch(normalizeBoard(existing.boardContent), body.patch);
+    const derivedText = deriveBoardText(merged);
 
-  const existing = await prisma.document.findFirst({ where: { id } });
-  if (!existing || existing.type !== "WHITEBOARD") {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+    const updated = await prisma.document.update({
+      where: { id: existing.id },
+      data: { boardContent: merged, content: derivedText },
+      select: { id: true, title: true, updatedAt: true },
+    });
 
-  try {
-    await requireLibraryAccess(user.id, existing.libraryId, "EDITOR");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
-
-  const merged = applyBoardPatch(normalizeBoard(existing.boardContent), body.patch);
-  const derivedText = deriveBoardText(merged);
-
-  const updated = await prisma.document.update({
-    where: { id },
-    data: {
-      boardContent: merged,
-      content: derivedText,
-    },
-    select: { id: true, title: true, updatedAt: true },
-  });
-
-  after(async () => {
-    try {
-      await indexDocument(id, existing.title, derivedText, user.id);
-    } catch (error) {
-      console.error("[boards] reindex failed", error);
-    }
-    if (isCollabConfigured()) {
+    const patch = body.patch;
+    const socketId = body.socketId;
+    after(async () => {
       try {
-        await broadcastBoardPatch(id, body.patch!, body.socketId);
+        await indexDocument(existing.id, existing.title, derivedText, user.id);
       } catch (error) {
-        console.error("[boards] broadcast failed", error);
+        console.error("[boards] reindex failed", error);
       }
-    }
-  });
+      if (isCollabConfigured()) {
+        try {
+          await broadcastBoardPatch(existing.id, patch, socketId);
+        } catch (error) {
+          console.error("[boards] broadcast failed", error);
+        }
+      }
+    });
 
-  return NextResponse.json({ ok: true, updatedAt: updated.updatedAt });
+    return NextResponse.json({ ok: true, updatedAt: updated.updatedAt });
+  });
 }

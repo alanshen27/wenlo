@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { withAuth } from "@/lib/api/http";
+import { requireLibraryAccess } from "@/lib/library/library-access";
+import type { User } from "@/generated/prisma/client";
 import {
   appendRecallChatTurn,
   createRecallChatSession,
@@ -31,9 +32,10 @@ type AgentStreamEvent =
   | { type: "error"; error: string };
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return withAuth(undefined, ({ user }) => handlePost(req, user));
+}
 
+async function handlePost(req: NextRequest, user: User): Promise<Response> {
   if (!hasOpenAI()) {
     return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 503 });
   }
@@ -52,14 +54,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "folderId required for folder scope" }, { status: 400 });
   }
 
-  try {
-    await requireLibraryAccess(user.id, libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+  await requireLibraryAccess(user.id, libraryId, "VIEWER");
 
   try {
     await assertWithinTokenLimit(user.id);

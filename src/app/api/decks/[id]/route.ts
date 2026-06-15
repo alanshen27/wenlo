@@ -1,85 +1,50 @@
-import { NextRequest, NextResponse, after } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { NextResponse, after, type NextRequest } from "next/server";
+import { badRequest, withAuth } from "@/lib/api/http";
+import { requireDocument } from "@/lib/documents/document-access";
 import { prisma } from "@/lib/db/prisma";
 import { indexDocument } from "@/lib/search/search";
 import { deriveDeckText, normalizeDeck } from "@/lib/decks/deck-schema";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+type Ctx = { params: Promise<{ id: string }> };
 
-  const { id } = await params;
-  const deck = await prisma.document.findFirst({ where: { id } });
-  if (!deck || deck.type !== "DECK") {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  try {
-    await requireLibraryAccess(user.id, deck.libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
-
-  return NextResponse.json({
-    id: deck.id,
-    title: deck.title,
-    folderId: deck.folderId,
-    libraryId: deck.libraryId,
-    deck: normalizeDeck(deck.deckContent),
-    updatedAt: deck.updatedAt,
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const deck = await requireDocument(user.id, params.id, { type: "DECK" });
+    return NextResponse.json({
+      id: deck.id,
+      title: deck.title,
+      folderId: deck.folderId,
+      libraryId: deck.libraryId,
+      deck: normalizeDeck(deck.deckContent),
+      updatedAt: deck.updatedAt,
+    });
   });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const existing = await requireDocument(user.id, params.id, { type: "DECK", role: "EDITOR" });
 
-  const { id } = await params;
-  const body = (await req.json().catch(() => null)) as { deck?: unknown } | null;
-  if (!body || body.deck === undefined) {
-    return NextResponse.json({ error: "Missing deck" }, { status: 400 });
-  }
+    const body = (await req.json().catch(() => null)) as { deck?: unknown } | null;
+    if (!body || body.deck === undefined) throw badRequest("Missing deck");
 
-  const existing = await prisma.document.findFirst({ where: { id } });
-  if (!existing || existing.type !== "DECK") {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+    const deck = normalizeDeck(body.deck);
+    const derivedText = deriveDeckText(deck);
 
-  try {
-    await requireLibraryAccess(user.id, existing.libraryId, "EDITOR");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+    const updated = await prisma.document.update({
+      where: { id: existing.id },
+      data: { deckContent: deck, content: derivedText },
+      select: { id: true, updatedAt: true },
+    });
 
-  const deck = normalizeDeck(body.deck);
-  const derivedText = deriveDeckText(deck);
+    after(async () => {
+      try {
+        await indexDocument(existing.id, existing.title, derivedText, user.id);
+      } catch (error) {
+        console.error("[decks] reindex failed", error);
+      }
+    });
 
-  const updated = await prisma.document.update({
-    where: { id },
-    data: { deckContent: deck, content: derivedText },
-    select: { id: true, updatedAt: true },
+    return NextResponse.json({ ok: true, updatedAt: updated.updatedAt });
   });
-
-  after(async () => {
-    try {
-      await indexDocument(id, existing.title, derivedText, user.id);
-    } catch (error) {
-      console.error("[decks] reindex failed", error);
-    }
-  });
-
-  return NextResponse.json({ ok: true, updatedAt: updated.updatedAt });
 }

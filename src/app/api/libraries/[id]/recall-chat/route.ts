@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { badRequest, withAuth } from "@/lib/api/http";
+import { requireLibraryAccess } from "@/lib/library/library-access";
 import {
   createRecallChatSession,
   listRecallChatSessions,
@@ -9,14 +9,15 @@ import {
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+/** Resolve the chat scope from query params, throwing 400 on invalid input. */
 function parseScope(req: NextRequest) {
   const scope = req.nextUrl.searchParams.get("scope");
   const folderId = req.nextUrl.searchParams.get("folderId");
   if (scope !== "all" && scope !== "folder") {
-    return { error: "Invalid scope" as const };
+    throw badRequest("Invalid scope");
   }
   if (scope === "folder" && !folderId) {
-    return { error: "folderId required for folder scope" as const };
+    throw badRequest("folderId required for folder scope");
   }
   return {
     scope,
@@ -25,48 +26,24 @@ function parseScope(req: NextRequest) {
   };
 }
 
-export async function GET(req: NextRequest, { params }: RouteParams) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id: libraryId } = await params;
-  const parsed = parseScope(req);
-  if ("error" in parsed) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
-
-  try {
+export async function GET(req: NextRequest, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const libraryId = params.id;
+    const parsed = parseScope(req);
     await requireLibraryAccess(user.id, libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
 
-  const sessions = await listRecallChatSessions(user.id, libraryId, parsed.scopeKey);
-  return NextResponse.json({ sessions });
+    const sessions = await listRecallChatSessions(user.id, libraryId, parsed.scopeKey);
+    return NextResponse.json({ sessions });
+  });
 }
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id: libraryId } = await params;
-  const parsed = parseScope(req);
-  if ("error" in parsed) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
-
-  try {
+export async function POST(req: NextRequest, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const libraryId = params.id;
+    const parsed = parseScope(req);
     await requireLibraryAccess(user.id, libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
 
-  const session = await createRecallChatSession(user.id, libraryId, parsed.scopeKey);
-  return NextResponse.json({ session });
+    const session = await createRecallChatSession(user.id, libraryId, parsed.scopeKey);
+    return NextResponse.json({ session });
+  });
 }

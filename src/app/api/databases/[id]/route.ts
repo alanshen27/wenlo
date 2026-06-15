@@ -1,27 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { NextResponse, type NextRequest } from "next/server";
+import { notFound, withAuth } from "@/lib/api/http";
+import { requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
 import { databaseInclude, toDatabaseScene } from "@/lib/databases/database-server";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+type Ctx = { params: Promise<{ id: string }> };
 
-  const { id } = await params;
-  const doc = await prisma.document.findFirst({ where: { id }, include: databaseInclude });
-  if (!doc || doc.type !== "DATABASE") {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  try {
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const doc = await prisma.document.findFirst({
+      where: { id: params.id },
+      include: databaseInclude,
+    });
+    if (!doc || doc.type !== "DATABASE") throw notFound();
     await requireLibraryAccess(user.id, doc.libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
-
-  return NextResponse.json(toDatabaseScene(doc));
+    return NextResponse.json(toDatabaseScene(doc));
+  });
 }

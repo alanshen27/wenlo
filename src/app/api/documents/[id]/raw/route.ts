@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { notFound, withAuth } from "@/lib/api/http";
+import { requireDocument } from "@/lib/documents/document-access";
 import { isInlineAssetType } from "@/lib/documents/page-assets";
-import { prisma } from "@/lib/db/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -13,54 +12,40 @@ type RouteParams = { params: Promise<{ id: string }> };
  * everything else is sent as an attachment so markup can't execute on our
  * origin.
  */
-export async function GET(req: NextRequest, { params }: RouteParams) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(req: NextRequest, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const document = await requireDocument(user.id, params.id);
 
-  const { id } = await params;
-  const document = await prisma.document.findFirst({ where: { id } });
-  if (!document) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!document.storagePath) throw notFound("No file stored");
 
-  try {
-    await requireLibraryAccess(user.id, document.libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+    try {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .download(document.storagePath);
+      if (error || !data) throw notFound();
+
+      const buffer = Buffer.from(await data.arrayBuffer());
+      const contentType = document.mimeType || data.type || "application/octet-stream";
+      const downloadName = (document.title || "file").replace(/"/g, "");
+      const forceDownload = req.nextUrl.searchParams.get("download") === "1";
+      const disposition =
+        !forceDownload && isInlineAssetType(contentType)
+          ? "inline"
+          : `attachment; filename="${downloadName}"`;
+
+      return new NextResponse(buffer, {
+        headers: {
+          "Content-Type": contentType,
+          "Content-Disposition": disposition,
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, max-age=3600",
+        },
+      });
+    } catch (err) {
+      // A genuine "not found" should surface as 404; anything else is storage.
+      if (err instanceof Error && err.name === "HttpError") throw err;
+      return NextResponse.json({ error: "Storage unavailable" }, { status: 503 });
     }
-    throw error;
-  }
-
-  if (!document.storagePath) {
-    return NextResponse.json({ error: "No file stored" }, { status: 404 });
-  }
-
-  try {
-    const supabase = createAdminClient();
-    const { data, error } = await supabase.storage
-      .from("documents")
-      .download(document.storagePath);
-    if (error || !data) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    const buffer = Buffer.from(await data.arrayBuffer());
-    const contentType = document.mimeType || data.type || "application/octet-stream";
-    const downloadName = (document.title || "file").replace(/"/g, "");
-    const forceDownload = req.nextUrl.searchParams.get("download") === "1";
-    const disposition =
-      !forceDownload && isInlineAssetType(contentType)
-        ? "inline"
-        : `attachment; filename="${downloadName}"`;
-
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": contentType,
-        "Content-Disposition": disposition,
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "private, max-age=3600",
-      },
-    });
-  } catch {
-    return NextResponse.json({ error: "Storage unavailable" }, { status: 503 });
-  }
+  });
 }

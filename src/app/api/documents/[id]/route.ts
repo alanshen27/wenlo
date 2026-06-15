@@ -1,96 +1,57 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { parseBody, withAuth } from "@/lib/api/http";
+import { requireDocument } from "@/lib/documents/document-access";
 import { prisma } from "@/lib/db/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+type Ctx = { params: Promise<{ id: string }> };
 
-  const { id } = await params;
-  const document = await prisma.document.findFirst({ where: { id } });
-  if (!document) return NextResponse.json({ error: "Not found" }, { status: 404 });
+const patchSchema = z.object({
+  title: z.string().optional(),
+  folderId: z.string().nullable().optional(),
+});
 
-  try {
-    await requireLibraryAccess(user.id, document.libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
-
-  return NextResponse.json(document);
-}
-
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id } = await params;
-  const document = await prisma.document.findFirst({ where: { id } });
-  if (!document) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  try {
-    await requireLibraryAccess(user.id, document.libraryId, "EDITOR");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
-
-  if (document.storagePath) {
-    try {
-      const supabase = createAdminClient();
-      await supabase.storage.from("documents").remove([document.storagePath]);
-    } catch {
-      // ignore
-    }
-  }
-
-  await prisma.document.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
-}
-
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id } = await params;
-  const { folderId, title } = await req.json();
-
-  const existing = await prisma.document.findFirst({ where: { id } });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  try {
-    await requireLibraryAccess(user.id, existing.libraryId, "EDITOR");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
-
-  const document = await prisma.document.update({
-    where: { id },
-    data: {
-      ...(title !== undefined && { title: title.trim() || existing.title }),
-      ...(folderId !== undefined && {
-        folderId: folderId && folderId !== "__root__" ? folderId : null,
-      }),
-    },
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const document = await requireDocument(user.id, params.id);
+    return NextResponse.json(document);
   });
+}
 
-  return NextResponse.json(document);
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const document = await requireDocument(user.id, params.id, { role: "EDITOR" });
+
+    if (document.storagePath) {
+      try {
+        const supabase = createAdminClient();
+        await supabase.storage.from("documents").remove([document.storagePath]);
+      } catch {
+        // ignore storage cleanup failures
+      }
+    }
+
+    await prisma.document.delete({ where: { id: document.id } });
+    return NextResponse.json({ ok: true });
+  });
+}
+
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const existing = await requireDocument(user.id, params.id, { role: "EDITOR" });
+    const { title, folderId } = await parseBody(req, patchSchema);
+
+    const document = await prisma.document.update({
+      where: { id: existing.id },
+      data: {
+        ...(title !== undefined && { title: title.trim() || existing.title }),
+        ...(folderId !== undefined && {
+          folderId: folderId && folderId !== "__root__" ? folderId : null,
+        }),
+      },
+    });
+
+    return NextResponse.json(document);
+  });
 }

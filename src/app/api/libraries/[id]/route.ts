@@ -1,59 +1,41 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { badRequest, parseBody, withAuth } from "@/lib/api/http";
+import { requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+type Ctx = { params: Promise<{ id: string }> };
 
-  const { id } = await params;
-  try {
-    await requireLibraryAccess(user.id, id, "OWNER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
-  const { name, icon } = await req.json();
+const patchSchema = z.object({
+  name: z.string().optional(),
+  icon: z.string().optional(),
+});
 
-  const library = await prisma.library.update({
-    where: { id },
-    data: {
-      ...(name !== undefined && { name: name.trim() }),
-      ...(icon !== undefined && { icon }),
-    },
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    await requireLibraryAccess(user.id, params.id, "OWNER");
+    const { name, icon } = await parseBody(req, patchSchema);
+
+    const library = await prisma.library.update({
+      where: { id: params.id },
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(icon !== undefined && { icon }),
+      },
+    });
+
+    return NextResponse.json(library);
   });
-
-  return NextResponse.json(library);
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
+  return withAuth(ctx, async ({ params, user }) => {
+    await requireLibraryAccess(user.id, params.id, "OWNER");
 
-  const { id } = await params;
-  try {
-    await requireLibraryAccess(user.id, id, "OWNER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+    const ownedCount = await prisma.library.count({ where: { userId: user.id } });
+    if (ownedCount <= 1) throw badRequest("Cannot delete your only library");
 
-  const ownedCount = await prisma.library.count({ where: { userId: user.id } });
-  if (ownedCount <= 1) {
-    return NextResponse.json({ error: "Cannot delete your only library" }, { status: 400 });
-  }
-
-  await prisma.library.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+    await prisma.library.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true });
+  });
 }

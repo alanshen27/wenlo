@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import {
-  databaseErrorResponse,
-  requireDatabaseDoc,
-} from "@/lib/databases/database-access";
+import { withRoute } from "@/lib/api/http";
+import { requireDatabaseDoc } from "@/lib/databases/database-access";
 import { mapView } from "@/lib/databases/database-server";
 import { VIEW_TYPE_LABELS, type ViewType } from "@/lib/databases/database-schema";
 
 const VALID_VIEWS: ViewType[] = ["TABLE", "BOARD", "CALENDAR"];
 
 /** Add a view, auto-selecting a sensible group/date property. */
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  return withRoute(ctx, async ({ params }) => {
+    const { id } = params;
     await requireDatabaseDoc(id, "EDITOR");
     const body = (await req.json().catch(() => null)) as {
       name?: string;
@@ -50,7 +48,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     return NextResponse.json(mapView(view));
-  } catch (error) {
-    return databaseErrorResponse(error);
-  }
+  });
 }

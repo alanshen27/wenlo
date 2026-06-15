@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, File, FileCode, FileText, Folder, Library, Network, Search, Sparkles } from "lucide-react";
+import { ChevronRight, File, FileCode, FileText, Folder, Library, Search, Sparkles } from "lucide-react";
 import { FolderArtwork } from "@/lib/client/file-icons";
 import { cn } from "@/lib/core/utils";
 import type { BreadcrumbItem } from "@/lib/library/folders";
@@ -84,8 +84,6 @@ function CrumbIcon({ item }: { item: BreadcrumbItem }) {
       return <Search className={className} />;
     case "recall":
       return <Sparkles className={className} />;
-    case "map":
-      return <Network className={className} />;
     default:
       return <File className={className} />;
   }

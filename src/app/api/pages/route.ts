@@ -1,45 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
+import { withAuth } from "@/lib/api/http";
 import { libraryIdFromFolder, resolveLibraryId } from "@/lib/library/libraries";
-import {
-  contentOwnerId,
-  LibraryAccessError,
-  requireLibraryAccess,
-} from "@/lib/library/library-access";
+import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
 import { indexPage } from "@/lib/search/search";
-import { EMPTY_BLOCKS } from "@/lib/editor/editor-content";
+import { EMPTY_BLOCKS, extractPlainText } from "@/lib/editor/editor-content";
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return withAuth(undefined, async ({ user }) => {
+    const libraryId = await resolveLibraryId(
+      user.id,
+      req.nextUrl.searchParams.get("libraryId")
+    );
+    await requireLibraryAccess(user.id, libraryId, "VIEWER");
 
-  const libraryId = await resolveLibraryId(
-    user.id,
-    req.nextUrl.searchParams.get("libraryId")
-  );
-  await requireLibraryAccess(user.id, libraryId, "VIEWER");
+    const folderId = req.nextUrl.searchParams.get("folderId");
 
-  const folderId = req.nextUrl.searchParams.get("folderId");
+    const pages = await prisma.page.findMany({
+      where: {
+        libraryId,
+        ...(folderId ? { folderId: folderId === "root" ? null : folderId } : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+    });
 
-  const pages = await prisma.page.findMany({
-    where: {
-      libraryId,
-      ...(folderId ? { folderId: folderId === "root" ? null : folderId } : {}),
-    },
-    orderBy: { updatedAt: "desc" },
+    return NextResponse.json(pages);
   });
-
-  return NextResponse.json(pages);
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return withAuth(undefined, async ({ user }) => {
+    const { title, folderId, libraryId: rawLibraryId, content } = await req.json();
 
-  const { title, folderId, libraryId: rawLibraryId, content } = await req.json();
-
-  try {
     const libraryId = await libraryIdFromFolder(
       user.id,
       folderId,
@@ -48,24 +40,20 @@ export async function POST(req: NextRequest) {
     await requireLibraryAccess(user.id, libraryId, "EDITOR");
     const ownerId = await contentOwnerId(libraryId);
 
+    const normalizedContent = content ?? EMPTY_BLOCKS;
     const page = await prisma.page.create({
       data: {
         title: title?.trim() || "Untitled",
         userId: ownerId,
         libraryId,
         folderId: folderId && folderId !== "__root__" ? folderId : null,
-        content: content ?? EMPTY_BLOCKS,
-        plainText: "",
+        content: normalizedContent,
+        plainText: extractPlainText(normalizedContent),
       },
     });
 
-    await indexPage(page.id, page.title, "", user.id).catch(() => {});
+    await indexPage(page.id, page.title, page.plainText, user.id).catch(() => {});
 
     return NextResponse.json(page);
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+  });
 }

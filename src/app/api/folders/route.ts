@@ -1,19 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { badRequest, notFound, parseBody, withAuth } from "@/lib/api/http";
 import { resolveLibraryId } from "@/lib/library/libraries";
-import {
-  contentOwnerId,
-  LibraryAccessError,
-  requireLibraryAccess,
-} from "@/lib/library/library-access";
+import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
 import { buildFolderTree } from "@/lib/library/folders";
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  try {
+  return withAuth(undefined, async ({ user }) => {
     const libraryId = await resolveLibraryId(
       user.id,
       req.nextUrl.searchParams.get("libraryId")
@@ -21,10 +15,7 @@ export async function GET(req: NextRequest) {
     await requireLibraryAccess(user.id, libraryId, "VIEWER");
 
     const [folders, pages, documents] = await Promise.all([
-      prisma.folder.findMany({
-        where: { libraryId },
-        orderBy: { name: "asc" },
-      }),
+      prisma.folder.findMany({ where: { libraryId }, orderBy: { name: "asc" } }),
       prisma.page.findMany({
         where: { libraryId },
         select: { id: true, title: true, folderId: true },
@@ -45,32 +36,27 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({ tree: buildFolderTree(folders, pages, documents), folders });
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+  });
 }
 
+const createSchema = z.object({
+  name: z.string().optional(),
+  parentId: z.string().nullish(),
+  libraryId: z.string().nullish(),
+  color: z.string().optional(),
+});
+
 export async function POST(req: NextRequest) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return withAuth(undefined, async ({ user }) => {
+    const { name, parentId, libraryId: rawLibraryId, color } = await parseBody(req, createSchema);
+    if (!name?.trim()) throw badRequest("Name required");
 
-  const { name, parentId, libraryId: rawLibraryId, color } = await req.json();
-  if (!name?.trim()) {
-    return NextResponse.json({ error: "Name required" }, { status: 400 });
-  }
-
-  try {
-    let libraryId = await resolveLibraryId(user.id, rawLibraryId);
+    let libraryId = await resolveLibraryId(user.id, rawLibraryId ?? null);
     await requireLibraryAccess(user.id, libraryId, "EDITOR");
 
     if (parentId) {
-      const parent = await prisma.folder.findFirst({
-        where: { id: parentId, libraryId },
-      });
-      if (!parent) return NextResponse.json({ error: "Parent folder not found" }, { status: 404 });
+      const parent = await prisma.folder.findFirst({ where: { id: parentId, libraryId } });
+      if (!parent) throw notFound("Parent folder not found");
       libraryId = parent.libraryId;
     }
 
@@ -86,10 +72,5 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(folder);
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+  });
 }

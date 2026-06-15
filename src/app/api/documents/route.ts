@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
+import { badRequest, withAuth } from "@/lib/api/http";
 import { libraryIdFromFolder, resolveLibraryId } from "@/lib/library/libraries";
-import {
-  contentOwnerId,
-  LibraryAccessError,
-  requireLibraryAccess,
-} from "@/lib/library/library-access";
+import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
 import { sanitizeStorageName, uploadDocument } from "@/lib/documents/storage";
 import {
@@ -16,33 +12,32 @@ import {
 } from "@/lib/documents/extract";
 import { hasOpenAI, OPENAI_FILE_PROCESSING_ENABLED } from "@/lib/search/openai";
 import { indexDocument } from "@/lib/search/search";
-import { createEmptyBoard, deriveBoardText } from "@/lib/boards/board-schema";
-import { createEmptyDeck, deriveDeckText } from "@/lib/decks/deck-schema";
-import { createEmptyFlow, deriveFlowText } from "@/lib/flowcharts/flowchart-schema";
+import { createEmptyBoard, deriveBoardText, normalizeBoard } from "@/lib/boards/board-schema";
+import { createEmptyDeck, deriveDeckText, normalizeDeck } from "@/lib/decks/deck-schema";
+import { createEmptyFlow, deriveFlowText, normalizeFlow } from "@/lib/flowcharts/flowchart-schema";
 import { reindexDatabase, seedDatabase } from "@/lib/databases/database-server";
 import type { DocumentType, Prisma } from "@/generated/prisma/client";
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return withAuth(undefined, async ({ user }) => {
+    const libraryId = await resolveLibraryId(
+      user.id,
+      req.nextUrl.searchParams.get("libraryId")
+    );
+    await requireLibraryAccess(user.id, libraryId, "VIEWER");
 
-  const libraryId = await resolveLibraryId(
-    user.id,
-    req.nextUrl.searchParams.get("libraryId")
-  );
-  await requireLibraryAccess(user.id, libraryId, "VIEWER");
+    const folderId = req.nextUrl.searchParams.get("folderId");
 
-  const folderId = req.nextUrl.searchParams.get("folderId");
+    const documents = await prisma.document.findMany({
+      where: {
+        libraryId,
+        ...(folderId ? { folderId: folderId === "root" ? null : folderId } : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+    });
 
-  const documents = await prisma.document.findMany({
-    where: {
-      libraryId,
-      ...(folderId ? { folderId: folderId === "root" ? null : folderId } : {}),
-    },
-    orderBy: { updatedAt: "desc" },
+    return NextResponse.json(documents);
   });
-
-  return NextResponse.json(documents);
 }
 
 // Splits a filename into its base name and extension (".pdf", ".tar.gz" stays
@@ -113,91 +108,101 @@ function nativeSceneData(type: DocumentType): {
 }
 
 async function createNativeDocument(req: NextRequest, userId: string) {
-  const { type, title, folderId, libraryId: rawLibraryId } = await req.json();
+  const {
+    type,
+    title,
+    folderId,
+    libraryId: rawLibraryId,
+    deckContent,
+    boardContent,
+    flowContent,
+    databaseTemplate,
+  } = await req.json();
 
   if (!(type in NATIVE_DEFAULT_TITLES)) {
-    return NextResponse.json({ error: "Unsupported document type" }, { status: 400 });
+    throw badRequest("Unsupported document type");
   }
   const docType = type as DocumentType;
 
-  try {
-    const libraryId = await libraryIdFromFolder(
-      userId,
-      folderId ?? null,
-      await resolveLibraryId(userId, rawLibraryId ?? null)
-    );
-    await requireLibraryAccess(userId, libraryId, "EDITOR");
-    const ownerId = await contentOwnerId(libraryId);
+  const libraryId = await libraryIdFromFolder(
+    userId,
+    folderId ?? null,
+    await resolveLibraryId(userId, rawLibraryId ?? null)
+  );
+  await requireLibraryAccess(userId, libraryId, "EDITOR");
+  const ownerId = await contentOwnerId(libraryId);
 
-    const normalizedFolderId = folderId && folderId !== "__root__" ? folderId : null;
-    const desiredTitle =
-      (typeof title === "string" && title.trim()) || NATIVE_DEFAULT_TITLES[docType]!;
-    const uniqueTitle = await uniqueDocumentTitle(libraryId, normalizedFolderId, desiredTitle);
+  const normalizedFolderId = folderId && folderId !== "__root__" ? folderId : null;
+  const desiredTitle =
+    (typeof title === "string" && title.trim()) || NATIVE_DEFAULT_TITLES[docType]!;
+  const uniqueTitle = await uniqueDocumentTitle(libraryId, normalizedFolderId, desiredTitle);
 
-    const scene = nativeSceneData(docType);
-    const document = await prisma.document.create({
-      data: {
-        title: uniqueTitle,
-        type: docType,
-        status: "READY",
-        content: scene.text,
-        ...scene.data,
-        userId: ownerId,
-        libraryId,
-        folderId: normalizedFolderId,
-      },
-    });
-
-    // Databases store their data relationally — seed a starter schema + rows.
-    if (docType === "DATABASE") {
-      await seedDatabase(document.id);
-    }
-
-    // Index native items as soon as they're created so they're discoverable in
-    // recall search immediately, instead of only after their first edit.
-    // Databases derive their text from the seeded rows; the other native types
-    // index whatever their starter scene produced (title-only scenes are a
-    // cheap no-op — empty chunks get filtered out at index time).
-    after(async () => {
-      try {
-        if (docType === "DATABASE") {
-          await reindexDatabase(document.id, userId);
-        } else if (scene.text.trim()) {
-          await indexDocument(document.id, document.title, scene.text, userId);
-        }
-      } catch (error) {
-        console.error("[documents] native index failed:", error);
-      }
-    });
-
-    return NextResponse.json(document);
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
+  let scene = nativeSceneData(docType);
+  if (docType === "DECK" && deckContent != null) {
+    const deck = normalizeDeck(deckContent);
+    scene = { data: { deckContent: deck }, text: deriveDeckText(deck) };
+  } else if (docType === "WHITEBOARD" && boardContent != null) {
+    const board = normalizeBoard(boardContent);
+    scene = { data: { boardContent: board }, text: deriveBoardText(board) };
+  } else if (docType === "FLOWCHART" && flowContent != null) {
+    const flow = normalizeFlow(flowContent);
+    scene = { data: { flowContent: flow }, text: deriveFlowText(flow) };
   }
+
+  const document = await prisma.document.create({
+    data: {
+      title: uniqueTitle,
+      type: docType,
+      status: "READY",
+      content: scene.text,
+      ...scene.data,
+      userId: ownerId,
+      libraryId,
+      folderId: normalizedFolderId,
+    },
+  });
+
+  // Databases store their data relationally — seed a starter schema + rows.
+  if (docType === "DATABASE") {
+    const template =
+      typeof databaseTemplate === "string" ? databaseTemplate : undefined;
+    await seedDatabase(document.id, template);
+  }
+
+  // Index native items as soon as they're created so they're discoverable in
+  // recall search immediately, instead of only after their first edit.
+  // Databases derive their text from the seeded rows; the other native types
+  // index whatever their starter scene produced (title-only scenes are a
+  // cheap no-op — empty chunks get filtered out at index time).
+  after(async () => {
+    try {
+      if (docType === "DATABASE") {
+        await reindexDatabase(document.id, userId);
+      } else if (scene.text.trim()) {
+        await indexDocument(document.id, document.title, scene.text, userId);
+      }
+    } catch (error) {
+      console.error("[documents] native index failed:", error);
+    }
+  });
+
+  return NextResponse.json(document);
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return withAuth(undefined, async ({ user }) => {
+    if (req.headers.get("content-type")?.includes("application/json")) {
+      return createNativeDocument(req, user.id);
+    }
 
-  if (req.headers.get("content-type")?.includes("application/json")) {
-    return createNativeDocument(req, user.id);
-  }
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+    const folderId = formData.get("folderId") as string | null;
+    const rawLibraryId = formData.get("libraryId") as string | null;
+    const titleOverride = formData.get("title") as string | null;
 
-  const formData = await req.formData();
-  const file = formData.get("file") as File | null;
-  const folderId = formData.get("folderId") as string | null;
-  const rawLibraryId = formData.get("libraryId") as string | null;
-  const titleOverride = formData.get("title") as string | null;
+    if (!file) throw badRequest("No file provided");
 
-  if (!file) {
-    return NextResponse.json({ error: "No file provided" }, { status: 400 });
-  }
-
-  try {
     const libraryId = await libraryIdFromFolder(
       user.id,
       folderId,
@@ -290,10 +295,5 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(document);
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+  });
 }

@@ -1,27 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
+import { badRequest, notFound, withAuth } from "@/lib/api/http";
 import { createLibraryInvite } from "@/lib/library/invites";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: RouteParams) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { id: libraryId } = await params;
-
-  try {
+export async function GET(_req: NextRequest, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const libraryId = params.id;
     await requireLibraryAccess(user.id, libraryId, "VIEWER");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
 
-  const library = await prisma.library.findUniqueOrThrow({
+    const library = await prisma.library.findUniqueOrThrow({
     where: { id: libraryId },
     select: { id: true, name: true, userId: true },
   });
@@ -67,24 +57,20 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       createdAt: invite.createdAt,
     })),
     canManage: library.userId === user.id,
+    });
   });
 }
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(req: NextRequest, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const libraryId = params.id;
+    const { email, role, message } = await req.json();
 
-  const { id: libraryId } = await params;
-  const { email, role, message } = await req.json();
+    if (!email?.trim()) throw badRequest("Email required");
 
-  if (!email?.trim()) {
-    return NextResponse.json({ error: "Email required" }, { status: 400 });
-  }
+    const memberRole = role === "VIEWER" ? "VIEWER" : "EDITOR";
+    const customMessage = typeof message === "string" ? message.trim() : undefined;
 
-  const memberRole = role === "VIEWER" ? "VIEWER" : "EDITOR";
-  const customMessage = typeof message === "string" ? message.trim() : undefined;
-
-  try {
     const { library } = await requireLibraryAccess(user.id, libraryId, "OWNER");
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -93,21 +79,18 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     });
 
     if (!invitee) {
-      return NextResponse.json(
-        { error: "No account found with that email. They need to sign up first." },
-        { status: 404 }
-      );
+      throw notFound("No account found with that email. They need to sign up first.");
     }
 
     if (invitee.id === library.userId) {
-      return NextResponse.json({ error: "Owner already has access" }, { status: 400 });
+      throw badRequest("Owner already has access");
     }
 
     const existingMember = await prisma.libraryMember.findUnique({
       where: { libraryId_userId: { libraryId, userId: invitee.id } },
     });
     if (existingMember) {
-      return NextResponse.json({ error: "User is already a member" }, { status: 400 });
+      throw badRequest("User is already a member");
     }
 
     const invite = await createLibraryInvite({
@@ -127,10 +110,5 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       status: invite.status,
       createdAt: invite.createdAt,
     });
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+  });
 }

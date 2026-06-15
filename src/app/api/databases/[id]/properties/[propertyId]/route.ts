@@ -1,27 +1,24 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import {
-  databaseErrorResponse,
-  requireDatabaseDoc,
-} from "@/lib/databases/database-access";
+import { badRequest, notFound, withRoute } from "@/lib/api/http";
+import { requireDatabaseDoc } from "@/lib/databases/database-access";
 import { mapProperty, reindexDatabase } from "@/lib/databases/database-server";
 import type { PropertyType, SelectOption } from "@/lib/databases/database-schema";
 
 const VALID_TYPES: PropertyType[] = ["TEXT", "NUMBER", "SELECT", "DATE", "CHECKBOX"];
 
+type Ctx = { params: Promise<{ id: string; propertyId: string }> };
+
 /** Rename / retype / set options / resize a column. */
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string; propertyId: string }> }
-) {
-  try {
-    const { id, propertyId } = await params;
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  return withRoute(ctx, async ({ params }) => {
+    const { id, propertyId } = params;
     const { userId } = await requireDatabaseDoc(id, "EDITOR");
 
     const existing = await prisma.databaseProperty.findFirst({
       where: { id: propertyId, documentId: id },
     });
-    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!existing) throw notFound();
 
     const body = (await req.json().catch(() => null)) as {
       name?: string;
@@ -29,7 +26,7 @@ export async function PATCH(
       options?: SelectOption[];
       width?: number | null;
     } | null;
-    if (!body) return NextResponse.json({ error: "Missing body" }, { status: 400 });
+    if (!body) throw badRequest("Missing body");
 
     const data: Record<string, unknown> = {};
     if (typeof body.name === "string") data.name = body.name.trim().slice(0, 200);
@@ -53,25 +50,20 @@ export async function PATCH(
 
     after(() => reindexDatabase(id, userId).catch(() => {}));
     return NextResponse.json(mapProperty(updated));
-  } catch (error) {
-    return databaseErrorResponse(error);
-  }
+  });
 }
 
 /** Delete a column (cells cascade); prune it from any view config. */
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string; propertyId: string }> }
-) {
-  try {
-    const { id, propertyId } = await params;
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
+  return withRoute(ctx, async ({ params }) => {
+    const { id, propertyId } = params;
     const { userId } = await requireDatabaseDoc(id, "EDITOR");
 
     const existing = await prisma.databaseProperty.findFirst({
       where: { id: propertyId, documentId: id },
       select: { id: true },
     });
-    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!existing) throw notFound();
 
     await prisma.databaseProperty.delete({ where: { id: propertyId } });
 
@@ -89,7 +81,5 @@ export async function DELETE(
 
     after(() => reindexDatabase(id, userId).catch(() => {}));
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    return databaseErrorResponse(error);
-  }
+  });
 }

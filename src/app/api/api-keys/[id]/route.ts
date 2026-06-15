@@ -1,26 +1,23 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
+import { notFound, withAuth } from "@/lib/api/http";
 import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-export async function DELETE(_req: Request, { params }: RouteParams) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function DELETE(_req: Request, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const { id } = params;
+    const existing = await prisma.apiKey.findFirst({
+      where: { id, userId: user.id, revokedAt: null },
+    });
 
-  const { id } = await params;
-  const existing = await prisma.apiKey.findFirst({
-    where: { id, userId: user.id, revokedAt: null },
+    if (!existing) throw notFound();
+
+    await prisma.apiKey.update({
+      where: { id },
+      data: { revokedAt: new Date() },
+    });
+
+    return NextResponse.json({ ok: true });
   });
-
-  if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  await prisma.apiKey.update({
-    where: { id },
-    data: { revokedAt: new Date() },
-  });
-
-  return NextResponse.json({ ok: true });
 }

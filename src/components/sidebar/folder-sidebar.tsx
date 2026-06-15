@@ -16,16 +16,12 @@ import {
 import {
   ChevronDown,
   ChevronRight,
-  Files,
   FolderPlus,
   House,
   Loader2,
   MessageSquare,
   MessageSquarePlus,
   MoreHorizontal,
-  Network,
-  PanelLeftClose,
-  PanelLeftOpen,
   Pencil,
   Plus,
   Search,
@@ -43,18 +39,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { usePersistentState } from "@/lib/client/use-persistent-state";
-import { FolderIcon } from "@/components/icons/folder-icon";
 import type { FolderNode } from "@/lib/library/folders";
-import {
-  FileArtwork,
-  FolderArtwork,
-  getDocumentIcon,
-  getDocumentIconClass,
-  PageIcon,
-} from "@/lib/client/file-icons";
+import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
 import { LibrarySwitcher, type Library } from "@/components/sidebar/library-switcher";
+import { AppLauncher } from "@/components/native/app-launcher";
 import { SidebarFooter } from "@/components/sidebar/sidebar-footer";
 import { useRecallChat } from "@/components/recall/recall-chat-context";
 import { sessionLabel } from "@/lib/recall-chat/recall-chat-ui";
@@ -94,11 +82,10 @@ type Props = {
   onDeleteDocument: (doc: ItemRef) => void;
   onMoveItem: (item: SidebarDragItem, folderId: string | null) => void | Promise<void>;
   onUploadToFolder: (folderId: string | null, files: FileList | File[]) => void | Promise<void>;
-  activeNav: "search" | "recall" | "map" | "home" | null;
+  activeNav: "search" | "recall" | "home" | null;
   onOpenHome: () => void;
   onOpenSearch: () => void;
   onOpenRecall: () => void;
-  onOpenMindMap: () => void;
 };
 
 function SidebarTreeSkeleton() {
@@ -157,14 +144,9 @@ export function FolderSidebar(props: Props) {
     onOpenHome,
     onOpenSearch,
     onOpenRecall,
-    onOpenMindMap,
   } = props;
 
   const [activeDrag, setActiveDrag] = useState<SidebarDragItem | null>(null);
-  const [collapsed, setCollapsed, collapsedHydrated] = usePersistentState<boolean>(
-    "recalls:sidebar-collapsed",
-    false
-  );
   const recallChat = useRecallChat();
 
   const sensors = useSensors(
@@ -211,31 +193,7 @@ export function FolderSidebar(props: Props) {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
-      <aside
-        className={cn(
-          "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground",
-          collapsed ? "w-[60px]" : "w-[240px]",
-          collapsedHydrated && "transition-[width] duration-200 ease-out"
-        )}
-      >
-        {collapsed ? (
-          <CollapsedRail
-            tree={tree}
-            activeNav={activeNav}
-            selectedFolderId={selectedFolderId}
-            selectedPageId={selectedPageId}
-            selectedDocumentId={selectedDocumentId}
-            onExpand={() => setCollapsed(false)}
-            onOpenHome={onOpenHome}
-            onOpenSearch={onOpenSearch}
-            onOpenRecall={onOpenRecall}
-            onOpenMindMap={onOpenMindMap}
-            onSelectFolder={onSelectFolder}
-            onSelectPage={onSelectPage}
-            onSelectDocument={onSelectDocument}
-          />
-        ) : (
-          <>
+      <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground">
         <div className="flex shrink-0 items-center gap-1 px-2 py-2">
           <div className="min-w-0 flex-1">
             <LibrarySwitcher
@@ -246,6 +204,7 @@ export function FolderSidebar(props: Props) {
               onShare={onShareLibrary}
             />
           </div>
+          <AppLauncher />
           {activeLibrary && activeLibrary.role === "OWNER" && (
             <ItemMenu
               items={[
@@ -263,15 +222,6 @@ export function FolderSidebar(props: Props) {
               ]}
             />
           )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title="Collapse sidebar"
-            aria-label="Collapse sidebar"
-            onClick={() => setCollapsed(true)}
-          >
-            <PanelLeftClose className="size-4" />
-          </Button>
         </div>
 
         <div className="shrink-0 space-y-0.5 px-2 pb-2">
@@ -374,19 +324,6 @@ export function FolderSidebar(props: Props) {
                 </Button>
             </div>
           )}
-          <Button
-            variant="ghost"
-            className={cn(
-              "h-8 w-full justify-start gap-2 px-2",
-              activeNav === "map"
-                ? "sidebar-item-active font-medium text-sidebar-foreground"
-                : "text-muted-foreground"
-            )}
-            onClick={onOpenMindMap}
-          >
-            <Network className="size-4" />
-            Mind map
-          </Button>
         </div>
 
         <Separator className="shrink-0" />
@@ -451,8 +388,6 @@ export function FolderSidebar(props: Props) {
         <div className="shrink-0">
           <SidebarFooter />
         </div>
-          </>
-        )}
       </aside>
 
       <DragOverlay dropAnimation={null}>
@@ -463,301 +398,6 @@ export function FolderSidebar(props: Props) {
         ) : null}
       </DragOverlay>
     </DndContext>
-  );
-}
-
-type RailProps = {
-  tree: FolderNode[];
-  activeNav: Props["activeNav"];
-  selectedFolderId: string | null;
-  selectedPageId: string | null;
-  selectedDocumentId: string | null;
-  onExpand: () => void;
-  onOpenHome: () => void;
-  onOpenSearch: () => void;
-  onOpenRecall: () => void;
-  onOpenMindMap: () => void;
-  onSelectFolder: (id: string | null) => void;
-  onSelectPage: (id: string) => void;
-  onSelectDocument: (id: string) => void;
-};
-
-function CollapsedRail({
-  tree,
-  activeNav,
-  selectedFolderId,
-  selectedPageId,
-  selectedDocumentId,
-  onExpand,
-  onOpenHome,
-  onOpenSearch,
-  onOpenRecall,
-  onOpenMindMap,
-  onSelectFolder,
-  onSelectPage,
-  onSelectDocument,
-}: RailProps) {
-  const rootNode = tree.find((n) => n.id === "__root__");
-  const folders = tree.filter((n) => n.id !== "__root__");
-
-  return (
-    <div className="flex h-full flex-col items-center gap-1 py-2">
-      <RailIconButton icon={PanelLeftOpen} label="Expand sidebar" onClick={onExpand} />
-
-      <Separator className="my-1 w-7" />
-
-      <RailIconButton
-        icon={House}
-        label="Home"
-        active={activeNav === "home"}
-        onClick={onOpenHome}
-      />
-      <RailIconButton
-        icon={Search}
-        label="Search"
-        active={activeNav === "search"}
-        onClick={onOpenSearch}
-      />
-      <RailIconButton
-        icon={Sparkles}
-        label="Recall"
-        accent
-        active={activeNav === "recall"}
-        onClick={onOpenRecall}
-      />
-      <RailIconButton
-        icon={Network}
-        label="Mind map"
-        active={activeNav === "map"}
-        onClick={onOpenMindMap}
-      />
-
-      <Separator className="my-1 w-7" />
-
-      <ScrollArea className="min-h-0 w-full flex-1">
-        <div className="flex flex-col items-center gap-1 px-1">
-          {folders.map((folder) => (
-            <RailStack
-              key={folder.id}
-              node={folder}
-              icon={<FolderIcon color={folder.color} className="size-4" />}
-              selectedFolderId={selectedFolderId}
-              selectedPageId={selectedPageId}
-              selectedDocumentId={selectedDocumentId}
-              onSelectFolder={onSelectFolder}
-              onSelectPage={onSelectPage}
-              onSelectDocument={onSelectDocument}
-            />
-          ))}
-          {rootNode &&
-            (rootNode.pages.length > 0 || rootNode.documents.length > 0) && (
-              <RailStack
-                node={rootNode}
-                icon={<Files className="size-4 text-muted-foreground" />}
-                selectedFolderId={selectedFolderId}
-                selectedPageId={selectedPageId}
-                selectedDocumentId={selectedDocumentId}
-                onSelectFolder={onSelectFolder}
-                onSelectPage={onSelectPage}
-                onSelectDocument={onSelectDocument}
-              />
-            )}
-        </div>
-      </ScrollArea>
-    </div>
-  );
-}
-
-function RailIconButton({
-  icon: Icon,
-  label,
-  active,
-  accent,
-  onClick,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  active?: boolean;
-  accent?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      title={label}
-      aria-label={label}
-      className={cn(
-        "size-10 rounded-lg",
-        accent
-          ? active
-            ? "bg-primary/10 text-primary"
-            : "text-muted-foreground hover:bg-primary/5 hover:text-primary"
-          : active
-            ? "sidebar-item-active text-sidebar-foreground"
-            : "text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
-      )}
-      onClick={onClick}
-    >
-      <Icon className="size-4" />
-    </Button>
-  );
-}
-
-function RailStack({
-  node,
-  icon,
-  selectedFolderId,
-  selectedPageId,
-  selectedDocumentId,
-  onSelectFolder,
-  onSelectPage,
-  onSelectDocument,
-}: {
-  node: FolderNode;
-  icon: React.ReactNode;
-  selectedFolderId: string | null;
-  selectedPageId: string | null;
-  selectedDocumentId: string | null;
-  onSelectFolder: (id: string | null) => void;
-  onSelectPage: (id: string) => void;
-  onSelectDocument: (id: string) => void;
-}) {
-  const isRoot = node.id === "__root__";
-  const isActive =
-    !isRoot &&
-    selectedFolderId === node.id &&
-    !selectedPageId &&
-    !selectedDocumentId;
-
-  return (
-    <Popover>
-      <PopoverTrigger
-        openOnHover
-        delay={100}
-        closeDelay={150}
-        render={
-          <button
-            type="button"
-            aria-label={node.name}
-            onClick={() => {
-              if (!isRoot) onSelectFolder(node.id);
-            }}
-            className={cn(
-              "flex size-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-hover hover:text-foreground",
-              isActive && "sidebar-item-active text-sidebar-foreground"
-            )}
-          >
-            {icon}
-          </button>
-        }
-      />
-      <PopoverContent
-        side="right"
-        align="start"
-        sideOffset={10}
-        className="w-64 overflow-hidden p-0"
-      >
-        <RailFlyout
-          node={node}
-          isRoot={isRoot}
-          onSelectFolder={onSelectFolder}
-          onSelectPage={onSelectPage}
-          onSelectDocument={onSelectDocument}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function RailFlyout({
-  node,
-  isRoot,
-  onSelectFolder,
-  onSelectPage,
-  onSelectDocument,
-}: {
-  node: FolderNode;
-  isRoot: boolean;
-  onSelectFolder: (id: string | null) => void;
-  onSelectPage: (id: string) => void;
-  onSelectDocument: (id: string) => void;
-}) {
-  const empty =
-    node.children.length === 0 &&
-    node.pages.length === 0 &&
-    node.documents.length === 0;
-
-  return (
-    <div className="flex max-h-[60vh] flex-col">
-      {isRoot ? (
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <Files className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">Files</span>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onSelectFolder(node.id)}
-          className="flex items-center gap-2 border-b border-border px-3 py-2 text-left transition-colors hover:bg-muted"
-        >
-          <FolderIcon color={node.color} className="size-4 shrink-0" />
-          <span className="truncate text-sm font-medium">{node.name}</span>
-        </button>
-      )}
-
-      <div className="min-h-0 overflow-y-auto p-1">
-        {empty ? (
-          <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-            Empty folder
-          </p>
-        ) : (
-          <>
-            {node.children.map((child) => (
-              <FlyoutRow key={child.id} onClick={() => onSelectFolder(child.id)}>
-                <FolderIcon color={child.color} className="size-4 shrink-0" />
-                <span className="truncate">{child.name}</span>
-              </FlyoutRow>
-            ))}
-            {node.pages.map((page) => (
-              <FlyoutRow key={page.id} onClick={() => onSelectPage(page.id)}>
-                <PageIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">{page.title}</span>
-              </FlyoutRow>
-            ))}
-            {node.documents.map((doc) => {
-              const DocIcon = getDocumentIcon(doc.type);
-              return (
-                <FlyoutRow key={doc.id} onClick={() => onSelectDocument(doc.id)}>
-                  <DocIcon
-                    className={cn("size-4 shrink-0", getDocumentIconClass(doc.type))}
-                  />
-                  <span className="truncate">{doc.title}</span>
-                </FlyoutRow>
-              );
-            })}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function FlyoutRow({
-  onClick,
-  children,
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
-    >
-      {children}
-    </button>
   );
 }
 

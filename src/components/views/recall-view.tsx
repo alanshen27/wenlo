@@ -221,6 +221,7 @@ export function RecallView() {
           variant="ghost"
           size="sm"
           className="h-8 gap-1.5 text-xs text-muted-foreground"
+          nativeButton={false}
           render={<Link href={searchRoute(libraryId)} />}
         >
           <Search className="size-3.5" />

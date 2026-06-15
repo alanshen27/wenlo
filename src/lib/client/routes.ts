@@ -1,4 +1,11 @@
+// Centralized route builders for the app. Grouped by area so views import from a
+// single, predictable source instead of hand-assembling URL strings.
+
 export const LIBRARY_STORAGE_KEY = "recall:activeLibraryId";
+
+// ---------------------------------------------------------------------------
+// Library + folders
+// ---------------------------------------------------------------------------
 
 export function libraryHome(libraryId: string) {
   return `/library/${libraryId}`;
@@ -7,6 +14,10 @@ export function libraryHome(libraryId: string) {
 export function folderHome(libraryId: string, folderId: string) {
   return `/library/${libraryId}/folder/${folderId}`;
 }
+
+// ---------------------------------------------------------------------------
+// Content items
+// ---------------------------------------------------------------------------
 
 export function pageRoute(libraryId: string, pageId: string) {
   return `/library/${libraryId}/pages/${pageId}`;
@@ -41,6 +52,26 @@ export function documentOpenRoute(libraryId: string, documentId: string, type?: 
   return documentRoute(libraryId, documentId);
 }
 
+// ---------------------------------------------------------------------------
+// Native-type hubs (Word-style home + full-screen editors), library-agnostic
+// ---------------------------------------------------------------------------
+
+import type { NativeKind } from "@/lib/native/native-types";
+
+/** Word-style home page for a native type, e.g. `/docs`, `/slides`. */
+export function nativeHomeRoute(kind: NativeKind) {
+  return `/${kind}`;
+}
+
+/** Standalone full-screen editor for a native item, e.g. `/docs/abc123`. */
+export function nativeEditorRoute(kind: NativeKind, id: string) {
+  return `/${kind}/${id}`;
+}
+
+// ---------------------------------------------------------------------------
+// Library features (search + recall)
+// ---------------------------------------------------------------------------
+
 export function searchRoute(libraryId: string) {
   return `/library/${libraryId}/search`;
 }
@@ -55,13 +86,9 @@ export function recallChatRoute(libraryId: string, sessionId?: string | null) {
   return `${base}?session=${encodeURIComponent(sessionId)}`;
 }
 
-export function mindMapRoute(libraryId: string) {
-  return `/library/${libraryId}/map`;
-}
-
-export function inviteRoute(token: string) {
-  return `/invite/${token}`;
-}
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
 
 export function settingsRoute() {
   return "/settings";
@@ -74,6 +101,22 @@ export function settingsIntegrationsRoute() {
 export function settingsPlanRoute() {
   return "/settings/plan";
 }
+
+// ---------------------------------------------------------------------------
+// Standalone pages
+// ---------------------------------------------------------------------------
+
+export function inviteRoute(token: string) {
+  return `/invite/${token}`;
+}
+
+export function designSystemRoute() {
+  return "/design";
+}
+
+// ---------------------------------------------------------------------------
+// Active library persistence
+// ---------------------------------------------------------------------------
 
 export function persistActiveLibrary(libraryId: string) {
   if (typeof window !== "undefined") {

@@ -1,67 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { badRequest, withAuth } from "@/lib/api/http";
+import { requirePage } from "@/lib/pages/page-access";
 import {
   PAGE_ASSET_MAX_BYTES,
   isAllowedAssetType,
   pageAssetStoragePath,
   pageAssetUrl,
 } from "@/lib/documents/page-assets";
-import { prisma } from "@/lib/db/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(req: NextRequest, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    const pageId = params.id;
+    const page = await requirePage(user.id, pageId, "EDITOR");
+    const ownerId = page.userId;
 
-  const { id: pageId } = await params;
-  const page = await prisma.page.findFirst({ where: { id: pageId } });
-  if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+    if (!file) throw badRequest("No file provided");
+    if (!isAllowedAssetType(file.type)) throw badRequest("This file type isn't allowed");
+    if (file.size > PAGE_ASSET_MAX_BYTES) throw badRequest("File must be under 50MB");
 
-  try {
-    await requireLibraryAccess(user.id, page.libraryId, "EDITOR");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+    const safeName = file.name.replace(/[^\w.\-()+ ]/g, "_").slice(0, 120);
+    const filename = `${Date.now()}-${safeName || "file"}`;
+    const storagePath = pageAssetStoragePath(ownerId, pageId, filename);
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    try {
+      const supabase = createAdminClient();
+      const { error } = await supabase.storage.from("documents").upload(storagePath, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    } catch {
+      return NextResponse.json({ error: "Storage unavailable" }, { status: 503 });
     }
-    throw error;
-  }
 
-  const ownerId = page.userId;
-
-  const formData = await req.formData();
-  const file = formData.get("file") as File | null;
-  if (!file) {
-    return NextResponse.json({ error: "No file provided" }, { status: 400 });
-  }
-
-  if (!isAllowedAssetType(file.type)) {
-    return NextResponse.json({ error: "This file type isn't allowed" }, { status: 400 });
-  }
-
-  if (file.size > PAGE_ASSET_MAX_BYTES) {
-    return NextResponse.json({ error: "File must be under 50MB" }, { status: 400 });
-  }
-
-  const safeName = file.name.replace(/[^\w.\-()+ ]/g, "_").slice(0, 120);
-  const filename = `${Date.now()}-${safeName || "file"}`;
-  const storagePath = pageAssetStoragePath(ownerId, pageId, filename);
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  try {
-    const supabase = createAdminClient();
-    const { error } = await supabase.storage.from("documents").upload(storagePath, buffer, {
-      contentType: file.type,
-      upsert: false,
-    });
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-  } catch {
-    return NextResponse.json({ error: "Storage unavailable" }, { status: 503 });
-  }
-
-  return NextResponse.json({ url: pageAssetUrl(pageId, filename) });
+    return NextResponse.json({ url: pageAssetUrl(pageId, filename) });
+  });
 }

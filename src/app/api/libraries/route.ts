@@ -1,25 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
+import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { badRequest, parseBody, withAuth } from "@/lib/api/http";
 import { createLibrary, listLibrariesWithRoles } from "@/lib/library/libraries";
 import { DEFAULT_LIBRARY_ICON } from "@/lib/library/folder-colors";
 
 export async function GET() {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const libraries = await listLibrariesWithRoles(user.id);
-  return NextResponse.json(libraries);
+  return withAuth(undefined, async ({ user }) => {
+    const libraries = await listLibrariesWithRoles(user.id);
+    return NextResponse.json(libraries);
+  });
 }
 
+const createSchema = z.object({
+  name: z.string().optional(),
+  icon: z.string().optional(),
+});
+
 export async function POST(req: NextRequest) {
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return withAuth(undefined, async ({ user }) => {
+    const { name, icon } = await parseBody(req, createSchema);
+    if (!name?.trim()) throw badRequest("Name required");
 
-  const { name, icon } = await req.json();
-  if (!name?.trim()) {
-    return NextResponse.json({ error: "Name required" }, { status: 400 });
-  }
-
-  const library = await createLibrary(user.id, name.trim(), icon || DEFAULT_LIBRARY_ICON);
-  return NextResponse.json({ ...library, role: "OWNER", isShared: false });
+    const library = await createLibrary(user.id, name.trim(), icon || DEFAULT_LIBRARY_ICON);
+    return NextResponse.json({ ...library, role: "OWNER", isShared: false });
+  });
 }

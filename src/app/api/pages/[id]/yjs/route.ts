@@ -1,89 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/auth";
+import { badRequest, HttpError, withAuth } from "@/lib/api/http";
 import { isCollabConfigured } from "@/lib/collab/config";
 import { base64ToUint8, uint8ToBase64 } from "@/lib/collab/encoding";
 import { mergePageYjsUpdate, readPageYjsState, seedPageYjsStateFromContent } from "@/lib/collab/yjs-store";
-import { LibraryAccessError, requireLibraryAccess } from "@/lib/library/library-access";
+import { requirePage } from "@/lib/pages/page-access";
 import { broadcastPageAwareness, broadcastPageYjsUpdate } from "@/lib/realtime/pusher-server";
-import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-async function getPage(pageId: string) {
-  return prisma.page.findFirst({ where: { id: pageId } });
-}
+const collabUnavailable = () => new HttpError(503, "Collaboration is not configured");
 
-export async function GET(_req: NextRequest, { params }: RouteParams) {
-  if (!isCollabConfigured()) {
-    return NextResponse.json({ error: "Collaboration is not configured" }, { status: 503 });
-  }
+export async function GET(_req: NextRequest, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    if (!isCollabConfigured()) throw collabUnavailable();
 
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const pageId = params.id;
+    const page = await requirePage(user.id, pageId);
 
-  const { id: pageId } = await params;
-  const page = await getPage(pageId);
-  if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  try {
-    await requireLibraryAccess(user.id, page.libraryId, "VIEWER");
     let state = await readPageYjsState(pageId);
     if (!state) {
-      state = await seedPageYjsStateFromContent(pageId, page.content) as Uint8Array<ArrayBuffer>;
+      state = (await seedPageYjsStateFromContent(pageId, page.content)) as Uint8Array<ArrayBuffer>;
     }
     return NextResponse.json({ state: state ? uint8ToBase64(state) : null });
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    throw error;
-  }
+  });
 }
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
-  if (!isCollabConfigured()) {
-    return NextResponse.json({ error: "Collaboration is not configured" }, { status: 503 });
-  }
+export async function POST(req: NextRequest, ctx: RouteParams) {
+  return withAuth(ctx, async ({ params, user }) => {
+    if (!isCollabConfigured()) throw collabUnavailable();
 
-  const user = await requireUser().catch(() => null);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const pageId = params.id;
+    await requirePage(user.id, pageId, "EDITOR");
 
-  const { id: pageId } = await params;
-  const page = await getPage(pageId);
-  if (!page) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const body = await req.json();
+    const { update, awareness, clientId } = body as {
+      update?: string;
+      awareness?: string;
+      clientId?: number;
+    };
 
-  try {
-    await requireLibraryAccess(user.id, page.libraryId, "EDITOR");
-  } catch (error) {
-    if (error instanceof LibraryAccessError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+    if (awareness) {
+      await broadcastPageAwareness(pageId, awareness);
+      return NextResponse.json({ ok: true });
     }
-    throw error;
-  }
 
-  const body = await req.json();
-  const { update, awareness, clientId } = body as {
-    update?: string;
-    awareness?: string;
-    clientId?: number;
-  };
+    if (!update) throw badRequest("update or awareness required");
 
-  if (awareness) {
-    await broadcastPageAwareness(pageId, awareness);
+    const updateBytes = base64ToUint8(update);
+    await mergePageYjsUpdate(pageId, updateBytes);
+    await broadcastPageYjsUpdate(
+      pageId,
+      update,
+      typeof clientId === "number" ? clientId : undefined
+    );
+
     return NextResponse.json({ ok: true });
-  }
-
-  if (!update) {
-    return NextResponse.json({ error: "update or awareness required" }, { status: 400 });
-  }
-
-  const updateBytes = base64ToUint8(update);
-  await mergePageYjsUpdate(pageId, updateBytes);
-  await broadcastPageYjsUpdate(
-    pageId,
-    update,
-    typeof clientId === "number" ? clientId : undefined
-  );
-
-  return NextResponse.json({ ok: true });
+  });
 }

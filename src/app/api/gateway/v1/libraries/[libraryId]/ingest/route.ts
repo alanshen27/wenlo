@@ -110,8 +110,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       },
     });
 
-      await indexPage(page.id, page.title, page.plainText, userId).catch(() => {});
-      return NextResponse.json({ kind: "page", item: page, created: true }, { status: 201 });
+    await indexPage(page.id, page.title, page.plainText, userId).catch(() => {});
+    return NextResponse.json({ kind: "page", item: page, created: true }, { status: 201 });
   } catch (error) {
     return gatewayErrorResponse(error);
   }

@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import {
-  databaseErrorResponse,
-  requireDatabaseDoc,
-} from "@/lib/databases/database-access";
+import { badRequest, withRoute } from "@/lib/api/http";
+import { requireDatabaseDoc } from "@/lib/databases/database-access";
 import { mapProperty, reindexDatabase } from "@/lib/databases/database-server";
 import type { PropertyType } from "@/lib/databases/database-schema";
 
 const VALID_TYPES: PropertyType[] = ["TEXT", "NUMBER", "SELECT", "DATE", "CHECKBOX"];
 
+type Ctx = { params: Promise<{ id: string }> };
+
 /** Add a column. */
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
+export async function POST(req: NextRequest, ctx: Ctx) {
+  return withRoute(ctx, async ({ params }) => {
+    const { id } = params;
     const { userId } = await requireDatabaseDoc(id, "EDITOR");
     const body = (await req.json().catch(() => null)) as {
       name?: string;
@@ -40,20 +40,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     after(() => reindexDatabase(id, userId).catch(() => {}));
     return NextResponse.json(mapProperty(property));
-  } catch (error) {
-    return databaseErrorResponse(error);
-  }
+  });
 }
 
 /** Reorder columns: body `{ order: string[] }`. */
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  return withRoute(ctx, async ({ params }) => {
+    const { id } = params;
     await requireDatabaseDoc(id, "EDITOR");
     const body = (await req.json().catch(() => null)) as { order?: string[] } | null;
-    if (!Array.isArray(body?.order)) {
-      return NextResponse.json({ error: "Missing order" }, { status: 400 });
-    }
+    if (!Array.isArray(body?.order)) throw badRequest("Missing order");
 
     await prisma.$transaction(
       body.order.map((propertyId, index) =>
@@ -65,9 +61,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     );
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    return databaseErrorResponse(error);
-  }
+  });
 }
 
 function defaultPropertyName(type: PropertyType): string {

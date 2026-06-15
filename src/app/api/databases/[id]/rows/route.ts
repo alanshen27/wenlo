@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import {
-  databaseErrorResponse,
-  requireDatabaseDoc,
-} from "@/lib/databases/database-access";
+import { badRequest, withRoute } from "@/lib/api/http";
+import { requireDatabaseDoc } from "@/lib/databases/database-access";
 import { loadMappedRow, reindexDatabase, writeRowCells } from "@/lib/databases/database-server";
 import type { CellValue } from "@/lib/databases/database-schema";
 
+type Ctx = { params: Promise<{ id: string }> };
+
 /** Add a row, optionally seeded with initial cell values. */
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
+export async function POST(req: NextRequest, ctx: Ctx) {
+  return withRoute(ctx, async ({ params }) => {
+    const { id } = params;
     const { userId } = await requireDatabaseDoc(id, "EDITOR");
     const body = (await req.json().catch(() => null)) as {
       cells?: Record<string, CellValue>;
@@ -36,20 +36,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     after(() => reindexDatabase(id, userId).catch(() => {}));
     const mapped = await loadMappedRow(id, row.id);
     return NextResponse.json(mapped ?? { id: row.id, position: row.position, cells: {} });
-  } catch (error) {
-    return databaseErrorResponse(error);
-  }
+  });
 }
 
 /** Reorder rows: body `{ order: string[] }`. */
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await params;
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  return withRoute(ctx, async ({ params }) => {
+    const { id } = params;
     await requireDatabaseDoc(id, "EDITOR");
     const body = (await req.json().catch(() => null)) as { order?: string[] } | null;
-    if (!Array.isArray(body?.order)) {
-      return NextResponse.json({ error: "Missing order" }, { status: 400 });
-    }
+    if (!Array.isArray(body?.order)) throw badRequest("Missing order");
 
     await prisma.$transaction(
       body.order.map((rowId, index) =>
@@ -61,7 +57,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     );
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    return databaseErrorResponse(error);
-  }
+  });
 }
