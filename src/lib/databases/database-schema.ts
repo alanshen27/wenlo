@@ -210,12 +210,32 @@ export function formatCellText(prop: DatabaseProperty, value: CellValue): string
   }
 }
 
-/** Concatenated cell text across all rows, for the search index. */
+/**
+ * Plain text for the search index. Leads with the database's schema — column
+ * names and their select option labels — so a database is discoverable by its
+ * structure (e.g. searching "Status" or an option label) and not only by the
+ * cell values it currently holds. The row values follow, one row per line.
+ */
 export function deriveDatabaseText(
   properties: DatabaseProperty[],
   rows: DatabaseRowData[]
 ): string {
   const parts: string[] = [];
+
+  const schemaParts: string[] = [];
+  for (const prop of properties) {
+    if (!prop.name.trim()) continue;
+    const optionLabels = prop.options
+      .map((o) => o.label.trim())
+      .filter(Boolean);
+    schemaParts.push(
+      optionLabels.length
+        ? `${prop.name} (${optionLabels.join(", ")})`
+        : prop.name
+    );
+  }
+  if (schemaParts.length) parts.push(schemaParts.join(" · "));
+
   for (const row of rows) {
     const rowParts: string[] = [];
     for (const prop of properties) {

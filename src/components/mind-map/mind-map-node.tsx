@@ -22,13 +22,13 @@ function MindMapNodeComponent({ data, selected }: NodeProps) {
       <Handle type="target" position={Position.Top} className="!border-0 !bg-transparent !opacity-0" />
       <div
         className={cn(
-          "flex items-center gap-2 rounded-xl border shadow-sm transition-all duration-200",
+          "flex items-center gap-2 rounded-xl border transition-all duration-200",
           kind === "library" &&
             "border-primary/30 bg-gradient-to-br from-primary/15 to-primary/5 px-3 py-2 font-medium text-foreground",
           kind === "folder" && "border-border bg-card px-3 py-2 text-card-foreground",
           kind === "page" &&
-            "cursor-pointer border-border/80 bg-background hover:border-primary/40 hover:shadow-md",
-          isHub && "border-primary/40 bg-primary/5 font-medium shadow-md",
+            "cursor-pointer border-border/80 bg-background hover:border-primary/40",
+          isHub && "border-primary/40 bg-primary/5 font-medium",
           selected && kind === "page" && "border-primary ring-2 ring-primary/20",
           dimmed && "opacity-25"
         )}

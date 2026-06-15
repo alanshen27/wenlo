@@ -243,7 +243,7 @@ function Card({
   return (
     <div
       className={cn(
-        "cursor-grab rounded-lg border border-border bg-card p-2.5 shadow-sm active:cursor-grabbing",
+        "cursor-grab rounded-lg border border-border bg-card p-2.5 active:cursor-grabbing",
         dragging && "shadow-md"
       )}
     >

@@ -16,10 +16,10 @@ import {
 } from "@/lib/documents/extract";
 import { hasOpenAI, OPENAI_FILE_PROCESSING_ENABLED } from "@/lib/search/openai";
 import { indexDocument } from "@/lib/search/search";
-import { createEmptyBoard } from "@/lib/boards/board-schema";
-import { createEmptyDeck } from "@/lib/decks/deck-schema";
-import { createEmptyFlow } from "@/lib/flowcharts/flowchart-schema";
-import { seedDatabase } from "@/lib/databases/database-server";
+import { createEmptyBoard, deriveBoardText } from "@/lib/boards/board-schema";
+import { createEmptyDeck, deriveDeckText } from "@/lib/decks/deck-schema";
+import { createEmptyFlow, deriveFlowText } from "@/lib/flowcharts/flowchart-schema";
+import { reindexDatabase, seedDatabase } from "@/lib/databases/database-server";
 import type { DocumentType, Prisma } from "@/generated/prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -81,21 +81,34 @@ const NATIVE_DEFAULT_TITLES: Partial<Record<DocumentType, string>> = {
   FLOWCHART: "Untitled flowchart",
 };
 
-/** Initial scene JSON for a native type (databases seed relationally instead). */
+/**
+ * Initial scene JSON for a native type plus the plain text derived from that
+ * scene, so the document can be indexed for search the moment it's created
+ * (databases seed relationally instead — see `seedDatabase`/`reindexDatabase`).
+ */
 function nativeSceneData(type: DocumentType): {
-  deckContent?: Prisma.InputJsonValue;
-  boardContent?: Prisma.InputJsonValue;
-  flowContent?: Prisma.InputJsonValue;
+  data: {
+    deckContent?: Prisma.InputJsonValue;
+    boardContent?: Prisma.InputJsonValue;
+    flowContent?: Prisma.InputJsonValue;
+  };
+  text: string;
 } {
   switch (type) {
-    case "DECK":
-      return { deckContent: createEmptyDeck() };
-    case "WHITEBOARD":
-      return { boardContent: createEmptyBoard() };
-    case "FLOWCHART":
-      return { flowContent: createEmptyFlow() };
+    case "DECK": {
+      const deck = createEmptyDeck();
+      return { data: { deckContent: deck }, text: deriveDeckText(deck) };
+    }
+    case "WHITEBOARD": {
+      const board = createEmptyBoard();
+      return { data: { boardContent: board }, text: deriveBoardText(board) };
+    }
+    case "FLOWCHART": {
+      const flow = createEmptyFlow();
+      return { data: { flowContent: flow }, text: deriveFlowText(flow) };
+    }
     default:
-      return {};
+      return { data: {}, text: "" };
   }
 }
 
@@ -121,13 +134,14 @@ async function createNativeDocument(req: NextRequest, userId: string) {
       (typeof title === "string" && title.trim()) || NATIVE_DEFAULT_TITLES[docType]!;
     const uniqueTitle = await uniqueDocumentTitle(libraryId, normalizedFolderId, desiredTitle);
 
+    const scene = nativeSceneData(docType);
     const document = await prisma.document.create({
       data: {
         title: uniqueTitle,
         type: docType,
         status: "READY",
-        content: "",
-        ...nativeSceneData(docType),
+        content: scene.text,
+        ...scene.data,
         userId: ownerId,
         libraryId,
         folderId: normalizedFolderId,
@@ -138,6 +152,23 @@ async function createNativeDocument(req: NextRequest, userId: string) {
     if (docType === "DATABASE") {
       await seedDatabase(document.id);
     }
+
+    // Index native items as soon as they're created so they're discoverable in
+    // recall search immediately, instead of only after their first edit.
+    // Databases derive their text from the seeded rows; the other native types
+    // index whatever their starter scene produced (title-only scenes are a
+    // cheap no-op — empty chunks get filtered out at index time).
+    after(async () => {
+      try {
+        if (docType === "DATABASE") {
+          await reindexDatabase(document.id, userId);
+        } else if (scene.text.trim()) {
+          await indexDocument(document.id, document.title, scene.text, userId);
+        }
+      } catch (error) {
+        console.error("[documents] native index failed:", error);
+      }
+    });
 
     return NextResponse.json(document);
   } catch (error) {

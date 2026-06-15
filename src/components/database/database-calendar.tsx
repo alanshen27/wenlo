@@ -341,7 +341,7 @@ function Chip({ label, dragging }: { label: string; dragging?: boolean }) {
   return (
     <div
       className={cn(
-        "cursor-grab truncate rounded-md border border-border bg-card px-2 py-1 text-xs shadow-sm active:cursor-grabbing",
+        "cursor-grab truncate rounded-md border border-border bg-card px-2 py-1 text-xs active:cursor-grabbing",
         dragging && "shadow-md"
       )}
     >

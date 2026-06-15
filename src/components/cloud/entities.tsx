@@ -529,11 +529,11 @@ export function EntityCard({
     <DndShell item={item} enableDnd={enableDnd && !pending} className="rounded-xl">
       <div
         className={cn(
-          "group/card relative select-none overflow-hidden rounded-xl border bg-card text-left shadow-sm transition-all",
+          "group/card relative select-none overflow-hidden rounded-xl border bg-card text-left transition-all",
           isSelected ? "border-primary ring-2 ring-primary/40" : "border-border/60",
           pending
             ? "opacity-60"
-            : "hover:border-border hover:shadow-md has-[a:focus-visible]:border-primary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-primary/40 has-[button:focus-visible]:border-primary has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-primary/40"
+            : "hover:border-border has-[a:focus-visible]:border-primary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-primary/40 has-[button:focus-visible]:border-primary has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-primary/40"
         )}
       >
         {canSelect && selection && (

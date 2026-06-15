@@ -336,7 +336,7 @@ export function RecallView() {
             ask();
           }}
         >
-          <div className="rounded-2xl border border-border bg-card shadow-sm transition-shadow focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
+          <div className="rounded-2xl border border-border bg-card transition-shadow focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
             <textarea
               ref={inputRef}
               value={question}
