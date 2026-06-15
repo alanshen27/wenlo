@@ -7,7 +7,13 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileArtwork, getDocumentLabel } from "@/lib/client/file-icons";
 import { apiGet } from "@/lib/client/api";
-import { boardRoute, deckRoute, documentRoute } from "@/lib/client/routes";
+import {
+  boardRoute,
+  databaseRoute,
+  deckRoute,
+  documentRoute,
+  flowchartRoute,
+} from "@/lib/client/routes";
 import { cn, formatBytes } from "@/lib/core/utils";
 import { BoardPreview } from "@/components/whiteboard/board-preview";
 import type { BoardDoc } from "@/lib/boards/board-schema";
@@ -52,6 +58,8 @@ export function FilePreviewPanel({
 
   const isBoard = target.type === "WHITEBOARD";
   const isDeck = target.type === "DECK";
+  const isDatabase = target.type === "DATABASE";
+  const isFlow = target.type === "FLOWCHART";
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +150,11 @@ export function FilePreviewPanel({
                 <p className="text-xs text-muted-foreground">Preview unavailable</p>
               </div>
             )
+          ) : isDatabase || isFlow ? (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <FileArtwork type={type} className="size-20" />
+              <p className="text-xs text-muted-foreground">Open to view and edit</p>
+            </div>
           ) : hasFile && doc && isImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -241,6 +254,22 @@ export function FilePreviewPanel({
           >
             <ExternalLink className="size-4" />
             Open deck
+          </Link>
+        ) : isDatabase ? (
+          <Link
+            href={databaseRoute(libraryId, target.id)}
+            className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex-1")}
+          >
+            <ExternalLink className="size-4" />
+            Open database
+          </Link>
+        ) : isFlow ? (
+          <Link
+            href={flowchartRoute(libraryId, target.id)}
+            className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex-1")}
+          >
+            <ExternalLink className="size-4" />
+            Open flowchart
           </Link>
         ) : (
           <>

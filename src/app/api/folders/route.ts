@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     const folder = await prisma.folder.create({
       data: {
         name: name.trim(),
-        color: color || "gray",
+        color: color || "yellow",
         userId: ownerId,
         libraryId,
         parentId: parentId || null,

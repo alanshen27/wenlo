@@ -48,8 +48,10 @@ import {
 } from "@/lib/client/api";
 import {
   boardRoute,
+  databaseRoute,
   deckRoute,
   documentOpenRoute,
+  flowchartRoute,
   folderHome,
   libraryHome,
   pageRoute,
@@ -99,6 +101,8 @@ type LibraryContextValue = {
   createPage: (folderId: string | null) => Promise<void>;
   createBoard: (folderId: string | null) => Promise<void>;
   createDeck: (folderId: string | null) => Promise<void>;
+  createDatabase: (folderId: string | null) => Promise<void>;
+  createFlowchart: (folderId: string | null) => Promise<void>;
   moveItem: (item: SidebarDragItem, folderId: string | null) => Promise<void>;
   beginCreateFolder: (parentId: string | null) => void;
   beginEditFolder: (folder: { id: string; name: string; color: FolderColorId }) => void;
@@ -379,6 +383,34 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     [libraryId, refreshTree, router]
   );
 
+  const createDatabase = useCallback(
+    async (folderId: string | null) => {
+      const data = await apiPost<{ id: string }>("/api/documents", {
+        type: "DATABASE",
+        folderId,
+        libraryId,
+        title: "Untitled database",
+      });
+      await refreshTree();
+      router.push(databaseRoute(libraryId, data.id));
+    },
+    [libraryId, refreshTree, router]
+  );
+
+  const createFlowchart = useCallback(
+    async (folderId: string | null) => {
+      const data = await apiPost<{ id: string }>("/api/documents", {
+        type: "FLOWCHART",
+        folderId,
+        libraryId,
+        title: "Untitled flowchart",
+      });
+      await refreshTree();
+      router.push(flowchartRoute(libraryId, data.id));
+    },
+    [libraryId, refreshTree, router]
+  );
+
   const beginCreateFolder = useCallback(
     (parentId: string | null) => setModal({ kind: "folder-create", parentId }),
     []
@@ -607,6 +639,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       createPage,
       createBoard,
       createDeck,
+      createDatabase,
+      createFlowchart,
       moveItem,
       beginCreateFolder,
       beginEditFolder,
@@ -635,6 +669,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
       createPage,
       createBoard,
       createDeck,
+      createDatabase,
+      createFlowchart,
       moveItem,
       beginCreateFolder,
       beginEditFolder,
@@ -730,7 +766,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           open={modal.kind === "folder-create" || modal.kind === "folder-edit"}
           mode={modal.kind === "folder-edit" ? "edit" : "create"}
           initialName={modal.kind === "folder-edit" ? modal.name : ""}
-          initialColor={modal.kind === "folder-edit" ? modal.color : "gray"}
+          initialColor={modal.kind === "folder-edit" ? modal.color : "yellow"}
           onOpenChange={(open) => !open && setModal({ kind: "none" })}
           onSubmit={handleFolderSubmit}
         />

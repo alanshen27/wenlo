@@ -214,6 +214,8 @@ enum DocumentType {
   VIDEO
   WHITEBOARD
   DECK
+  DATABASE
+  FLOWCHART
   OTHER
 }
 
@@ -239,6 +241,9 @@ model Document {
   // Native editable slideshow scene (DECK type). Flat, id-keyed slide/element
   // maps; see src/lib/decks/deck-schema.ts. Null for non-deck documents.
   deckContent  Json?
+  // Native flowchart scene (FLOWCHART type): node/edge maps for React Flow.
+  // See src/lib/flowcharts/flowchart-schema.ts.
+  flowContent  Json?
   language     String?
   userId       String
   libraryId    String
@@ -251,9 +256,102 @@ model Document {
   folder  Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   chunks  Chunk[]
 
+  // Relational data for DATABASE documents (Sheet / Kanban / Calendar views).
+  databaseProperties DatabaseProperty[]
+  databaseRows       DatabaseRow[]
+  databaseViews      DatabaseView[]
+
   @@index([userId])
   @@index([libraryId])
   @@index([folderId])
+}
+
+// A queryable, Notion-style database lives inside a DATABASE Document. Its
+// columns (properties), records (rows), and per-cell values are stored
+// relationally — not as a JSON blob — so rows can be filtered/sorted/aggregated
+// in SQL and surfaced as Table (Sheet), Kanban, and Calendar views.
+
+enum DatabasePropertyType {
+  TEXT
+  NUMBER
+  SELECT
+  DATE
+  CHECKBOX
+}
+
+model DatabaseProperty {
+  id         String               @id @default(cuid())
+  documentId String
+  name       String
+  type       DatabasePropertyType @default(TEXT)
+  // SELECT only: [{ id, label, color }] choices. Config, not row data.
+  options    Json?
+  position   Int                  @default(0)
+  width      Int?
+  createdAt  DateTime             @default(now())
+
+  document Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  cells    DatabaseCell[]
+
+  @@index([documentId])
+}
+
+model DatabaseRow {
+  id         String   @id @default(cuid())
+  documentId String
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  document Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  cells    DatabaseCell[]
+
+  @@index([documentId])
+  @@index([documentId, position])
+}
+
+// One typed value at (row × property). Exactly one value* column is populated
+// per cell, chosen by the property's type — keeping every value natively
+// queryable/sortable instead of buried in JSON.
+model DatabaseCell {
+  id            String    @id @default(cuid())
+  rowId         String
+  propertyId    String
+  valueText     String?   @db.Text
+  valueNumber   Float?
+  valueDate     DateTime? @db.Date
+  valueBool     Boolean?
+  // For SELECT: the chosen option id (option labels/colors live on the property).
+  valueOptionId String?
+
+  row      DatabaseRow      @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  property DatabaseProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([rowId, propertyId])
+  @@index([rowId])
+  @@index([propertyId])
+  @@index([propertyId, valueOptionId])
+}
+
+enum DatabaseViewType {
+  TABLE
+  BOARD
+  CALENDAR
+}
+
+model DatabaseView {
+  id         String           @id @default(cuid())
+  documentId String
+  name       String
+  type       DatabaseViewType @default(TABLE)
+  // BOARD: { groupPropertyId }; CALENDAR: { datePropertyId }. Small config.
+  config     Json?
+  position   Int              @default(0)
+  createdAt  DateTime         @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
 }
 
 enum ChunkSourceType {

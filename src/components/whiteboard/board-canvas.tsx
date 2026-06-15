@@ -6,7 +6,6 @@ import {
   Layer,
   Group,
   Rect,
-  Ellipse,
   Line,
   Text as KonvaText,
   Arrow,
@@ -22,6 +21,7 @@ import {
   type ConnectorElement,
   type ConnectorEndpoint,
 } from "@/lib/boards/board-schema";
+import type { ShapeKind } from "@/lib/canvas/shapes";
 import {
   absBounds,
   computeSnap,
@@ -32,6 +32,7 @@ import {
   type SnapLine,
 } from "@/components/whiteboard/board-geometry";
 import { BoardImageNode } from "@/components/whiteboard/board-image";
+import { ShapeNode } from "@/components/canvas/shape-node";
 import { readImageSize } from "@/lib/canvas/image";
 import { BoardToolbar, type Tool } from "@/components/whiteboard/board-toolbar";
 import type { LockHolder, LockMap, RemoteCursor } from "@/components/whiteboard/use-board-collab";
@@ -98,6 +99,9 @@ export function BoardCanvas({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<BoardElement | null>(null);
+  // In-progress drag rectangle for text/sticky creation (scene coords). `w`/`h`
+  // may be negative while dragging up/left; normalized on commit.
+  const [creationBox, setCreationBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [denied, setDenied] = useState<LockHolder | null>(null);
   const [guides, setGuides] = useState<SnapLine[]>([]);
@@ -213,6 +217,25 @@ export function BoardCanvas({
     [selectedId, readOnly, scene.elementOrder, onPatch]
   );
 
+  // --- Clipboard (in-app copy/paste) ---
+  const clipboardRef = useRef<BoardElement | null>(null);
+  const copySelected = useCallback(() => {
+    if (!selectedId) return;
+    const el = scene.elements[selectedId];
+    // Connectors reference other elements by id, so a standalone copy is
+    // meaningless — skip them.
+    if (el && el.type !== "connector") clipboardRef.current = el;
+  }, [selectedId, scene.elements]);
+  const pasteClipboard = useCallback(() => {
+    const el = clipboardRef.current;
+    if (!el || readOnly) return;
+    const id = newId();
+    const copy = { ...el, id, x: el.x + 24, y: el.y + 24 } as BoardElement;
+    commitElement(copy, true);
+    setSelectedId(id);
+    void requestLock([id]);
+  }, [readOnly, commitElement, requestLock]);
+
   // --- Keyboard: space-pan, tool shortcuts, delete ---
   useEffect(() => {
     const isTyping = () => {
@@ -246,6 +269,17 @@ export function BoardCanvas({
           return;
         }
       }
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && !e.altKey && e.key.toLowerCase() === "c" && selectedId && !readOnly) {
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      if (meta && !e.altKey && e.key.toLowerCase() === "v" && !readOnly) {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const map: Record<string, Tool> = {
         v: "select",
@@ -271,7 +305,7 @@ export function BoardCanvas({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedId, editingId, readOnly, deleteSelected, scene.elements, onPatch]);
+  }, [selectedId, editingId, readOnly, deleteSelected, scene.elements, onPatch, copySelected, pasteClipboard]);
 
   // --- Pointer helpers ---
   const relativePointer = useCallback(() => {
@@ -315,27 +349,12 @@ export function BoardCanvas({
       const pos = relativePointer();
       if (!pos) return;
 
+      // Text / sticky: drag to set bounds (a plain click falls back to a
+      // default size — see handleStageMouseUp).
       if (tool === "text" || tool === "sticky") {
-        const id = newId();
-        const el: BoardElement =
-          tool === "text"
-            ? { id, type: "text", x: pos.x, y: pos.y, text: "", w: 220, fontSize: 24, color }
-            : {
-                id,
-                type: "sticky",
-                x: pos.x,
-                y: pos.y,
-                text: "",
-                w: 180,
-                h: 180,
-                fill: STICKY_FILL,
-                color: "#1f2937",
-              };
-        commitElement(el, true);
-        setTool("select");
-        setSelectedId(id);
-        setEditingId(id);
-        void requestLock([id]);
+        drawingRef.current = true;
+        startRef.current = pos;
+        setCreationBox({ x: pos.x, y: pos.y, w: 0, h: 0 });
         return;
       }
 
@@ -359,15 +378,24 @@ export function BoardCanvas({
         setDraft({ id, type: "path", x: pos.x, y: pos.y, points: [0, 0], stroke: color, strokeWidth });
       } else if (tool === "arrow") {
         setDraft({ id, type: "arrow", x: pos.x, y: pos.y, points: [0, 0, 0, 0], stroke: color, strokeWidth });
-      } else if (tool === "line") {
-        setDraft({ id, type: "shape", shape: "line", x: pos.x, y: pos.y, w: 0, h: 0, stroke: color, strokeWidth });
-      } else if (tool === "rect") {
-        setDraft({ id, type: "shape", shape: "rect", x: pos.x, y: pos.y, w: 0, h: 0, stroke: color, strokeWidth, fill });
-      } else if (tool === "ellipse") {
-        setDraft({ id, type: "shape", shape: "ellipse", x: pos.x, y: pos.y, w: 0, h: 0, stroke: color, strokeWidth, fill });
+      } else {
+        // Box-based shape tools (line + polygons). Lines are stroke-only.
+        const shape = tool as ShapeKind;
+        setDraft({
+          id,
+          type: "shape",
+          shape,
+          x: pos.x,
+          y: pos.y,
+          w: 0,
+          h: 0,
+          stroke: color,
+          strokeWidth,
+          ...(shape === "line" ? {} : { fill }),
+        });
       }
     },
-    [panning, tool, readOnly, deselect, relativePointer, color, fill, strokeWidth, commitElement, requestLock, hitTest]
+    [panning, tool, readOnly, deselect, relativePointer, color, fill, strokeWidth, hitTest]
   );
 
   const handleStageMouseMove = useCallback(() => {
@@ -384,6 +412,11 @@ export function BoardCanvas({
 
     if (!drawingRef.current || !startRef.current || !pos) return;
     const start = startRef.current;
+
+    if (tool === "text" || tool === "sticky") {
+      setCreationBox({ x: start.x, y: start.y, w: pos.x - start.x, h: pos.y - start.y });
+      return;
+    }
 
     setDraft((prev) => {
       if (!prev) return prev;
@@ -405,12 +438,56 @@ export function BoardCanvas({
       // shapes
       return { ...prev, w: pos.x - start.x, h: pos.y - start.y } as BoardElement;
     });
-  }, [relativePointer, publishCursor]);
+  }, [relativePointer, publishCursor, tool]);
 
   const handleStageMouseUp = useCallback(() => {
     if (!drawingRef.current) return;
     drawingRef.current = false;
     startRef.current = null;
+
+    // Text / sticky: build the element from the drag rectangle. A negligible
+    // drag (a plain click) falls back to a sensible default size.
+    if (tool === "text" || tool === "sticky") {
+      const box = creationBox;
+      setCreationBox(null);
+      if (!box) {
+        setTool("select");
+        return;
+      }
+      const nx = box.w < 0 ? box.x + box.w : box.x;
+      const ny = box.h < 0 ? box.y + box.h : box.y;
+      const aw = Math.abs(box.w);
+      const ah = Math.abs(box.h);
+      const dragged = aw > 8 || ah > 8;
+      const id = newId();
+      let el: BoardElement;
+      if (tool === "text") {
+        const w = dragged ? Math.max(40, aw) : 220;
+        const fontSize = dragged && ah > 16 ? Math.max(12, Math.min(240, Math.round(ah / 1.3))) : 24;
+        el = { id, type: "text", x: dragged ? nx : box.x, y: dragged ? ny : box.y, text: "", w, fontSize, color };
+      } else {
+        const w = dragged ? Math.max(40, aw) : 180;
+        const h = dragged ? Math.max(40, ah) : 180;
+        el = {
+          id,
+          type: "sticky",
+          x: dragged ? nx : box.x,
+          y: dragged ? ny : box.y,
+          text: "",
+          w,
+          h,
+          fill: STICKY_FILL,
+          color: "#1f2937",
+        };
+      }
+      commitElement(el, true);
+      setTool("select");
+      setSelectedId(id);
+      setEditingId(id);
+      void requestLock([id]);
+      return;
+    }
+
     const el = draft;
     setDraft(null);
     if (!el) return;
@@ -454,7 +531,7 @@ export function BoardCanvas({
 
     commitElement(finalized, true);
     if (tool !== "pen") setTool("select");
-  }, [draft, commitElement, tool, relativePointer, hitTest, scene.elements]);
+  }, [draft, creationBox, color, commitElement, requestLock, tool, relativePointer, hitTest, scene.elements]);
 
   // --- Wheel: pan, or zoom with ctrl/cmd ---
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -600,6 +677,15 @@ export function BoardCanvas({
   const orderedElements = scene.elementOrder
     .map((id) => scene.elements[id])
     .filter((el): el is BoardElement => Boolean(el));
+
+  const creationPreview = creationBox
+    ? {
+        x: creationBox.w < 0 ? creationBox.x + creationBox.w : creationBox.x,
+        y: creationBox.h < 0 ? creationBox.y + creationBox.h : creationBox.y,
+        w: Math.abs(creationBox.w),
+        h: Math.abs(creationBox.h),
+      }
+    : null;
 
   const canDragElements = tool === "select" && !panning && !readOnly;
 
@@ -758,6 +844,22 @@ export function BoardCanvas({
               ) : (
                 <ElementNode element={draft} lockedBy={null} draggable={false} preview />
               ))}
+
+            {creationPreview && (
+              <Rect
+                x={creationPreview.x}
+                y={creationPreview.y}
+                width={creationPreview.w}
+                height={creationPreview.h}
+                fill={tool === "sticky" ? STICKY_FILL : undefined}
+                opacity={tool === "sticky" ? 0.6 : 1}
+                stroke="#3b82f6"
+                strokeWidth={1}
+                dash={[4, 4]}
+                strokeScaleEnabled={false}
+                listening={false}
+              />
+            )}
 
             {guides.map((g, i) => (
               <Line
@@ -983,22 +1085,16 @@ function ElementNode({
         />
       )}
 
-      {el.type === "shape" && el.shape === "rect" && (
-        <Rect width={el.w} height={el.h} stroke={el.stroke} strokeWidth={el.strokeWidth} fill={el.fill ?? "transparent"} cornerRadius={6} />
-      )}
-      {el.type === "shape" && el.shape === "ellipse" && (
-        <Ellipse
-          x={el.w / 2}
-          y={el.h / 2}
-          radiusX={Math.abs(el.w / 2)}
-          radiusY={Math.abs(el.h / 2)}
+      {el.type === "shape" && (
+        <ShapeNode
+          shape={el.shape}
+          w={el.w}
+          h={el.h}
+          fill={el.fill}
           stroke={el.stroke}
           strokeWidth={el.strokeWidth}
-          fill={el.fill ?? "transparent"}
+          cornerRadius={el.shape === "rect" ? 6 : undefined}
         />
-      )}
-      {el.type === "shape" && el.shape === "line" && (
-        <Line points={[0, 0, el.w, el.h]} stroke={el.stroke} strokeWidth={el.strokeWidth} lineCap="round" />
       )}
 
       {el.type === "sticky" && (

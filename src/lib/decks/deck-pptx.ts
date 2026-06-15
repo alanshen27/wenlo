@@ -9,6 +9,7 @@ import {
   type DeckElement,
   type ImageElement,
 } from "@/lib/decks/deck-schema";
+import type { ShapeKind } from "@/lib/canvas/shapes";
 
 // 16:9 PowerPoint canvas in inches; deck coordinates map onto it uniformly.
 const SLIDE_W_IN = 13.333;
@@ -118,7 +119,20 @@ function addElement(pptx: PptxGenJS, slide: PptxGenJS.Slide, el: DeckElement, da
     return;
   }
 
-  slide.addShape(el.shape === "ellipse" ? pptx.ShapeType.ellipse : pptx.ShapeType.rect, {
+  const shapeMap: Partial<Record<ShapeKind, PptxGenJS.ShapeType>> = {
+    rect: pptx.ShapeType.rect,
+    ellipse: pptx.ShapeType.ellipse,
+    triangle: pptx.ShapeType.triangle,
+    diamond: pptx.ShapeType.diamond,
+    pentagon: pptx.ShapeType.pentagon,
+    hexagon: pptx.ShapeType.hexagon,
+    octagon: pptx.ShapeType.octagon,
+    star: pptx.ShapeType.star5,
+    rightArrow: pptx.ShapeType.rightArrow,
+  };
+  const shapeType = shapeMap[el.shape] ?? pptx.ShapeType.rect;
+
+  slide.addShape(shapeType, {
     ...common,
     fill,
     line,

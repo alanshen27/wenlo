@@ -1,8 +1,9 @@
 "use client";
 
-import { Rect, Ellipse, Line, Text as KonvaText } from "react-konva";
+import { Text as KonvaText } from "react-konva";
 import type { DeckElement } from "@/lib/decks/deck-schema";
 import { CanvasImageNode } from "@/components/canvas/canvas-image";
+import { ShapeNode } from "@/components/canvas/shape-node";
 
 /**
  * Renders an element's visual content at local (0,0). Shared by the editor
@@ -10,38 +11,16 @@ import { CanvasImageNode } from "@/components/canvas/canvas-image";
  * what you edit is exactly what you present.
  */
 export function ElementContent({ el, hideText }: { el: DeckElement; hideText?: boolean }) {
-  if (el.type === "shape" && el.shape === "rect") {
+  if (el.type === "shape") {
     return (
-      <Rect
-        width={el.w}
-        height={el.h}
-        fill={el.fill && el.fill !== "transparent" ? el.fill : undefined}
-        stroke={el.stroke && el.stroke !== "transparent" ? el.stroke : undefined}
+      <ShapeNode
+        shape={el.shape}
+        w={el.w}
+        h={el.h}
+        fill={el.fill}
+        stroke={el.stroke}
         strokeWidth={el.strokeWidth}
-        cornerRadius={el.radius ?? 0}
-      />
-    );
-  }
-  if (el.type === "shape" && el.shape === "ellipse") {
-    return (
-      <Ellipse
-        x={el.w / 2}
-        y={el.h / 2}
-        radiusX={Math.abs(el.w / 2)}
-        radiusY={Math.abs(el.h / 2)}
-        fill={el.fill && el.fill !== "transparent" ? el.fill : undefined}
-        stroke={el.stroke && el.stroke !== "transparent" ? el.stroke : undefined}
-        strokeWidth={el.strokeWidth}
-      />
-    );
-  }
-  if (el.type === "shape" && el.shape === "line") {
-    return (
-      <Line
-        points={[0, 0, el.w, el.h]}
-        stroke={el.stroke && el.stroke !== "transparent" ? el.stroke : "#000"}
-        strokeWidth={el.strokeWidth ?? 2}
-        lineCap="round"
+        cornerRadius={el.shape === "rect" ? el.radius ?? 0 : undefined}
       />
     );
   }

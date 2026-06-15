@@ -8,14 +8,12 @@ import {
   Ban,
   Bold,
   BringToFront,
-  Circle,
   Copy,
   Image as ImageIcon,
   Italic,
-  Minus,
+  MousePointer2,
   Play,
   SendToBack,
-  Square,
   Trash2,
   Type,
 } from "lucide-react";
@@ -25,9 +23,19 @@ import {
   TooltipTrigger,
 } from "@/components/blocknote-ui/tooltip";
 import { cn } from "@/lib/core/utils";
-import type { DeckElement, ShapeKind, TextAlign } from "@/lib/decks/deck-schema";
+import { ShapePicker } from "@/components/canvas/shape-picker";
+import type { ShapeKind } from "@/lib/canvas/shapes";
+import type { DeckElement, TextAlign } from "@/lib/decks/deck-schema";
 
 const NO_FILL = "transparent";
+
+/** Drawing tools for the deck canvas. `select` is the default; `text` and any
+ *  shape are drag-to-create (a plain click falls back to a default size).
+ *  Images are added through a one-shot file picker, so they are not tools. */
+export type DeckTool = "select" | "text" | ShapeKind;
+
+const activeTool =
+  "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary";
 
 const TEXT_SWATCHES = [
   "#1f2937",
@@ -130,8 +138,8 @@ function FontSizeField({
 export function DeckToolbar({
   selected,
   disabled,
-  onAddText,
-  onAddShape,
+  tool,
+  onToolChange,
   onAddImage,
   onUpdate,
   onBringToFront,
@@ -142,8 +150,8 @@ export function DeckToolbar({
 }: {
   selected: DeckElement | null;
   disabled?: boolean;
-  onAddText: () => void;
-  onAddShape: (shape: ShapeKind) => void;
+  tool: DeckTool;
+  onToolChange: (tool: DeckTool) => void;
   onAddImage: () => void;
   onUpdate: (patch: Partial<DeckElement>) => void;
   onBringToFront: () => void;
@@ -158,18 +166,29 @@ export function DeckToolbar({
 
   return (
     <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border border-border bg-popover/95 p-1 shadow-lg backdrop-blur">
-      <TipButton label="Add text" disabled={disabled} onClick={onAddText} className={iconBtn}>
+      <TipButton
+        label="Select (V)"
+        disabled={disabled}
+        aria-pressed={tool === "select"}
+        onClick={() => onToolChange("select")}
+        className={cn(iconBtn, tool === "select" && activeTool)}
+      >
+        <MousePointer2 className="size-4" />
+      </TipButton>
+      <TipButton
+        label="Text — click or drag"
+        disabled={disabled}
+        aria-pressed={tool === "text"}
+        onClick={() => onToolChange("text")}
+        className={cn(iconBtn, tool === "text" && activeTool)}
+      >
         <Type className="size-4" />
       </TipButton>
-      <TipButton label="Add rectangle" disabled={disabled} onClick={() => onAddShape("rect")} className={iconBtn}>
-        <Square className="size-4" />
-      </TipButton>
-      <TipButton label="Add ellipse" disabled={disabled} onClick={() => onAddShape("ellipse")} className={iconBtn}>
-        <Circle className="size-4" />
-      </TipButton>
-      <TipButton label="Add line" disabled={disabled} onClick={() => onAddShape("line")} className={iconBtn}>
-        <Minus className="size-4" />
-      </TipButton>
+      <ShapePicker
+        value={tool === "select" || tool === "text" ? null : tool}
+        onSelect={(shape) => onToolChange(shape)}
+        disabled={disabled}
+      />
       <TipButton label="Add image" disabled={disabled} onClick={onAddImage} className={iconBtn}>
         <ImageIcon className="size-4" />
       </TipButton>

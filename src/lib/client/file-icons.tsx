@@ -73,6 +73,22 @@ const BOARD_PATHS = (
   </>
 );
 
+const DATABASE_PATHS = (
+  <>
+    <ellipse cx="12" cy="5" rx="9" ry="3" />
+    <path d="M3 5v14a9 3 0 0 0 18 0V5" />
+    <path d="M3 12a9 3 0 0 0 18 0" />
+  </>
+);
+
+const FLOW_PATHS = (
+  <>
+    <rect x="4" y="3" width="7" height="5" rx="1" />
+    <rect x="13" y="16" width="7" height="5" rx="1" />
+    <path d="M7.5 8v3.5a2 2 0 0 0 2 2H16.5V16" />
+  </>
+);
+
 /** Slide deck: two stacked cards. */
 export const DeckIcon = makeIcon("DeckIcon", () => DECK_PATHS);
 
@@ -81,6 +97,12 @@ export const PageGlyph = makeIcon("PageGlyph", () => PAGE_PATHS);
 
 /** Whiteboard: framed canvas with a drawn stroke and legs. */
 export const BoardGlyph = makeIcon("BoardGlyph", () => BOARD_PATHS);
+
+/** Database: a stacked cylinder (the classic database glyph). */
+export const DatabaseGlyph = makeIcon("DatabaseGlyph", () => DATABASE_PATHS);
+
+/** Flowchart: two nodes joined by a connector. */
+export const FlowGlyph = makeIcon("FlowGlyph", () => FLOW_PATHS);
 
 // Sheet + fold use the exact same outline as the generic file glyph so docs and
 // slides share the regular icons' aspect ratio and visual size.
@@ -104,7 +126,7 @@ function nativeArtwork(type: string, p: ArtPalette): ReactNode | null {
 
   switch (type) {
     case "DECK":
-      // Native deck: two stacked colored slides with a title + content bar.
+      // Native deck: two stacked colored slides with a title + content bars.
       return (
         <>
           <rect x="9" y="9" width="30" height="22" rx="3" fill={p.accent} fillOpacity={0.35} />
@@ -126,14 +148,62 @@ function nativeArtwork(type: string, p: ArtPalette): ReactNode | null {
         </>
       );
     case "WHITEBOARD":
-      // Solid board (same footprint as docs/slides) with a white node-and-connector
-      // diagram so it reads as a canvas of shapes.
+      // Solid board with a white node-and-connector diagram so it reads as a
+      // canvas of shapes.
       return (
         <>
           <rect x="8" y="4" width="32" height="40" rx="5" fill={p.accent} />
           <path d="M18 18 L30 31" stroke="#ffffff" strokeWidth={2.5} strokeLinecap="round" />
           <circle cx="17" cy="17" r="5" fill="#ffffff" />
           <rect x="25" y="27" width="11" height="11" rx="2.5" fill="#ffffff" />
+        </>
+      );
+    case "DATABASE":
+      // Solid board with a tall white database cylinder divided into layers.
+      return (
+        <>
+          <rect x="8" y="4" width="32" height="40" rx="5" fill={p.accent} />
+          <path d="M15 15 v18 a9 3.4 0 0 0 18 0 v-18 Z" fill="#ffffff" />
+          <ellipse cx="24" cy="15" rx="9" ry="3.4" fill="#ffffff" />
+          <path
+            d="M15 21 a9 3.4 0 0 0 18 0"
+            fill="none"
+            stroke={p.accent}
+            strokeOpacity={0.45}
+            strokeWidth={1.8}
+          />
+          <path
+            d="M15 27 a9 3.4 0 0 0 18 0"
+            fill="none"
+            stroke={p.accent}
+            strokeOpacity={0.45}
+            strokeWidth={1.8}
+          />
+          <ellipse
+            cx="24"
+            cy="15"
+            rx="9"
+            ry="3.4"
+            fill="none"
+            stroke={p.accent}
+            strokeOpacity={0.18}
+            strokeWidth={1}
+          />
+        </>
+      );
+    case "FLOWCHART":
+      // Solid board with two white nodes joined by a connector.
+      return (
+        <>
+          <rect x="8" y="4" width="32" height="40" rx="5" fill={p.accent} />
+          <rect x="13" y="11" width="14" height="8" rx="2" fill="#ffffff" />
+          <rect x="23" y="29" width="14" height="8" rx="2" fill="#ffffff" />
+          <path
+            d="M20 19 V24 a2 2 0 0 0 2 2 H30 V29"
+            stroke="#ffffff"
+            strokeWidth={2}
+            fill="none"
+          />
         </>
       );
     default:
@@ -153,6 +223,10 @@ export function getDocumentIcon(type: string): LucideIcon {
       return DeckIcon;
     case "WHITEBOARD":
       return BoardGlyph;
+    case "DATABASE":
+      return DatabaseGlyph;
+    case "FLOWCHART":
+      return FlowGlyph;
     case "PAGE":
       return PageGlyph;
     case "DOC":
@@ -186,6 +260,10 @@ export function getDocumentIconClass(type: string): string {
       return "text-orange-500";
     case "WHITEBOARD":
       return "text-indigo-400";
+    case "DATABASE":
+      return "text-teal-400";
+    case "FLOWCHART":
+      return "text-rose-400";
     case "DOC":
       return "text-blue-400";
     case "NOTE":
@@ -217,6 +295,10 @@ export function getDocumentTileClass(type: string): string {
       return "bg-orange-500/10 text-orange-500 dark:text-orange-400";
     case "WHITEBOARD":
       return "bg-indigo-500/10 text-indigo-500 dark:text-indigo-400";
+    case "DATABASE":
+      return "bg-teal-500/10 text-teal-600 dark:text-teal-400";
+    case "FLOWCHART":
+      return "bg-rose-500/10 text-rose-500 dark:text-rose-400";
     case "PAGE":
       return "bg-blue-500/10 text-blue-500 dark:text-blue-400";
     case "DOC":
@@ -251,6 +333,10 @@ export function getDocumentLabel(type: string): string {
       return "Deck";
     case "WHITEBOARD":
       return "Whiteboard";
+    case "DATABASE":
+      return "Database";
+    case "FLOWCHART":
+      return "Flowchart";
     case "DOC":
       return "Document";
     case "NOTE":
@@ -295,6 +381,10 @@ export function getDocumentBadge(type: string): string {
       return "DECK";
     case "WHITEBOARD":
       return "BOARD";
+    case "DATABASE":
+      return "DB";
+    case "FLOWCHART":
+      return "FLOW";
     case "CODE":
       return "CODE";
     case "NOTE":
@@ -324,6 +414,8 @@ const FILE_ART: Record<string, ArtPalette> = {
   SLIDES: { accent: "#f97316", body: "#fff5ec", fold: "#fed7aa", line: "#fdba74" },
   DECK: { accent: "#f97316", body: "#fff5ec", fold: "#fed7aa", line: "#fdba74" },
   WHITEBOARD: { accent: "#6366f1", body: "#eef2ff", fold: "#c7d2fe", line: "#a5b4fc" },
+  DATABASE: { accent: "#0d9488", body: "#f0fdfa", fold: "#99f6e4", line: "#5eead4" },
+  FLOWCHART: { accent: "#f43f5e", body: "#fff1f3", fold: "#fecdd3", line: "#fda4af" },
   CODE: { accent: "#10b981", body: "#ecfdf5", fold: "#a7f3d0", line: "#6ee7b7" },
   NOTE: { accent: "#f59e0b", body: "#fffbeb", fold: "#fde68a", line: "#fcd34d" },
   PAGE: { accent: "#3b82f6", body: "#eff4ff", fold: "#bfdbfe", line: "#93c5fd" },

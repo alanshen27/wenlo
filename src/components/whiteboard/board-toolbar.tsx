@@ -5,16 +5,13 @@ import {
   ArrowUpRight,
   Ban,
   BringToFront,
-  Circle,
   Hand,
   Image as ImageIcon,
-  Minus,
   MousePointer2,
   PaintBucket,
   Pencil,
   SendToBack,
   Spline,
-  Square,
   StickyNote,
   Trash2,
   Type,
@@ -25,6 +22,8 @@ import {
   TooltipTrigger,
 } from "@/components/blocknote-ui/tooltip";
 import { cn } from "@/lib/core/utils";
+import { ShapePicker } from "@/components/canvas/shape-picker";
+import type { ShapeKind } from "@/lib/canvas/shapes";
 
 /** Sentinel for "no fill" (transparent) so shapes can be outline-only. */
 export const NO_FILL = "transparent";
@@ -52,28 +51,40 @@ export type Tool =
   | "select"
   | "pan"
   | "pen"
-  | "rect"
-  | "ellipse"
-  | "line"
   | "arrow"
   | "connector"
   | "text"
   | "sticky"
-  | "image";
+  | "image"
+  | ShapeKind;
 
-const TOOLS: { id: Tool; label: string; icon: typeof Pencil }[] = [
+/** Non-shape tools shown before the shape picker. */
+const TOOLS_BEFORE: { id: Tool; label: string; icon: typeof Pencil }[] = [
   { id: "select", label: "Select (V)", icon: MousePointer2 },
   { id: "pan", label: "Pan (H / Space)", icon: Hand },
   { id: "pen", label: "Pen (P)", icon: Pencil },
-  { id: "rect", label: "Rectangle (R)", icon: Square },
-  { id: "ellipse", label: "Ellipse (O)", icon: Circle },
-  { id: "line", label: "Line (L)", icon: Minus },
+];
+
+/** Non-shape tools shown after the shape picker. */
+const TOOLS_AFTER: { id: Tool; label: string; icon: typeof Pencil }[] = [
   { id: "arrow", label: "Arrow (A)", icon: ArrowUpRight },
   { id: "connector", label: "Connector (C)", icon: Spline },
   { id: "text", label: "Text (T)", icon: Type },
   { id: "sticky", label: "Sticky note (S)", icon: StickyNote },
   { id: "image", label: "Image", icon: ImageIcon },
 ];
+
+/** Tools that are not box-based shapes (used to derive the shape picker value). */
+const NON_SHAPE_TOOLS = new Set<Tool>([
+  "select",
+  "pan",
+  "pen",
+  "arrow",
+  "connector",
+  "text",
+  "sticky",
+  "image",
+]);
 
 const SWATCHES = [
   "#1f2937",
@@ -121,7 +132,29 @@ export function BoardToolbar({
 }) {
   return (
     <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-border bg-popover/95 p-1 shadow-lg backdrop-blur">
-      {TOOLS.map(({ id, label, icon: Icon }) => (
+      {TOOLS_BEFORE.map(({ id, label, icon: Icon }) => (
+        <TipButton
+          key={id}
+          label={label}
+          aria-pressed={tool === id}
+          disabled={disabled}
+          onClick={() => onToolChange(id)}
+          className={cn(
+            "flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40",
+            tool === id && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+          )}
+        >
+          <Icon className="size-4" />
+        </TipButton>
+      ))}
+
+      <ShapePicker
+        value={NON_SHAPE_TOOLS.has(tool) ? null : (tool as ShapeKind)}
+        onSelect={(shape) => onToolChange(shape)}
+        disabled={disabled}
+      />
+
+      {TOOLS_AFTER.map(({ id, label, icon: Icon }) => (
         <TipButton
           key={id}
           label={label}

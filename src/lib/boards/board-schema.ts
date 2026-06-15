@@ -3,6 +3,8 @@
 // collaboration-friendly shape the deck uses, so element-level patches from
 // different editors never collide (different keys → no merge needed).
 
+import type { ShapeKind } from "@/lib/canvas/shapes";
+
 export const BOARD_VERSION = 2 as const;
 
 export type Viewport = { x: number; y: number; zoom: number };
@@ -25,7 +27,7 @@ export type PathElement = ElementBase & {
 
 export type ShapeElement = ElementBase & {
   type: "shape";
-  shape: "rect" | "ellipse" | "line";
+  shape: ShapeKind;
   w: number;
   h: number;
   fill?: string;

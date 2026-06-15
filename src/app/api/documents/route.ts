@@ -18,6 +18,9 @@ import { hasOpenAI, OPENAI_FILE_PROCESSING_ENABLED } from "@/lib/search/openai";
 import { indexDocument } from "@/lib/search/search";
 import { createEmptyBoard } from "@/lib/boards/board-schema";
 import { createEmptyDeck } from "@/lib/decks/deck-schema";
+import { createEmptyFlow } from "@/lib/flowcharts/flowchart-schema";
+import { seedDatabase } from "@/lib/databases/database-server";
+import type { DocumentType, Prisma } from "@/generated/prisma/client";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser().catch(() => null);
@@ -70,13 +73,39 @@ async function uniqueDocumentTitle(
 }
 
 // Native (file-less) document types created from a JSON body rather than an
-// upload: whiteboards and slideshow decks.
+// upload: whiteboards, slideshow decks, databases, and flowcharts.
+const NATIVE_DEFAULT_TITLES: Partial<Record<DocumentType, string>> = {
+  WHITEBOARD: "Untitled whiteboard",
+  DECK: "Untitled deck",
+  DATABASE: "Untitled database",
+  FLOWCHART: "Untitled flowchart",
+};
+
+/** Initial scene JSON for a native type (databases seed relationally instead). */
+function nativeSceneData(type: DocumentType): {
+  deckContent?: Prisma.InputJsonValue;
+  boardContent?: Prisma.InputJsonValue;
+  flowContent?: Prisma.InputJsonValue;
+} {
+  switch (type) {
+    case "DECK":
+      return { deckContent: createEmptyDeck() };
+    case "WHITEBOARD":
+      return { boardContent: createEmptyBoard() };
+    case "FLOWCHART":
+      return { flowContent: createEmptyFlow() };
+    default:
+      return {};
+  }
+}
+
 async function createNativeDocument(req: NextRequest, userId: string) {
   const { type, title, folderId, libraryId: rawLibraryId } = await req.json();
 
-  if (type !== "WHITEBOARD" && type !== "DECK") {
+  if (!(type in NATIVE_DEFAULT_TITLES)) {
     return NextResponse.json({ error: "Unsupported document type" }, { status: 400 });
   }
+  const docType = type as DocumentType;
 
   try {
     const libraryId = await libraryIdFromFolder(
@@ -88,26 +117,27 @@ async function createNativeDocument(req: NextRequest, userId: string) {
     const ownerId = await contentOwnerId(libraryId);
 
     const normalizedFolderId = folderId && folderId !== "__root__" ? folderId : null;
-    const isDeck = type === "DECK";
     const desiredTitle =
-      (typeof title === "string" && title.trim()) ||
-      (isDeck ? "Untitled deck" : "Untitled whiteboard");
+      (typeof title === "string" && title.trim()) || NATIVE_DEFAULT_TITLES[docType]!;
     const uniqueTitle = await uniqueDocumentTitle(libraryId, normalizedFolderId, desiredTitle);
 
     const document = await prisma.document.create({
       data: {
         title: uniqueTitle,
-        type,
+        type: docType,
         status: "READY",
         content: "",
-        ...(isDeck
-          ? { deckContent: createEmptyDeck() }
-          : { boardContent: createEmptyBoard() }),
+        ...nativeSceneData(docType),
         userId: ownerId,
         libraryId,
         folderId: normalizedFolderId,
       },
     });
+
+    // Databases store their data relationally — seed a starter schema + rows.
+    if (docType === "DATABASE") {
+      await seedDatabase(document.id);
+    }
 
     return NextResponse.json(document);
   } catch (error) {

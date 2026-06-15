@@ -5,6 +5,7 @@ import {
   type DeckElement,
   type Slide,
 } from "@/lib/decks/deck-schema";
+import { shapePolygonSvgPoints } from "@/lib/canvas/shapes";
 import { cn } from "@/lib/core/utils";
 
 const FONT = "Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -103,15 +104,28 @@ function SvgElement({ el }: { el: DeckElement }) {
         />
       );
     }
+    if (el.shape === "line") {
+      return (
+        <line
+          x1={0}
+          y1={0}
+          x2={el.w}
+          y2={el.h}
+          stroke={el.stroke && el.stroke !== "transparent" ? el.stroke : "#000"}
+          strokeWidth={el.strokeWidth ?? 2}
+          strokeLinecap="round"
+          transform={transform}
+          opacity={opacity}
+        />
+      );
+    }
     return (
-      <line
-        x1={0}
-        y1={0}
-        x2={el.w}
-        y2={el.h}
-        stroke={el.stroke && el.stroke !== "transparent" ? el.stroke : "#000"}
-        strokeWidth={el.strokeWidth ?? 2}
-        strokeLinecap="round"
+      <polygon
+        points={shapePolygonSvgPoints(el.shape, el.w, el.h) ?? ""}
+        fill={el.fill && el.fill !== "transparent" ? el.fill : "none"}
+        stroke={el.stroke && el.stroke !== "transparent" ? el.stroke : undefined}
+        strokeWidth={el.strokeWidth ?? undefined}
+        strokeLinejoin="round"
         transform={transform}
         opacity={opacity}
       />

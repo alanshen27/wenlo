@@ -24,10 +24,20 @@ export function deckRoute(libraryId: string, deckId: string) {
   return `/library/${libraryId}/decks/${deckId}`;
 }
 
+export function databaseRoute(libraryId: string, databaseId: string) {
+  return `/library/${libraryId}/databases/${databaseId}`;
+}
+
+export function flowchartRoute(libraryId: string, flowchartId: string) {
+  return `/library/${libraryId}/flowcharts/${flowchartId}`;
+}
+
 /** Type-aware open target for a document row/card. */
 export function documentOpenRoute(libraryId: string, documentId: string, type?: string) {
   if (type === "WHITEBOARD") return boardRoute(libraryId, documentId);
   if (type === "DECK") return deckRoute(libraryId, documentId);
+  if (type === "DATABASE") return databaseRoute(libraryId, documentId);
+  if (type === "FLOWCHART") return flowchartRoute(libraryId, documentId);
   return documentRoute(libraryId, documentId);
 }
 

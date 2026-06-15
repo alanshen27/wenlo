@@ -4,6 +4,10 @@
 // no nested arrays-of-primitives) so a Yjs binding can drop in later:
 // Y.Array<slideId> + Y.Map per slide + Y.Map per element.
 
+import type { ShapeKind } from "@/lib/canvas/shapes";
+
+export type { ShapeKind };
+
 export const DECK_VERSION = 1 as const;
 
 /** Fixed 16:9 canvas. Element coordinates are always in this space; the editor
@@ -40,8 +44,6 @@ export type ImageElement = ElementBase & {
   src: string;
   documentId?: string;
 };
-
-export type ShapeKind = "rect" | "ellipse" | "line";
 
 export type ShapeElement = ElementBase & {
   type: "shape";

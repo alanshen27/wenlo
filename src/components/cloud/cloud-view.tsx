@@ -106,6 +106,8 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     createPage,
     createBoard,
     createDeck,
+    createDatabase,
+    createFlowchart,
     moveItem,
     beginCreateFolder,
     beginEditFolder,
@@ -472,6 +474,8 @@ export function CloudView({ folderId: folderIdProp }: Props) {
               onNewPage={() => createPage(folderId)}
               onNewBoard={() => createBoard(folderId)}
               onNewDeck={() => createDeck(folderId)}
+              onNewDatabase={() => createDatabase(folderId)}
+              onNewFlowchart={() => createFlowchart(folderId)}
               onNewFolder={() => beginCreateFolder(folderId)}
               onUpload={() => inputRef.current?.click()}
             />
@@ -483,6 +487,8 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             onNewPage={() => createPage(folderId)}
             onNewBoard={() => createBoard(folderId)}
             onNewDeck={() => createDeck(folderId)}
+            onNewDatabase={() => createDatabase(folderId)}
+            onNewFlowchart={() => createFlowchart(folderId)}
             onNewFolder={() => beginCreateFolder(folderId)}
             onUpload={() => inputRef.current?.click()}
           />
@@ -641,12 +647,16 @@ function QuickActions({
   onNewPage,
   onNewBoard,
   onNewDeck,
+  onNewDatabase,
+  onNewFlowchart,
   onNewFolder,
   onUpload,
 }: {
   onNewPage: () => void | Promise<void>;
   onNewBoard: () => void | Promise<void>;
   onNewDeck: () => void | Promise<void>;
+  onNewDatabase: () => void | Promise<void>;
+  onNewFlowchart: () => void | Promise<void>;
   onNewFolder: () => void;
   onUpload: () => void;
 }) {
@@ -693,8 +703,16 @@ function QuickActions({
             <FileArtwork type="DECK" className="size-5" />
             New deck
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={onNewDatabase}>
+            <FileArtwork type="DATABASE" className="size-5" />
+            New database
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onNewFlowchart}>
+            <FileArtwork type="FLOWCHART" className="size-5" />
+            New flowchart
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onNewFolder}>
-            <FolderArtwork color="blue" className="size-5" />
+            <FolderArtwork color="yellow" className="size-5" />
             New folder
           </DropdownMenuItem>
         </DropdownMenuContent>

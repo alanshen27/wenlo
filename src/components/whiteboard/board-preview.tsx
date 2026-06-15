@@ -1,5 +1,6 @@
 import type { BoardDoc, BoardElement, ConnectorElement } from "@/lib/boards/board-schema";
 import { localBounds, resolveConnector } from "./board-geometry";
+import { shapePolygonSvgPoints } from "@/lib/canvas/shapes";
 import { cn } from "@/lib/core/utils";
 
 const FONT = "Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -195,15 +196,28 @@ function PreviewElement({ el }: { el: BoardElement }) {
           />
         );
       }
+      if (el.shape === "line") {
+        return (
+          <line
+            x1={0}
+            y1={0}
+            x2={el.w}
+            y2={el.h}
+            stroke={el.stroke ?? undefined}
+            strokeWidth={el.strokeWidth ?? undefined}
+            strokeLinecap="round"
+            transform={transform}
+            opacity={opacity}
+          />
+        );
+      }
       return (
-        <line
-          x1={0}
-          y1={0}
-          x2={el.w}
-          y2={el.h}
+        <polygon
+          points={shapePolygonSvgPoints(el.shape, el.w, el.h) ?? ""}
+          fill={el.fill ?? "transparent"}
           stroke={el.stroke ?? undefined}
           strokeWidth={el.strokeWidth ?? undefined}
-          strokeLinecap="round"
+          strokeLinejoin="round"
           transform={transform}
           opacity={opacity}
         />

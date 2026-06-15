@@ -43,6 +43,8 @@ type Props = {
   onNewPage: () => void | Promise<void>;
   onNewBoard: () => void | Promise<void>;
   onNewDeck: () => void | Promise<void>;
+  onNewDatabase: () => void | Promise<void>;
+  onNewFlowchart: () => void | Promise<void>;
   onNewFolder: () => void;
   onUpload: () => void;
 };
@@ -56,6 +58,8 @@ export function CloudToolbar({
   onNewPage,
   onNewBoard,
   onNewDeck,
+  onNewDatabase,
+  onNewFlowchart,
   onNewFolder,
   onUpload,
 }: Props) {
@@ -136,8 +140,16 @@ export function CloudToolbar({
               <FileArtwork type="DECK" className="size-5" />
               New deck
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={onNewDatabase}>
+              <FileArtwork type="DATABASE" className="size-5" />
+              New database
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onNewFlowchart}>
+              <FileArtwork type="FLOWCHART" className="size-5" />
+              New flowchart
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onNewFolder}>
-              <FolderArtwork color="blue" className="size-5" />
+              <FolderArtwork color="yellow" className="size-5" />
               New folder
             </DropdownMenuItem>
             <DropdownMenuSeparator />

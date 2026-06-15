@@ -9,15 +9,41 @@ import {
   DEFAULT_SLIDE_BG,
   newDeckId,
   type DeckElement,
-  type ShapeKind,
   type Slide,
 } from "@/lib/decks/deck-schema";
 import { scaleElement } from "@/lib/decks/deck-geometry";
 import { readImageSize } from "@/lib/canvas/image";
 import { ElementContent } from "@/components/slideshow/slide-konva";
-import { DeckToolbar } from "@/components/slideshow/deck-toolbar";
+import { DeckToolbar, type DeckTool } from "@/components/slideshow/deck-toolbar";
+import type { ShapeKind } from "@/lib/canvas/shapes";
 
 const MARGIN = 28;
+
+/** Default fill per shape when first drawn on a slide. */
+const SHAPE_FILLS: Partial<Record<ShapeKind, string>> = {
+  rect: "#bfdbfe",
+  ellipse: "#bbf7d0",
+  triangle: "#fde68a",
+  diamond: "#fbcfe8",
+  pentagon: "#ddd6fe",
+  hexagon: "#bae6fd",
+  octagon: "#c7d2fe",
+  star: "#fde68a",
+  rightArrow: "#a7f3d0",
+};
+
+/** Normalizes a draft element (which may have negative width/height while being
+ *  dragged) into positive bounds for a faithful preview. Lines keep their raw
+ *  delta so the endpoint follows the pointer. */
+function previewElement(el: DeckElement): DeckElement {
+  if (el.type === "shape" && el.shape === "line") return el;
+  if (el.type === "shape" || el.type === "text" || el.type === "image") {
+    const x = el.w < 0 ? el.x + el.w : el.x;
+    const y = el.h < 0 ? el.y + el.h : el.y;
+    return { ...el, x, y, w: Math.abs(el.w), h: Math.abs(el.h) } as DeckElement;
+  }
+  return el;
+}
 
 type Props = {
   slide: Slide;
@@ -55,6 +81,11 @@ export function DeckCanvas({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+  const [tool, setTool] = useState<DeckTool>("select");
+  const [draft, setDraft] = useState<DeckElement | null>(null);
+
+  const drawingRef = useRef(false);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
 
   // --- Container sizing ---
   useEffect(() => {
@@ -115,62 +146,118 @@ export function DeckCanvas({
     [onAddElement, onSelect]
   );
 
-  const addText = useCallback(() => {
-    if (readOnly) return;
-    const id = newDeckId();
-    insertElement(
-      {
-        id,
-        type: "text",
-        x: 240,
-        y: 300,
-        w: 800,
-        h: 120,
-        text: "Text",
-        fontSize: 48,
-        fontFamily: "Arial",
-        fontWeight: 400,
-        color: "#1f2937",
-        align: "left",
-      },
-      true
-    );
-  }, [readOnly, insertElement]);
+  // --- Drag-to-create (text / shapes) ---
+  // A creation tool starts a draft on mouse-down, resizes it on move, and
+  // commits it on mouse-up. A negligible drag (a plain click) falls back to a
+  // sensible default size placed at the click point.
+  const relativePointer = useCallback(() => {
+    return stageRef.current?.getRelativePointerPosition() ?? null;
+  }, []);
 
-  const addShape = useCallback(
-    (shape: ShapeKind) => {
-      if (readOnly) return;
-      const id = newDeckId();
-      if (shape === "line") {
-        insertElement({
+  const newDraft = useCallback(
+    (id: string, pos: { x: number; y: number }): DeckElement | null => {
+      if (tool === "select") return null;
+      if (tool === "text") {
+        return {
           id,
-          type: "shape",
-          shape: "line",
-          x: 440,
-          y: 360,
-          w: 400,
+          type: "text",
+          x: pos.x,
+          y: pos.y,
+          w: 0,
           h: 0,
-          stroke: "#1f2937",
-          strokeWidth: 4,
-        });
-        return;
+          text: "Text",
+          fontSize: 48,
+          fontFamily: "Arial",
+          fontWeight: 400,
+          color: "#1f2937",
+          align: "left",
+        };
       }
-      insertElement({
+      // Any shape tool: a box-based shape drawn from the drag bounds.
+      if (tool === "line") {
+        return { id, type: "shape", shape: "line", x: pos.x, y: pos.y, w: 0, h: 0, stroke: "#1f2937", strokeWidth: 4 };
+      }
+      return {
         id,
         type: "shape",
-        shape,
-        x: 440,
-        y: 240,
-        w: 400,
-        h: 240,
-        fill: shape === "rect" ? "#bfdbfe" : "#bbf7d0",
+        shape: tool,
+        x: pos.x,
+        y: pos.y,
+        w: 0,
+        h: 0,
+        fill: SHAPE_FILLS[tool] ?? "#ddd6fe",
         stroke: "#1f2937",
         strokeWidth: 2,
-        ...(shape === "rect" ? { radius: 8 } : {}),
-      });
+        ...(tool === "rect" ? { radius: 8 } : {}),
+      };
     },
-    [readOnly, insertElement]
+    [tool]
   );
+
+  const handleStageMouseDown = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (tool === "select") {
+        if (e.target === e.target.getStage()) onSelect(null);
+        return;
+      }
+      if (readOnly) return;
+      const pos = relativePointer();
+      if (!pos) return;
+      const id = newDeckId();
+      const next = newDraft(id, pos);
+      if (!next) return;
+      drawingRef.current = true;
+      startRef.current = pos;
+      onSelect(null);
+      setEditingId(null);
+      setDraft(next);
+    },
+    [tool, readOnly, relativePointer, newDraft, onSelect]
+  );
+
+  const handleStageMouseMove = useCallback(() => {
+    if (!drawingRef.current || !startRef.current) return;
+    const pos = relativePointer();
+    if (!pos) return;
+    const start = startRef.current;
+    setDraft((prev) => (prev ? ({ ...prev, w: pos.x - start.x, h: pos.y - start.y } as DeckElement) : prev));
+  }, [relativePointer]);
+
+  const handleStageMouseUp = useCallback(() => {
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    startRef.current = null;
+    const el = draft;
+    setDraft(null);
+    if (!el) return;
+
+    const aw = Math.abs(el.w);
+    const ah = Math.abs(el.h);
+    const dragged = aw > 8 || ah > 8;
+    const nx = el.w < 0 ? el.x + el.w : el.x;
+    const ny = el.h < 0 ? el.y + el.h : el.y;
+
+    if (el.type === "text") {
+      const w = dragged ? Math.max(60, aw) : 800;
+      const fontSize = dragged && ah > 20 ? Math.max(8, Math.min(400, Math.round(ah / 1.4))) : 48;
+      const h = dragged ? Math.max(fontSize * 1.2, ah) : 120;
+      insertElement({ ...el, x: dragged ? nx : el.x, y: dragged ? ny : el.y, w, h, fontSize }, true);
+      setTool("select");
+      return;
+    }
+
+    if (el.type === "shape" && el.shape === "line") {
+      const finalized = dragged ? el : { ...el, w: 400, h: 0 };
+      insertElement(finalized);
+      setTool("select");
+      return;
+    }
+
+    const w = dragged ? aw : 400;
+    const h = dragged ? ah : 240;
+    insertElement({ ...el, x: dragged ? nx : el.x, y: dragged ? ny : el.y, w, h });
+    setTool("select");
+  }, [draft, insertElement]);
 
   const updateSelected = useCallback(
     (patch: Partial<DeckElement>) => {
@@ -195,6 +282,20 @@ export function DeckCanvas({
     onSelect(id);
   }, [selected, onAddElement, onSelect]);
 
+  // --- Clipboard (in-app copy/paste) ---
+  const clipboardRef = useRef<DeckElement | null>(null);
+  const copySelected = useCallback(() => {
+    if (selected) clipboardRef.current = selected;
+  }, [selected]);
+  const pasteClipboard = useCallback(() => {
+    const el = clipboardRef.current;
+    if (!el || readOnly) return;
+    const id = newDeckId();
+    const copy = { ...el, id, x: el.x + 24, y: el.y + 24 } as DeckElement;
+    onAddElement(copy);
+    onSelect(id);
+  }, [readOnly, onAddElement, onSelect]);
+
   const reorderSelected = useCallback(
     (to: "front" | "back") => {
       if (!selectedId) return;
@@ -212,16 +313,31 @@ export function DeckCanvas({
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping() || editingId) return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && !e.altKey && e.key.toLowerCase() === "c" && selectedId) {
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      if (meta && !e.altKey && e.key.toLowerCase() === "v" && !readOnly) {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedId && !readOnly) {
         e.preventDefault();
         deleteSelected();
       } else if (e.key === "Escape") {
         onSelect(null);
+        setTool("select");
+        drawingRef.current = false;
+        startRef.current = null;
+        setDraft(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedId, editingId, readOnly, deleteSelected, onSelect]);
+  }, [selectedId, editingId, readOnly, deleteSelected, onSelect, copySelected, pasteClipboard]);
 
   // --- Snapping (drag) ---
   // While dragging, nudge the element so its edges/center align with the slide
@@ -362,8 +478,14 @@ export function DeckCanvas({
           <DeckToolbar
             selected={selected}
             disabled={readOnly}
-            onAddText={addText}
-            onAddShape={addShape}
+            tool={tool}
+            onToolChange={(t) => {
+              setTool(t);
+              if (t !== "select") {
+                onSelect(null);
+                setEditingId(null);
+              }
+            }}
             onAddImage={() => fileInputRef.current?.click()}
             onUpdate={updateSelected}
             onBringToFront={() => reorderSelected("front")}
@@ -389,7 +511,13 @@ export function DeckCanvas({
       {size.width > 0 && scale > 0 && (
         <div
           className="absolute shadow-xl"
-          style={{ left: offsetX, top: offsetY, width: stageW, height: stageH }}
+          style={{
+            left: offsetX,
+            top: offsetY,
+            width: stageW,
+            height: stageH,
+            cursor: tool === "select" ? "default" : "crosshair",
+          }}
         >
           <Stage
             ref={stageRef}
@@ -397,9 +525,9 @@ export function DeckCanvas({
             height={stageH}
             scaleX={scale}
             scaleY={scale}
-            onMouseDown={(e) => {
-              if (e.target === e.target.getStage()) onSelect(null);
-            }}
+            onMouseDown={handleStageMouseDown}
+            onMouseMove={handleStageMouseMove}
+            onMouseUp={handleStageMouseUp}
           >
             <Layer>
               <Rect
@@ -421,9 +549,13 @@ export function DeckCanvas({
                   y={el.y}
                   rotation={el.rotation ?? 0}
                   opacity={el.opacity ?? 1}
-                  draggable={!readOnly}
-                  onMouseDown={() => onSelect(el.id)}
-                  onTap={() => onSelect(el.id)}
+                  draggable={!readOnly && tool === "select"}
+                  onMouseDown={() => {
+                    if (tool === "select") onSelect(el.id);
+                  }}
+                  onTap={() => {
+                    if (tool === "select") onSelect(el.id);
+                  }}
                   onDblClick={() => {
                     if (!readOnly && el.type === "text") {
                       onSelect(el.id);
@@ -443,6 +575,31 @@ export function DeckCanvas({
                   <ElementContent el={el} hideText={editingId === el.id} />
                 </Group>
               ))}
+
+              {draft &&
+                (() => {
+                  const p = previewElement(draft);
+                  const showBox = !(p.type === "shape" && p.shape === "line");
+                  return (
+                    <>
+                      <Group x={p.x} y={p.y} opacity={0.75} listening={false}>
+                        <ElementContent el={p} />
+                      </Group>
+                      {showBox && (
+                        <Rect
+                          x={p.x}
+                          y={p.y}
+                          width={Math.abs(p.w)}
+                          height={Math.abs(p.h)}
+                          stroke="#3b82f6"
+                          strokeWidth={1 / scale}
+                          dash={[6 / scale, 4 / scale]}
+                          listening={false}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
 
               {guides.v.map((x, i) => (
                 <Line
