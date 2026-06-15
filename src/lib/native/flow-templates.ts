@@ -27,59 +27,94 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
   {
     id: "linear",
     label: "Linear process",
-    title: "Process flow",
+    title: "Feature delivery flow",
     build: () => {
-      const a = node("Start", 0, 0, "rounded", "green");
-      const b = node("Step", 220, 0);
-      const c = node("End", 440, 0, "rounded", "slate");
-      const e1 = edge(a.id, b.id);
-      const e2 = edge(b.id, c.id);
+      const a = node("New request", 0, 0, "rounded", "green");
+      const b = node("Triage & prioritize", 200, 0);
+      const c = node("Design & spec", 400, 0, "rectangle", "purple");
+      const d = node("Build", 600, 0);
+      const e = node("Review & QA", 800, 0, "rectangle", "amber");
+      const f = node("Ship", 1000, 0, "rounded", "green");
+      const edges = [
+        edge(a.id, b.id),
+        edge(b.id, c.id),
+        edge(c.id, d.id),
+        edge(d.id, e.id),
+        edge(e.id, f.id),
+      ];
+      const nodes = { [a.id]: a, [b.id]: b, [c.id]: c, [d.id]: d, [e.id]: e, [f.id]: f };
       return {
         version: FLOW_VERSION,
-        nodes: { [a.id]: a, [b.id]: b, [c.id]: c },
-        nodeOrder: [a.id, b.id, c.id],
-        edges: { [e1.id]: e1, [e2.id]: e2 },
-        edgeOrder: [e1.id, e2.id],
+        nodes,
+        nodeOrder: [a.id, b.id, c.id, d.id, e.id, f.id],
+        edges: Object.fromEntries(edges.map((e) => [e.id, e])),
+        edgeOrder: edges.map((e) => e.id),
       };
     },
   },
   {
     id: "decision",
     label: "Decision tree",
-    title: "Decision flow",
+    title: "Signup flow",
     build: () => {
-      const start = node("Start", 200, 0, "rounded", "green");
-      const decision = node("Decision?", 160, 120, "diamond", "amber");
-      const yes = node("Yes path", 40, 260, "rounded", "blue");
-      const no = node("No path", 320, 260, "rounded", "red");
+      const start = node("User lands on signup", 180, 0, "rounded", "green");
+      const decision = node("Has invite link?", 140, 120, "diamond", "amber");
+      const invite = node("Join existing library", 0, 260, "rounded", "blue");
+      const solo = node("Create personal library", 280, 260, "rounded", "indigo");
+      const onboard = node("Onboarding checklist", 140, 400, "rectangle", "purple");
+      const done = node("Home — pick first doc type", 140, 520, "rounded", "green");
       const e1 = edge(start.id, decision.id);
-      const e2 = edge(decision.id, yes.id, "Yes");
-      const e3 = edge(decision.id, no.id, "No");
+      const e2 = edge(decision.id, invite.id, "Yes");
+      const e3 = edge(decision.id, solo.id, "No");
+      const e4 = edge(invite.id, onboard.id);
+      const e5 = edge(solo.id, onboard.id);
+      const e6 = edge(onboard.id, done.id);
+      const edges = [e1, e2, e3, e4, e5, e6];
+      const nodes = {
+        [start.id]: start,
+        [decision.id]: decision,
+        [invite.id]: invite,
+        [solo.id]: solo,
+        [onboard.id]: onboard,
+        [done.id]: done,
+      };
       return {
         version: FLOW_VERSION,
-        nodes: { [start.id]: start, [decision.id]: decision, [yes.id]: yes, [no.id]: no },
-        nodeOrder: [start.id, decision.id, yes.id, no.id],
-        edges: { [e1.id]: e1, [e2.id]: e2, [e3.id]: e3 },
-        edgeOrder: [e1.id, e2.id, e3.id],
+        nodes,
+        nodeOrder: [start.id, decision.id, invite.id, solo.id, onboard.id, done.id],
+        edges: Object.fromEntries(edges.map((e) => [e.id, e])),
+        edgeOrder: edges.map((e) => e.id),
       };
     },
   },
   {
     id: "swimlane",
     label: "Handoff",
-    title: "Handoff flow",
+    title: "Support → engineering handoff",
     build: () => {
-      const req = node("Request", 0, 0, "rectangle", "indigo");
-      const review = node("Review", 200, 0, "rectangle", "purple");
-      const ship = node("Ship", 400, 0, "rounded", "green");
-      const e1 = edge(req.id, review.id);
-      const e2 = edge(review.id, ship.id);
+      const req = node("Customer reports bug", 0, 0, "rectangle", "indigo");
+      const triage = node("Support reproduces", 220, 0, "rectangle", "purple");
+      const eng = node("Engineering investigates", 440, 0, "rectangle", "blue");
+      const fix = node("Fix deployed", 660, 0, "rounded", "green");
+      const close = node("Support confirms with customer", 880, 0, "rounded", "slate");
+      const e1 = edge(req.id, triage.id, "Ticket");
+      const e2 = edge(triage.id, eng.id, "Escalate");
+      const e3 = edge(eng.id, fix.id, "PR merged");
+      const e4 = edge(fix.id, close.id, "Notify");
+      const edges = [e1, e2, e3, e4];
+      const nodes = {
+        [req.id]: req,
+        [triage.id]: triage,
+        [eng.id]: eng,
+        [fix.id]: fix,
+        [close.id]: close,
+      };
       return {
         version: FLOW_VERSION,
-        nodes: { [req.id]: req, [review.id]: review, [ship.id]: ship },
-        nodeOrder: [req.id, review.id, ship.id],
-        edges: { [e1.id]: e1, [e2.id]: e2 },
-        edgeOrder: [e1.id, e2.id],
+        nodes,
+        nodeOrder: [req.id, triage.id, eng.id, fix.id, close.id],
+        edges: Object.fromEntries(edges.map((e) => [e.id, e])),
+        edgeOrder: edges.map((e) => e.id),
       };
     },
   },

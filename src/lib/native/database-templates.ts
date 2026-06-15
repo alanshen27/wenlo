@@ -13,19 +13,22 @@ export const DATABASE_TEMPLATES: DatabaseTemplate[] = [
     id: "tasks",
     label: "Task tracker",
     title: "Tasks",
-    preview: "Name · Status · Due\nFirst task\nSecond task\nThird task",
+    preview:
+      "Launch checklist · In progress\nTemplate polish · Todo\nBilling QA · Todo\nBeta invites · Done",
   },
   {
     id: "contacts",
     label: "Contacts",
     title: "Contacts",
-    preview: "Name · Email · Company\nAlex Kim\nJordan Lee",
+    preview:
+      "Morgan Chen · morgan@design.co · Studio North\nPriya Patel · priya@acme.io · Acme\nAlex Kim · alex@example.com · Acme",
   },
   {
     id: "roadmap",
     label: "Roadmap",
     title: "Roadmap",
-    preview: "Feature · Status · Quarter\nLaunch v1\nAPI beta",
+    preview:
+      "Native app homes · Shipped · Q1\nTemplate gallery · In progress · Q2\nBilling v1 · Planned · Q2",
   },
 ];
 

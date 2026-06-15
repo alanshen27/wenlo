@@ -164,9 +164,10 @@ async function seedTasksDatabase(documentId: string): Promise<void> {
     });
 
     const seeds = [
-      { name: "First task", status: statusOptions[0].id },
-      { name: "Second task", status: statusOptions[1].id },
-      { name: "Third task", status: statusOptions[2].id },
+      { name: "Polish template thumbnails", status: statusOptions[1].id },
+      { name: "Write launch checklist", status: statusOptions[0].id },
+      { name: "Billing integration QA", status: statusOptions[0].id },
+      { name: "Send beta invites", status: statusOptions[2].id },
     ];
     for (let i = 0; i < seeds.length; i++) {
       const row = await tx.databaseRow.create({ data: { documentId, position: i } });
@@ -213,8 +214,9 @@ async function seedContactsDatabase(documentId: string): Promise<void> {
     });
 
     const seeds = [
+      { name: "Morgan Chen", email: "morgan@design.co", company: "Studio North" },
+      { name: "Priya Patel", email: "priya@acme.io", company: "Acme" },
       { name: "Alex Kim", email: "alex@example.com", company: "Acme" },
-      { name: "Jordan Lee", email: "jordan@example.com", company: "Northwind" },
     ];
     for (let i = 0; i < seeds.length; i++) {
       const row = await tx.databaseRow.create({ data: { documentId, position: i } });
@@ -257,8 +259,9 @@ async function seedRoadmapDatabase(documentId: string): Promise<void> {
     });
 
     const seeds = [
-      { feature: "Launch v1", status: statusOptions[1].id, quarter: quarterOptions[0].id },
-      { feature: "API beta", status: statusOptions[0].id, quarter: quarterOptions[1].id },
+      { feature: "Native app homes", status: statusOptions[2].id, quarter: quarterOptions[0].id },
+      { feature: "Template gallery", status: statusOptions[1].id, quarter: quarterOptions[1].id },
+      { feature: "Billing v1", status: statusOptions[0].id, quarter: quarterOptions[1].id },
     ];
     for (let i = 0; i < seeds.length; i++) {
       const row = await tx.databaseRow.create({ data: { documentId, position: i } });

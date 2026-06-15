@@ -17,6 +17,24 @@ const CONTENT_W = 1280 - M * 2;
 
 type Built = { background?: string; elements: DeckElement[] };
 
+export type { Built };
+
+export function createSlideFromBuilt(built: Built): Slide {
+  const slide = createEmptySlide();
+  const map: Record<string, DeckElement> = {};
+  const order: string[] = [];
+  for (const el of built.elements) {
+    map[el.id] = el;
+    order.push(el.id);
+  }
+  return {
+    ...slide,
+    background: built.background ?? slide.background,
+    elements: map,
+    elementOrder: order,
+  };
+}
+
 export type SlideTemplate = {
   id: string;
   label: string;
@@ -223,18 +241,5 @@ export function getSlideTemplate(id: string | undefined): SlideTemplate {
 
 /** Builds a fresh Slide (new ids) from a template id. */
 export function createSlideFromTemplate(id?: string): Slide {
-  const slide = createEmptySlide();
-  const { background, elements } = getSlideTemplate(id).build();
-  const map: Record<string, DeckElement> = {};
-  const order: string[] = [];
-  for (const el of elements) {
-    map[el.id] = el;
-    order.push(el.id);
-  }
-  return {
-    ...slide,
-    background: background ?? slide.background,
-    elements: map,
-    elementOrder: order,
-  };
+  return createSlideFromBuilt(getSlideTemplate(id).build());
 }

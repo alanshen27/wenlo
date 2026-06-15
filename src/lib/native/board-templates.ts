@@ -14,15 +14,29 @@ export type BoardTemplate = {
   build: () => BoardDoc;
 };
 
-function sticky(x: number, y: number, text: string, fill: string) {
+function label(x: number, y: number, text: string) {
+  const id = newId();
+  return {
+    id,
+    type: "text" as const,
+    x,
+    y,
+    w: 200,
+    text,
+    fontSize: 22,
+    color: "#64748b",
+  };
+}
+
+function sticky(x: number, y: number, text: string, fill: string, w = 180, h = 120) {
   const id = newId();
   return {
     id,
     type: "sticky" as const,
     x,
     y,
-    w: 180,
-    h: 140,
+    w,
+    h,
     text,
     fill,
     color: "#1f2937",
@@ -35,14 +49,27 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     label: "Brainstorm",
     title: "Brainstorm",
     build: () => {
-      const s1 = sticky(80, 80, "Idea one", "#fef08a");
-      const s2 = sticky(300, 60, "Idea two", "#bfdbfe");
-      const s3 = sticky(520, 100, "Idea three", "#bbf7d0");
-      const s4 = sticky(180, 260, "Idea four", "#fbcfe8");
+      const title = label(80, 24, "Brainstorm — Q3 feature ideas");
+      const s1 = sticky(60, 80, "AI summary across libraries", "#fef08a");
+      const s2 = sticky(280, 60, "Shared templates marketplace", "#bfdbfe");
+      const s3 = sticky(500, 90, "Offline mode for docs", "#bbf7d0");
+      const s4 = sticky(120, 230, "Comments on whiteboards", "#fbcfe8");
+      const s5 = sticky(340, 250, "Calendar view for databases", "#fde68a");
+      const s6 = sticky(560, 220, "Public read-only links", "#ddd6fe");
+      const s7 = sticky(200, 400, "Keyboard shortcut cheatsheet", "#fecdd3");
       return {
         version: 2,
-        elements: { [s1.id]: s1, [s2.id]: s2, [s3.id]: s3, [s4.id]: s4 },
-        elementOrder: [s1.id, s2.id, s3.id, s4.id],
+        elements: {
+          [title.id]: title,
+          [s1.id]: s1,
+          [s2.id]: s2,
+          [s3.id]: s3,
+          [s4.id]: s4,
+          [s5.id]: s5,
+          [s6.id]: s6,
+          [s7.id]: s7,
+        },
+        elementOrder: [title.id, s1.id, s2.id, s3.id, s4.id, s5.id, s6.id, s7.id],
       };
     },
   },
@@ -51,13 +78,26 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     label: "Retro board",
     title: "Retro",
     build: () => {
-      const good = sticky(60, 80, "What went well", "#bbf7d0");
-      const improve = sticky(320, 80, "What to improve", "#fef08a");
-      const action = sticky(580, 80, "Action items", "#bfdbfe");
+      const h1 = label(60, 24, "Went well");
+      const h2 = label(320, 24, "To improve");
+      const h3 = label(580, 24, "Action items");
+      const g1 = sticky(40, 70, "Native homes shipped on time", "#bbf7d0");
+      const g2 = sticky(40, 210, "Great pairing on recents API", "#bbf7d0");
+      const g3 = sticky(40, 350, "Beta users love the launcher", "#bbf7d0");
+      const i1 = sticky(300, 70, "Template quality was thin at launch", "#fef08a");
+      const i2 = sticky(300, 210, "Too many parallel refactors", "#fef08a");
+      const i3 = sticky(300, 350, "Docs for new routes missing", "#fef08a");
+      const a1 = sticky(560, 70, "Add template review to DoD", "#bfdbfe", 200, 100);
+      const a2 = sticky(560, 200, "Write migration guide by Fri", "#bfdbfe", 200, 100);
+      const a3 = sticky(560, 330, "Schedule retro follow-up in 2 wks", "#bfdbfe", 200, 100);
+      const elements = { h1, h2, h3, g1, g2, g3, i1, i2, i3, a1, a2, a3 };
+      const map = Object.fromEntries(
+        Object.entries(elements).map(([, el]) => [el.id, el])
+      );
       return {
         version: 2,
-        elements: { [good.id]: good, [improve.id]: improve, [action.id]: action },
-        elementOrder: [good.id, improve.id, action.id],
+        elements: map,
+        elementOrder: Object.values(elements).map((el) => el.id),
       };
     },
   },
@@ -66,13 +106,25 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     label: "Kanban",
     title: "Kanban board",
     build: () => {
-      const todo = sticky(60, 80, "To do", "#e2e8f0");
-      const doing = sticky(300, 80, "Doing", "#bfdbfe");
-      const done = sticky(540, 80, "Done", "#bbf7d0");
+      const h1 = label(60, 24, "To do");
+      const h2 = label(300, 24, "In progress");
+      const h3 = label(540, 24, "Done");
+      const t1 = sticky(40, 70, "Polish template thumbnails", "#e2e8f0");
+      const t2 = sticky(40, 210, "Write launch checklist", "#e2e8f0");
+      const t3 = sticky(40, 350, "Update onboarding copy", "#e2e8f0");
+      const d1 = sticky(280, 70, "Recents filters UI", "#bfdbfe");
+      const d2 = sticky(280, 210, "Billing integration QA", "#bfdbfe");
+      const done1 = sticky(520, 70, "Native home routes", "#bbf7d0");
+      const done2 = sticky(520, 210, "Recents API", "#bbf7d0");
+      const done3 = sticky(520, 350, "Standalone editor shell", "#bbf7d0");
+      const elements = { h1, h2, h3, t1, t2, t3, d1, d2, done1, done2, done3 };
+      const map = Object.fromEntries(
+        Object.entries(elements).map(([, el]) => [el.id, el])
+      );
       return {
         version: 2,
-        elements: { [todo.id]: todo, [doing.id]: doing, [done.id]: done },
-        elementOrder: [todo.id, doing.id, done.id],
+        elements: map,
+        elementOrder: Object.values(elements).map((el) => el.id),
       };
     },
   },
