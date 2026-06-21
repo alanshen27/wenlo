@@ -45,6 +45,7 @@ import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
 import { LibrarySwitcher } from "@/components/sidebar/library-switcher";
 import { AppLauncher } from "@/components/native/app-launcher";
 import { SidebarFooter } from "@/components/sidebar/sidebar-footer";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { useRecallChatOptional } from "@/components/recall/recall-chat-context";
 import {
   useLibraryActions,
@@ -60,6 +61,7 @@ import {
   persistActiveLibrary,
   recallRoute,
   searchRoute,
+  trashRoute,
 } from "@/lib/client/routes";
 import { findItemInTree } from "@/lib/client/tree-mutations";
 import type { FolderColorId } from "@/lib/library/folder-colors";
@@ -101,7 +103,10 @@ function SidebarTreeSkeleton() {
 }
 
 /** Library folder tree sidebar — reads split library contexts; route state from URL. */
-export function FolderSidebar() {
+export function FolderSidebar({
+  className,
+  onNavigate,
+}: { className?: string; onNavigate?: () => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useParams<{
@@ -119,15 +124,18 @@ export function FolderSidebar() {
 
   const isSearchPage = pathname.endsWith("/search");
   const isRecallPage = pathname.endsWith("/recall");
+  const isTrashPage = pathname.endsWith("/trash");
   const isFilesHome =
-    !isSearchPage && !isRecallPage && !selectedPageId && !selectedDocumentId;
+    !isSearchPage && !isRecallPage && !isTrashPage && !selectedPageId && !selectedDocumentId;
   const activeNav = isSearchPage
     ? "search"
     : isRecallPage
       ? "recall"
-      : isFilesHome
-        ? "home"
-        : null;
+      : isTrashPage
+        ? "trash"
+        : isFilesHome
+          ? "home"
+          : null;
 
   const { libraries, canEdit } = useLibraryScope();
   const { tree, treeLoaded, moveItem, uploadToFolder } = useLibraryTree();
@@ -147,22 +155,29 @@ export function FolderSidebar() {
   const treeLoading = !treeLoaded;
   const recallChat = useRecallChatOptional();
 
-  const onSelectLibrary = (id: string) => {
-    persistActiveLibrary(id);
-    router.push(libraryHome(id));
+  // Navigate then dismiss the mobile drawer (no-op on desktop).
+  const go = (href: string) => {
+    onNavigate?.();
+    router.push(href);
   };
 
-  const onOpenHome = () => router.push(libraryHome(libraryId));
-  const onOpenSearch = () => router.push(searchRoute(libraryId));
-  const onOpenRecall = () => router.push(recallRoute(libraryId));
-  const onSelectFolder = (id: string | null) => {
-    if (id) router.push(folderHome(libraryId, id));
-    else router.push(libraryHome(libraryId));
+  const onSelectLibrary = (id: string) => {
+    persistActiveLibrary(id);
+    go(libraryHome(id));
   };
-  const onSelectPage = (id: string) => router.push(pageRoute(libraryId, id));
+
+  const onOpenHome = () => go(libraryHome(libraryId));
+  const onOpenSearch = () => go(searchRoute(libraryId));
+  const onOpenRecall = () => go(recallRoute(libraryId));
+  const onOpenTrash = () => go(trashRoute(libraryId));
+  const onSelectFolder = (id: string | null) => {
+    if (id) go(folderHome(libraryId, id));
+    else go(libraryHome(libraryId));
+  };
+  const onSelectPage = (id: string) => go(pageRoute(libraryId, id));
   const onSelectDocument = (id: string) => {
     const found = findItemInTree(tree, { kind: "document", id });
-    router.push(documentOpenRoute(libraryId, id, found?.type));
+    go(documentOpenRoute(libraryId, id, found?.type));
   };
 
   const handleEditFolder = (folder: FolderRef) =>
@@ -202,7 +217,12 @@ export function FolderSidebar() {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
-      <aside className="flex h-full min-h-0 w-[240px] shrink-0 flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground">
+      <aside
+        className={cn(
+          "flex h-full min-h-0 w-[240px] shrink-0 flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground",
+          className
+        )}
+      >
         <div className="flex shrink-0 items-center gap-1 px-2 py-2">
           <div className="min-w-0 flex-1">
             <LibrarySwitcher
@@ -214,6 +234,7 @@ export function FolderSidebar() {
             />
           </div>
           <AppLauncher />
+          <NotificationBell />
           {activeLibrary && activeLibrary.role === "OWNER" && (
             <ItemMenu
               items={[
@@ -273,6 +294,19 @@ export function FolderSidebar() {
             <Sparkles className="size-4" />
             Recall
           </Button>
+          <Button
+            variant="ghost"
+            className={cn(
+              "h-8 w-full justify-start gap-2 px-2",
+              activeNav === "trash"
+                ? "sidebar-item-active font-medium text-sidebar-foreground"
+                : "text-muted-foreground"
+            )}
+            onClick={onOpenTrash}
+          >
+            <Trash2 className="size-4" />
+            Trash
+          </Button>
           {activeNav === "recall" && recallChat && (
             <div className="ml-2 space-y-0.5 border-l border-border pl-2">
               {recallChat.sessionError && (
@@ -301,7 +335,10 @@ export function FolderSidebar() {
                   <button
                     type="button"
                     className="flex h-full min-w-0 flex-1 items-center justify-start gap-2 px-2 text-left"
-                    onClick={() => recallChat.selectSession(session.id)}
+                    onClick={() => {
+                      recallChat.selectSession(session.id);
+                      onNavigate?.();
+                    }}
                   >
                     <MessageSquare className="size-3.5 shrink-0 opacity-60" />
                     <span className="truncate text-sm">{sessionLabel(session)}</span>
@@ -326,7 +363,10 @@ export function FolderSidebar() {
                   variant="ghost"
                   className="text-muted-foreground text-sm w-full"
                   title="New chat"
-                  onClick={() => void recallChat.newChat()}
+                  onClick={() => {
+                    void recallChat.newChat();
+                    onNavigate?.();
+                  }}
                 >
                   New Chat
                   <MessageSquarePlus className="size-4" />

@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { notFound, parseBody, withAuth } from "@/lib/api/http";
-import { requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
+import { requireLibraryAccess } from "@/lib/library/library-access";
+import { softDeleteFolder } from "@/lib/soft-delete/soft-delete";
+import { notDeleted } from "@/lib/db/filters";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -14,7 +16,7 @@ const patchSchema = z.object({
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   return withAuth(ctx, async ({ params, user }) => {
-    const folder = await prisma.folder.findFirst({ where: { id: params.id } });
+    const folder = await prisma.folder.findFirst({ where: { id: params.id, ...notDeleted } });
     if (!folder) throw notFound();
     await requireLibraryAccess(user.id, folder.libraryId, "EDITOR");
 
@@ -34,11 +36,11 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   return withAuth(ctx, async ({ params, user }) => {
-    const folder = await prisma.folder.findFirst({ where: { id: params.id } });
+    const folder = await prisma.folder.findFirst({ where: { id: params.id, ...notDeleted } });
     if (!folder) throw notFound();
     await requireLibraryAccess(user.id, folder.libraryId, "EDITOR");
 
-    await prisma.folder.delete({ where: { id: folder.id } });
+    await softDeleteFolder(folder.id);
     return NextResponse.json({ ok: true });
   });
 }

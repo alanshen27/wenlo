@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError, type ZodType } from "zod";
-import { requireUser } from "@/lib/auth/auth";
+import { RateLimitError, rateLimitResponse } from "@/lib/api/rate-limit";
 import { LibraryAccessError } from "@/lib/library/library-access";
 import type { User } from "@/generated/prisma/client";
+import { requireUser } from "../auth/auth";
 
 /**
  * Lightweight building blocks for route handlers so individual routes stop
@@ -38,6 +39,12 @@ export function errorResponse(error: unknown): NextResponse {
     return NextResponse.json({ error: "Invalid request", issues: error.issues }, { status: 400 });
   }
   // `requireUser()` throws a bare Error("Unauthorized").
+  if (error instanceof RateLimitError) {
+    return rateLimitResponse(error.retryAfter);
+  }
+  if (error instanceof Error && (error as Error & { status?: number }).status === 413) {
+    return NextResponse.json({ error: error.message }, { status: 413 });
+  }
   if (error instanceof Error && error.message === "Unauthorized") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

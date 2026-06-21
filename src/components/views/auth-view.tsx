@@ -231,7 +231,15 @@ export function AuthView({ defaultTab = "signin", redirectTo = "/" }: AuthViewPr
                     )}
                   </Button>
                   <p className="text-center text-xs text-muted-foreground">
-                    By signing up, you agree to our terms of service and privacy policy.
+                    By signing up, you agree to our{" "}
+                    <Link href="/terms" className="underline hover:text-foreground">
+                      terms of service
+                    </Link>{" "}
+                    and{" "}
+                    <Link href="/privacy" className="underline hover:text-foreground">
+                      privacy policy
+                    </Link>
+                    .
                   </p>
                 </form>
               </TabsContent>

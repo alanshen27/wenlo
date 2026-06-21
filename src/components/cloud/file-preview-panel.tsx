@@ -117,7 +117,7 @@ export function FilePreviewPanel({
   const added = formatDate(doc?.createdAt);
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-border bg-card xl:w-96">
+    <aside className="flex w-80 shrink-0 flex-col border-l border-border bg-card xl:w-96 max-md:fixed max-md:inset-0 max-md:z-50 max-md:w-full max-md:border-l-0">
       <header className="flex items-center gap-2 border-b border-border px-4 py-3">
         <FileArtwork type={type} className="size-6 shrink-0" />
         <p className="min-w-0 flex-1 truncate text-sm font-medium" title={target.title}>

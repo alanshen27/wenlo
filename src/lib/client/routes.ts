@@ -103,6 +103,22 @@ export function recallChatRoute(libraryId: string, sessionId?: string | null) {
 // Settings
 // ---------------------------------------------------------------------------
 
+export function trashRoute(libraryId: string) {
+  return `/library/${libraryId}/trash`;
+}
+
+export function shareRoute(token: string) {
+  return `/share/${token}`;
+}
+
+export function termsRoute() {
+  return "/terms";
+}
+
+export function privacyRoute() {
+  return "/privacy";
+}
+
 export function settingsRoute() {
   return "/settings";
 }

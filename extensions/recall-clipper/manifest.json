@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Recall Web Clipper",
+  "version": "0.1.0",
+  "description": "Save web highlights and pages to Recall",
+  "permissions": ["activeTab", "contextMenus", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Clip to Recall"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

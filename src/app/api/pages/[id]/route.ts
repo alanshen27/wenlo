@@ -4,6 +4,7 @@ import { requirePage } from "@/lib/pages/page-access";
 import { snapshotPageBeforeUpdate } from "@/lib/pages/page-versions";
 import { prisma } from "@/lib/db/prisma";
 import { indexPage } from "@/lib/search/search";
+import { softDeletePage } from "@/lib/soft-delete/soft-delete";
 import { extractPlainText } from "@/lib/editor/editor-content";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -51,7 +52,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   return withAuth(ctx, async ({ params, user }) => {
     const page = await requirePage(user.id, params.id, "EDITOR");
-    await prisma.page.delete({ where: { id: page.id } });
+    await softDeletePage(page.id);
     return NextResponse.json({ ok: true });
   });
 }

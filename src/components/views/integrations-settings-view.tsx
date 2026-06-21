@@ -270,6 +270,45 @@ ${baseUrl}/api/mcp
   }
 }`}
             </pre>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() =>
+                  navigator.clipboard.writeText(
+                    JSON.stringify(
+                      {
+                        mcpServers: {
+                          recall: {
+                            url: `${baseUrl}/api/mcp`,
+                            headers: { Authorization: "Bearer rcsk_…" },
+                          },
+                        },
+                      },
+                      null,
+                      2
+                    )
+                  )
+                }
+              >
+                <Copy className="size-3.5" />
+                Copy Cursor config
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() =>
+                  navigator.clipboard.writeText(`${baseUrl}/api/mcp`)
+                }
+              >
+                <Copy className="size-3.5" />
+                Copy MCP URL
+              </Button>
+            </div>
           </section>
         </div>
       </main>

@@ -30,6 +30,7 @@ import {
   recallRetrieve,
 } from "@/lib/recall-chat/recall-retrieve";
 import { getOpenAI, hasOpenAI, OPENAI_MODELS } from "@/lib/search/openai";
+import { enforceRateLimit } from "@/lib/api/rate-limit";
 import { assertWithinTokenLimit, recordTokenUsage, UsageLimitError } from "@/lib/billing/usage";
 
 type AgentStreamEvent =
@@ -49,7 +50,10 @@ type AgentStreamEvent =
   | { type: "error"; error: string };
 
 export async function POST(req: NextRequest) {
-  return withAuth(undefined, ({ user }) => handlePost(req, user));
+  return withAuth(undefined, async ({ user }) => {
+    await enforceRateLimit(user.id, user.plan, "agent");
+    return handlePost(req, user);
+  });
 }
 
 async function handlePost(req: NextRequest, user: User): Promise<Response> {

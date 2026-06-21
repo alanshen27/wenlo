@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { badRequest, withAuth } from "@/lib/api/http";
 import { libraryIdFromFolder, resolveLibraryId } from "@/lib/library/libraries";
 import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
+import { notDeleted } from "@/lib/db/filters";
 import { prisma } from "@/lib/db/prisma";
 import { sanitizeStorageName, uploadDocument } from "@/lib/documents/storage";
 import {
@@ -9,6 +10,7 @@ import {
   extractWithOpenAI,
   inferDocumentType,
   sanitizeText,
+  transcribeAudio,
 } from "@/lib/documents/extract";
 import { hasOpenAI, OPENAI_FILE_PROCESSING_ENABLED } from "@/lib/search/openai";
 import { indexDocument } from "@/lib/search/search";
@@ -16,6 +18,8 @@ import { createEmptyBoard, deriveBoardText, normalizeBoard } from "@/lib/boards/
 import { createEmptyDeck, deriveDeckText, normalizeDeck } from "@/lib/decks/deck-schema";
 import { createEmptyFlow, deriveFlowText, normalizeFlow } from "@/lib/flowcharts/flowchart-schema";
 import { reindexDatabase, seedDatabase } from "@/lib/databases/database-server";
+import { assertStorageQuota } from "@/lib/billing/storage";
+import { enforceRateLimit } from "@/lib/api/rate-limit";
 import type { DocumentType, Prisma } from "@/generated/prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -31,6 +35,7 @@ export async function GET(req: NextRequest) {
     const documents = await prisma.document.findMany({
       where: {
         libraryId,
+        ...notDeleted,
         ...(folderId ? { folderId: folderId === "root" ? null : folderId } : {}),
       },
       orderBy: { updatedAt: "desc" },
@@ -57,7 +62,7 @@ async function uniqueDocumentTitle(
 ): Promise<string> {
   const { base, ext } = splitFileName(desired);
   const existing = await prisma.document.findMany({
-    where: { libraryId, folderId, title: { startsWith: base } },
+    where: { libraryId, folderId, title: { startsWith: base }, ...notDeleted },
     select: { title: true },
   });
   const taken = new Set(existing.map((d) => d.title));
@@ -191,6 +196,8 @@ async function createNativeDocument(req: NextRequest, userId: string) {
 
 export async function POST(req: NextRequest) {
   return withAuth(undefined, async ({ user }) => {
+    await enforceRateLimit(user.id, user.plan, "documents:post");
+
     if (req.headers.get("content-type")?.includes("application/json")) {
       return createNativeDocument(req, user.id);
     }
@@ -209,9 +216,11 @@ export async function POST(req: NextRequest) {
       await resolveLibraryId(user.id, rawLibraryId)
     );
     await requireLibraryAccess(user.id, libraryId, "EDITOR");
-    const ownerId = await contentOwnerId(libraryId);
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    await assertStorageQuota(libraryId, user.plan, buffer.length);
+    const ownerId = await contentOwnerId(libraryId);
+
     const { content, type, language, aiEligible } = await extractTextFromFile(
       buffer,
       file.type,
@@ -261,7 +270,12 @@ export async function POST(req: NextRequest) {
     after(async () => {
       try {
         let indexedContent = document.content;
-        if (runAiPass) {
+        if (docType === "AUDIO" && hasOpenAI()) {
+          const transcript = sanitizeText(
+            await transcribeAudio(buffer, file.name, user.id).catch(() => "")
+          ).trim();
+          if (transcript) indexedContent = transcript;
+        } else if (runAiPass) {
           // Over-quota users skip the (expensive) AI extraction pass but the
           // document is still indexed from its native content below.
           const aiText = sanitizeText(

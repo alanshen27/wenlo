@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { notDeleted } from "@/lib/db/filters";
 import { getLibraryRole, requireLibraryAccess, type LibraryRole } from "@/lib/library/library-access";
 import { DEFAULT_LIBRARY_ICON } from "@/lib/library/folder-colors";
 
@@ -88,7 +89,7 @@ export async function libraryIdFromFolder(
 ): Promise<string> {
   if (!folderId || folderId === "__root__") return fallbackLibraryId;
   const folder = await prisma.folder.findFirst({
-    where: { id: folderId, libraryId: fallbackLibraryId },
+    where: { id: folderId, libraryId: fallbackLibraryId, ...notDeleted },
   });
   if (!folder) throw new Error("Folder not found");
   await requireLibraryAccess(userId, folder.libraryId, "VIEWER");

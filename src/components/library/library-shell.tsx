@@ -27,6 +27,8 @@ import { usePersistentState } from "@/lib/client/use-persistent-state";
 import { findItemFolderId } from "@/lib/client/tree-mutations";
 import { findItemInTree } from "@/lib/client/tree-mutations";
 import { libraryHome, persistActiveLibrary } from "@/lib/client/routes";
+import { CommandPalette, useCommandPalette } from "@/components/command-palette";
+import { cn } from "@/lib/core/utils";
 
 export type { HeaderState } from "@/components/library/context";
 
@@ -74,6 +76,8 @@ export function LibraryShell({ children }: { children: ReactNode }) {
     STORAGE_KEYS.focusMode,
     false
   );
+  const commandPalette = useCommandPalette();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const activeLibrary = libraries.find((l) => l.id === libraryId);
   const libraryRole = activeLibrary?.role ?? "OWNER";
@@ -230,9 +234,27 @@ export function LibraryShell({ children }: { children: ReactNode }) {
 
   const layout = (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      {!focusMode ? <FolderSidebar /> : null}
+      {!focusMode ? (
+        <>
+          {/* Off-canvas backdrop on mobile; sidebar sits in-flow from md up. */}
+          {mobileNavOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/40 md:hidden"
+              aria-hidden
+              onClick={() => setMobileNavOpen(false)}
+            />
+          )}
+          <FolderSidebar
+            className={cn(
+              "max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[280px] max-md:shadow-xl max-md:transition-transform max-md:duration-200",
+              mobileNavOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full"
+            )}
+            onNavigate={() => setMobileNavOpen(false)}
+          />
+        </>
+      ) : null}
 
-      <main className="flex flex-1 flex-col overflow-hidden">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <PendingInvitesBanner onAccepted={invalidateLibraries} />
         <MainHeader
           breadcrumbs={breadcrumbs}
@@ -242,6 +264,7 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           remoteNotice={header.remoteNotice}
           focusMode={focusMode}
           onToggleFocus={() => setFocusMode((prev) => !prev)}
+          onOpenNav={!focusMode ? () => setMobileNavOpen(true) : undefined}
         />
         {children}
       </main>
@@ -336,6 +359,12 @@ export function LibraryShell({ children }: { children: ReactNode }) {
           onOpenChange={modals.setShareOpen}
         />
       )}
+
+      <CommandPalette
+        libraryId={libraryId}
+        open={commandPalette.open}
+        onOpenChange={commandPalette.setOpen}
+      />
     </div>
   );
 

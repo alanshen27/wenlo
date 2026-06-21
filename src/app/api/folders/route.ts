@@ -4,6 +4,7 @@ import { badRequest, notFound, parseBody, withAuth } from "@/lib/api/http";
 import { resolveLibraryId } from "@/lib/library/libraries";
 import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
 import { prisma } from "@/lib/db/prisma";
+import { notDeleted } from "@/lib/db/filters";
 import { buildFolderTree } from "@/lib/library/folders";
 import { listPinnedIds } from "@/lib/pins/pins";
 
@@ -16,14 +17,14 @@ export async function GET(req: NextRequest) {
     await requireLibraryAccess(user.id, libraryId, "VIEWER");
 
     const [folders, pages, documents, pinned] = await Promise.all([
-      prisma.folder.findMany({ where: { libraryId }, orderBy: { name: "asc" } }),
+      prisma.folder.findMany({ where: { libraryId, ...notDeleted }, orderBy: { name: "asc" } }),
       prisma.page.findMany({
-        where: { libraryId },
+        where: { libraryId, ...notDeleted },
         select: { id: true, title: true, folderId: true },
         orderBy: { updatedAt: "desc" },
       }),
       prisma.document.findMany({
-        where: { libraryId },
+        where: { libraryId, ...notDeleted },
         select: {
           id: true,
           title: true,
@@ -60,7 +61,9 @@ export async function POST(req: NextRequest) {
     await requireLibraryAccess(user.id, libraryId, "EDITOR");
 
     if (parentId) {
-      const parent = await prisma.folder.findFirst({ where: { id: parentId, libraryId } });
+      const parent = await prisma.folder.findFirst({
+        where: { id: parentId, libraryId, ...notDeleted },
+      });
       if (!parent) throw notFound("Parent folder not found");
       libraryId = parent.libraryId;
     }

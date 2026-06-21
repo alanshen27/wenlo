@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   List,
   Loader2,
+  Mic,
   Plus,
   Shapes,
   Upload,
@@ -47,6 +48,7 @@ type Props = {
   onNewFlowchart: () => void | Promise<void>;
   onNewFolder: () => void;
   onUpload: () => void;
+  onRecordVoiceNote?: () => void;
 };
 
 export function CloudToolbar({
@@ -62,6 +64,7 @@ export function CloudToolbar({
   onNewFlowchart,
   onNewFolder,
   onUpload,
+  onRecordVoiceNote,
 }: Props) {
   const [creatingPage, setCreatingPage] = useState(false);
 
@@ -157,6 +160,12 @@ export function CloudToolbar({
               <Upload className="size-4" />
               Upload files
             </DropdownMenuItem>
+            {onRecordVoiceNote && (
+              <DropdownMenuItem onClick={onRecordVoiceNote}>
+                <Mic className="size-4" />
+                Record voice note
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}

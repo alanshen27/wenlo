@@ -8,11 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/blocknote-ui/a
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { libraryHome, readStoredLibraryId, settingsIntegrationsRoute, settingsPlanRoute } from "@/lib/client/routes";
+import { libraryHome, readStoredLibraryId, settingsIntegrationsRoute, settingsPlanRoute, termsRoute, privacyRoute } from "@/lib/client/routes";
 import { getApiErrorMessage } from "@/lib/client/api";
 import { userInitials } from "@/lib/client/user-display";
 import { useMe, useUpdateMe } from "@/hooks/use-me";
 import { ThemeSettingRow, ThemeToggle } from "@/components/theme-toggle";
+import { StorageUsage } from "@/components/billing/storage-usage";
 import { cn } from "@/lib/core/utils";
 
 export function AccountSettingsView() {
@@ -23,6 +24,8 @@ export function AccountSettingsView() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (isError) router.push("/login");
@@ -46,6 +49,39 @@ export function AccountSettingsView() {
       setSaved(true);
     } catch (e) {
       setError(getApiErrorMessage(e, "Failed to save"));
+    }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/me/export");
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `wenlo-export.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(getApiErrorMessage(e, "Export failed"));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!confirm("Delete your account and all data permanently? This cannot be undone.")) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/me/delete", { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
+      router.push("/login");
+    } catch (e) {
+      setError(getApiErrorMessage(e, "Failed to delete account"));
+      setDeleting(false);
     }
   }
 
@@ -166,6 +202,45 @@ export function AccountSettingsView() {
             >
               Manage API keys
             </Link>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-sm font-medium">Storage</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Storage is capped per library on your {me.usage.planName} plan.
+            </p>
+            <StorageUsage storage={me.storage} className="mt-4" />
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-sm font-medium">Export & delete</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Download a zip of your libraries or permanently delete your account.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" variant="outline" disabled={exporting} onClick={handleExport}>
+                {exporting ? "Preparing…" : "Export all data"}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleting}
+                onClick={handleDeleteAccount}
+              >
+                {deleting ? "Deleting…" : "Delete account"}
+              </Button>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              See our{" "}
+              <Link href={termsRoute()} className="underline hover:text-foreground">
+                terms
+              </Link>{" "}
+              and{" "}
+              <Link href={privacyRoute()} className="underline hover:text-foreground">
+                privacy policy
+              </Link>
+              .
+            </p>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5">

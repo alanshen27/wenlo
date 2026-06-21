@@ -4,6 +4,7 @@ export type PlanDefinition = {
   id: PlanId;
   name: string;
   tokenLimit: number;
+  storageLimitBytes: number;
   description: string;
   priceLabel: string;
   features: string[];
@@ -14,10 +15,12 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
     id: "FREE",
     name: "Free",
     tokenLimit: 50_000,
+    storageLimitBytes: 1 * 1024 * 1024 * 1024,
     description: "For getting started",
     priceLabel: "$0",
     features: [
       "50k AI tokens per month",
+      "1 GB storage",
       "Unlimited libraries & pages",
       "Semantic + keyword search",
     ],
@@ -26,10 +29,12 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
     id: "PRO",
     name: "Pro",
     tokenLimit: 500_000,
+    storageLimitBytes: 50 * 1024 * 1024 * 1024,
     description: "For power users",
     priceLabel: "$12",
     features: [
       "500k AI tokens per month",
+      "50 GB storage",
       "Everything in Free",
       "Priority support (coming soon)",
     ],

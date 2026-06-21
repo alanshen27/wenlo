@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   DndContext,
@@ -30,6 +30,7 @@ import {
   useLibraryTree,
 } from "@/components/library/context";
 import { CloudToolbar, type SortMode, type ViewMode } from "@/components/cloud/cloud-toolbar";
+import { VoiceRecorderModal } from "@/components/cloud/voice-recorder-modal";
 import { EntityCard, EntityTable, type CloudItem } from "@/components/cloud/entities";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +47,7 @@ import { getFolderContents, isFolderItem } from "@/lib/library/folders";
 import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
 import { LibraryIcon } from "@/components/icons/library-icon";
 import type { FolderColorId } from "@/lib/library/folder-colors";
-import { apiDelete, apiGet } from "@/lib/client/api";
+import { apiDelete } from "@/lib/client/api";
 import { setPin } from "@/lib/client/pins";
 import { STORAGE_KEYS } from "@/lib/client/storage-keys";
 import { useLibraryMembers } from "@/hooks/use-library-members";
@@ -111,6 +112,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
 
   const [dragging, setDragging] = useState(false);
   const [activeDrag, setActiveDrag] = useState<FolderItem | null>(null);
+  const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
@@ -475,6 +477,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
               onNewFlowchart={() => createFlowchart(folderId)}
               onNewFolder={() => beginCreateFolder(folderId)}
               onUpload={() => inputRef.current?.click()}
+              onRecordVoiceNote={() => setVoiceRecorderOpen(true)}
             />
           }
         />
@@ -554,6 +557,14 @@ export function CloudView({ folderId: folderIdProp }: Props) {
             if (e.target.files?.length) handleFiles(e.target.files);
             e.target.value = "";
           }}
+        />
+      )}
+
+      {canEdit && (
+        <VoiceRecorderModal
+          open={voiceRecorderOpen}
+          onOpenChange={setVoiceRecorderOpen}
+          onSave={(file) => uploadToFolder(folderId, [file])}
         />
       )}
 

@@ -11,6 +11,7 @@ import { libraryHome, readStoredLibraryId } from "@/lib/client/routes";
 import { apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
 import { USAGE_UPDATED_EVENT } from "@/lib/billing/usage-events";
 import { useInvalidateMe, useMe } from "@/hooks/use-me";
+import { StorageUsage } from "@/components/billing/storage-usage";
 import { cn } from "@/lib/core/utils";
 
 export function PlanSettingsView() {
@@ -144,6 +145,14 @@ export function PlanSettingsView() {
                 />
               </div>
             </div>
+            {me.storage.length > 0 && (
+              <div className="mt-4 border-t border-border pt-4">
+                <p className="mb-3 text-xs font-medium text-muted-foreground">
+                  Storage (per library)
+                </p>
+                <StorageUsage storage={me.storage} />
+              </div>
+            )}
             {billing.cancelAtPeriodEnd && (
               <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
                 Pro cancels at the end of your billing period. You keep access until then.

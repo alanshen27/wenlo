@@ -26,6 +26,7 @@ import {
   scrollToDocumentHeading,
   type DocumentHeading,
 } from "@/lib/editor/editor-content";
+import { ContextualRecallPanel } from "@/components/recall/contextual-recall-panel";
 import { ViewError, ViewScroll } from "@/components/ui/view";
 
 type Page = {
@@ -58,6 +59,7 @@ export function PageView() {
   const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editorEpoch, setEditorEpoch] = useState(0);
+  const [livePlainText, setLivePlainText] = useState("");
   const [headings, setHeadings] = useState<DocumentHeading[]>([]);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleFromRemoteRef = useRef(false);
@@ -168,6 +170,7 @@ export function PageView() {
 
   const savePage = useCallback(
     async (_content: unknown, _plainText: string) => {
+      setLivePlainText(_plainText);
       if (!page || !canEdit) return;
       markSaving();
       try {
@@ -258,8 +261,9 @@ export function PageView() {
       : undefined;
 
   return (
-    <div className="relative flex-1 overflow-x-hidden overflow-y-auto scrollbar-subtle">
-      <div className="mx-auto w-full max-w-3xl px-8 py-12 md:px-16">
+    <div className="relative flex flex-1 overflow-hidden">
+      <div className="relative flex-1 overflow-x-hidden overflow-y-auto scrollbar-subtle">
+      <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 sm:py-12 md:px-16">
           <div className="mb-2 flex items-center justify-between gap-4">
             <input
               value={titleDraft}
@@ -312,6 +316,8 @@ export function PageView() {
           )}
       </div>
       <DocumentOutline headings={headings} onSelect={scrollToDocumentHeading} />
+      </div>
+      <ContextualRecallPanel libraryId={libraryId} plainText={livePlainText || titleDraft} />
     </div>
   );
 }

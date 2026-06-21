@@ -278,7 +278,7 @@ async function extractRaw(
   }
 
   if (AUDIO_EXTS.has(ext) || mimeType.startsWith("audio/")) {
-    return { content: `[Audio: ${filename}]`, type: "AUDIO" };
+    return { content: `[Audio: ${filename}]`, type: "AUDIO", aiEligible: true };
   }
 
   if (VIDEO_EXTS.has(ext) || mimeType.startsWith("video/")) {
@@ -330,4 +330,28 @@ export function inferDocumentType(filename: string, mimeType: string): DocumentT
     return "CODE";
   if (["md", "txt"].includes(ext)) return "NOTE";
   return "OTHER";
+}
+
+/** Transcribe audio via OpenAI Whisper. Returns empty string when unavailable. */
+export async function transcribeAudio(
+  buffer: Buffer,
+  filename: string,
+  userId: string
+): Promise<string> {
+  try {
+    await gateUsage(userId);
+    const openai = getOpenAI();
+    const file = await toFile(buffer, filename);
+    const result = await openai.audio.transcriptions.create({
+      model: "whisper-1",
+      file,
+    });
+    const text = result.text?.trim() ?? "";
+    if (text) {
+      await chargeUsage(userId, { usage: { total_tokens: Math.ceil(text.length / 4) } });
+    }
+    return text;
+  } catch {
+    return "";
+  }
 }

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { notDeleted } from "@/lib/db/filters";
 import { notFound } from "@/lib/api/http";
 import { requireLibraryAccess, type LibraryRole } from "@/lib/library/library-access";
 import type { Document, DocumentType } from "@/generated/prisma/client";
@@ -15,7 +16,7 @@ export async function requireDocument(
   id: string,
   opts: { type?: DocumentType; role?: LibraryRole } = {}
 ): Promise<Document> {
-  const doc = await prisma.document.findFirst({ where: { id } });
+  const doc = await prisma.document.findFirst({ where: { id, ...notDeleted } });
   if (!doc || (opts.type && doc.type !== opts.type)) throw notFound();
   await requireLibraryAccess(userId, doc.libraryId, opts.role ?? "VIEWER");
   return doc;

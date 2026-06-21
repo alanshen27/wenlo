@@ -105,6 +105,8 @@ export async function recallSearch(opts: {
 
   const accessFilter = libraryAccessFilter(userId, libraryId);
 
+  const notDeletedFilter = Prisma.sql`AND (p."deletedAt" IS NULL OR p.id IS NULL) AND (d."deletedAt" IS NULL OR d.id IS NULL)`;
+
   const folderFilter = folderId
     ? Prisma.sql`AND (
         (c."pageId" IS NOT NULL AND p."folderId" = ${folderId})
@@ -143,6 +145,7 @@ export async function recallSearch(opts: {
         OR COALESCE(p.title, d.title) ILIKE ${"%" + q + "%"}
       )
     )
+    ${notDeletedFilter}
     ${folderFilter}
     ORDER BY rank DESC
     LIMIT ${limit}
@@ -177,6 +180,7 @@ export async function recallSearch(opts: {
           OR COALESCE(p.title, d.title) ILIKE ${"%" + q + "%"}
         )
       )
+      ${notDeletedFilter}
       ${folderFilter}
       LIMIT ${limit}
     `;
@@ -220,6 +224,7 @@ export async function recallSearch(opts: {
           ${accessFilter}
           AND c.embedding IS NOT NULL
         )
+        ${notDeletedFilter}
         ${folderFilter}
         ORDER BY distance ASC
         LIMIT ${limit}

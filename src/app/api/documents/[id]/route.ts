@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parseBody, withAuth } from "@/lib/api/http";
 import { requireDocument } from "@/lib/documents/document-access";
 import { prisma } from "@/lib/db/prisma";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { softDeleteDocument } from "@/lib/soft-delete/soft-delete";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -22,17 +22,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   return withAuth(ctx, async ({ params, user }) => {
     const document = await requireDocument(user.id, params.id, { role: "EDITOR" });
-
-    if (document.storagePath) {
-      try {
-        const supabase = createAdminClient();
-        await supabase.storage.from("documents").remove([document.storagePath]);
-      } catch {
-        // ignore storage cleanup failures
-      }
-    }
-
-    await prisma.document.delete({ where: { id: document.id } });
+    await softDeleteDocument(document.id);
     return NextResponse.json({ ok: true });
   });
 }

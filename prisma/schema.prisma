@@ -41,6 +41,7 @@ model User {
   pageVersions PageVersion[]
   recallChatSessions RecallChatSession[]
   pins      Pin[]
+  notifications Notification[]
 }
 
 model Library {
@@ -89,6 +90,12 @@ enum InviteStatus {
   DECLINED
 }
 
+enum ShareAccess {
+  NONE
+  VIEW
+  EDIT
+}
+
 model LibraryInvite {
   id          String       @id @default(cuid())
   libraryId   String
@@ -119,6 +126,7 @@ model Folder {
   userId    String
   libraryId String
   parentId  String?
+  deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -132,6 +140,7 @@ model Folder {
   @@index([userId])
   @@index([libraryId])
   @@index([parentId])
+  @@index([libraryId, deletedAt])
 }
 
 model Page {
@@ -142,6 +151,10 @@ model Page {
   userId    String
   libraryId String
   folderId  String?
+  deletedAt DateTime?
+  shareToken      String?     @unique
+  shareAccess     ShareAccess @default(NONE)
+  sharePasswordHash String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -156,6 +169,7 @@ model Page {
   @@index([userId])
   @@index([libraryId])
   @@index([folderId])
+  @@index([libraryId, deletedAt])
 }
 
 model PagePresence {
@@ -256,6 +270,10 @@ model Document {
   userId       String
   libraryId    String
   folderId     String?
+  deletedAt    DateTime?
+  shareToken      String?     @unique
+  shareAccess     ShareAccess @default(NONE)
+  sharePasswordHash String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -273,6 +291,22 @@ model Document {
   @@index([userId])
   @@index([libraryId])
   @@index([folderId])
+  @@index([libraryId, deletedAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?  @db.Text
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt(sort: Desc)])
 }
 
 // Per-user pin (favorite) of a page or document. Exactly one of pageId /

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/api/http";
 import { libraryIdFromFolder, resolveLibraryId } from "@/lib/library/libraries";
 import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
+import { notDeleted } from "@/lib/db/filters";
 import { prisma } from "@/lib/db/prisma";
 import { indexPage } from "@/lib/search/search";
 import { isCollabConfigured } from "@/lib/collab/config";
@@ -21,6 +22,7 @@ export async function GET(req: NextRequest) {
     const pages = await prisma.page.findMany({
       where: {
         libraryId,
+        ...notDeleted,
         ...(folderId ? { folderId: folderId === "root" ? null : folderId } : {}),
       },
       orderBy: { updatedAt: "desc" },
