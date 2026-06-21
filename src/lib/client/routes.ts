@@ -1,7 +1,10 @@
 // Centralized route builders for the app. Grouped by area so views import from a
 // single, predictable source instead of hand-assembling URL strings.
 
-export const LIBRARY_STORAGE_KEY = "recall:activeLibraryId";
+import { STORAGE_KEYS, readStorageItem, writeStorageItem } from "@/lib/client/storage-keys";
+
+/** @deprecated Use `STORAGE_KEYS.activeLibraryId`. */
+export const LIBRARY_STORAGE_KEY = STORAGE_KEYS.activeLibraryId;
 
 // ---------------------------------------------------------------------------
 // Library + folders
@@ -58,12 +61,17 @@ export function documentOpenRoute(libraryId: string, documentId: string, type?: 
 
 import type { NativeKind } from "@/lib/native/native-types";
 
-/** Word-style home page for a native type, e.g. `/docs`, `/slides`. */
+/** Word-style home page for a native type, e.g. `/pages`, `/decks`. */
 export function nativeHomeRoute(kind: NativeKind) {
   return `/${kind}`;
 }
 
-/** Standalone full-screen editor for a native item, e.g. `/docs/abc123`. */
+/** Template picker for a native type, e.g. `/pages/templates`. */
+export function nativeTemplatesRoute(kind: NativeKind) {
+  return `/${kind}/templates`;
+}
+
+/** Standalone full-screen editor for a native item, e.g. `/pages/abc123`. */
 export function nativeEditorRoute(kind: NativeKind, id: string) {
   return `/${kind}/${id}`;
 }
@@ -123,12 +131,9 @@ export function designSystemRoute() {
 // ---------------------------------------------------------------------------
 
 export function persistActiveLibrary(libraryId: string) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(LIBRARY_STORAGE_KEY, libraryId);
-  }
+  writeStorageItem(STORAGE_KEYS.activeLibraryId, libraryId);
 }
 
 export function readStoredLibraryId() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(LIBRARY_STORAGE_KEY);
+  return readStorageItem(STORAGE_KEYS.activeLibraryId);
 }

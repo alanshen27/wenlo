@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -9,70 +9,43 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { libraryHome, readStoredLibraryId, settingsIntegrationsRoute, settingsPlanRoute } from "@/lib/client/routes";
-import { apiGet, apiPatch, getApiErrorMessage } from "@/lib/client/api";
+import { getApiErrorMessage } from "@/lib/client/api";
+import { userInitials } from "@/lib/client/user-display";
+import { useMe, useUpdateMe } from "@/hooks/use-me";
 import { ThemeSettingRow, ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/core/utils";
 
-type MeResponse = {
-  email: string;
-  name: string | null;
-  avatarUrl: string | null;
-};
-
-function initials(name: string | null, email: string): string {
-  if (name?.trim()) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-  }
-  return email.slice(0, 2).toUpperCase();
-}
-
 export function AccountSettingsView() {
   const router = useRouter();
-  const [me, setMe] = useState<MeResponse | null>(null);
+  const { data: me, isLoading: loading, isError } = useMe();
+  const updateMe = useUpdateMe();
   const [name, setName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadMe = useCallback(async () => {
-    try {
-      const data = await apiGet<MeResponse>("/api/me");
-      setMe(data);
-      setName(data.name ?? "");
-      setAvatarUrl(data.avatarUrl ?? "");
-    } catch {
-      router.push("/login");
-      return;
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+  useEffect(() => {
+    if (isError) router.push("/login");
+  }, [isError, router]);
 
   useEffect(() => {
-    void loadMe();
-  }, [loadMe]);
+    if (!me) return;
+    setName(me.name ?? "");
+    setAvatarUrl(me.avatarUrl ?? "");
+  }, [me]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!me || saving) return;
+    if (!me || updateMe.isPending) return;
 
-    setSaving(true);
     setError(null);
     setSaved(false);
 
     try {
-      const data = await apiPatch<MeResponse>("/api/me", { name, avatarUrl });
-      setMe({ email: data.email, name: data.name, avatarUrl: data.avatarUrl });
-      setAvatarUrl(data.avatarUrl ?? "");
+      await updateMe.mutateAsync({ name, avatarUrl });
       setSaved(true);
     } catch (e) {
       setError(getApiErrorMessage(e, "Failed to save"));
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -122,7 +95,7 @@ export function AccountSettingsView() {
                 <Avatar className="size-12 shrink-0">
                   {avatarUrl.trim() && <AvatarImage src={avatarUrl.trim()} alt="" />}
                   <AvatarFallback className="text-sm font-medium">
-                    {initials(name || null, me.email)}
+                    {userInitials(name || null, me.email)}
                   </AvatarFallback>
                 </Avatar>
                 <Input
@@ -167,8 +140,8 @@ export function AccountSettingsView() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             {saved && <p className="text-sm text-emerald-600 dark:text-emerald-400">Saved.</p>}
 
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save changes"}
+            <Button type="submit" disabled={updateMe.isPending}>
+              {updateMe.isPending ? "Saving…" : "Save changes"}
             </Button>
           </form>
 

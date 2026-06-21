@@ -1,59 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { BillingSummary } from "@/lib/billing/billing";
 import { formatTokens, PLAN_LIST, type PlanDefinition, type PlanId } from "@/lib/billing/plans";
 import { libraryHome, readStoredLibraryId } from "@/lib/client/routes";
 import { apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
-import type { UsageSummary } from "@/lib/billing/usage";
 import { USAGE_UPDATED_EVENT } from "@/lib/billing/usage-events";
+import { useInvalidateMe, useMe } from "@/hooks/use-me";
 import { cn } from "@/lib/core/utils";
-
-type MeResponse = {
-  email: string;
-  name: string | null;
-  usage: UsageSummary;
-  billing: BillingSummary;
-};
 
 export function PlanSettingsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const checkoutSuccess = searchParams.get("checkout") === "success";
-
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: me, isLoading: loading, isError } = useMe();
+  const invalidateMe = useInvalidateMe();
   const [acting, setActing] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const loadMe = useCallback(async () => {
-    try {
-      const data = await apiGet<MeResponse>("/api/me");
-      setMe(data);
-    } catch {
-      router.push("/login");
-      return;
-    }
-    setLoading(false);
-  }, [router]);
+  useEffect(() => {
+    if (isError) router.push("/login");
+  }, [isError, router]);
 
   useEffect(() => {
-    void loadMe();
-  }, [loadMe]);
-
-  useEffect(() => {
-    if (checkoutSuccess) {
-      setNotice("Payment received. Your plan will update in a few seconds.");
-      void loadMe();
-      window.dispatchEvent(new Event(USAGE_UPDATED_EVENT));
-    }
-  }, [checkoutSuccess, loadMe]);
+    if (!checkoutSuccess) return;
+    setNotice("Payment received. Your plan will update in a few seconds.");
+    invalidateMe();
+    window.dispatchEvent(new Event(USAGE_UPDATED_EVENT));
+  }, [checkoutSuccess, invalidateMe]);
 
   async function startCheckout() {
     setActing("PRO");

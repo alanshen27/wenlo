@@ -2,7 +2,8 @@
 
 **Status:** Draft · **Owner:** Alan · **Last updated:** 2026-06-15
 **Sibling docs:** `docs/prd-whiteboard.md`, `docs/prd-slideshows.md` (share the "native editable
-content" pattern), `docs/prd-flowchart.md` (the other new native type).
+content" pattern), `docs/prd-flowchart.md` (the other new native type),
+`docs/prd-pdf-annotations.md` (fixed-surface overlay on uploaded PDFs).
 
 ---
 

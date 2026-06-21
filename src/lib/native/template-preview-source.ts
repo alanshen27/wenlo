@@ -6,6 +6,7 @@ import {
   type DatabaseTemplateId,
 } from "@/lib/native/database-templates";
 import { getFlowTemplate } from "@/lib/native/flow-templates";
+import { getPageTemplate } from "@/lib/native/page-templates";
 import type { NativeTemplateEntry } from "@/lib/native/native-templates";
 import type { NativeKind } from "@/lib/native/native-types";
 
@@ -15,13 +16,13 @@ export function templateItemPreviewSource(
   template: NativeTemplateEntry
 ): ItemPreviewSource {
   switch (kind) {
-    case "docs":
+    case "pages":
       return {
-        mode: "page-static",
+        mode: "page-blocks",
         title: template.title,
-        text: template.preview ?? "",
+        blocks: getPageTemplate(template.id).content,
       };
-    case "slides":
+    case "decks":
       return { mode: "deck", slide: presentationThumbnailSlide(template.id) };
     case "whiteboards":
       return { mode: "board", scene: getBoardTemplate(template.id).build() };

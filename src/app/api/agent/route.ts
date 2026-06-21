@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type OpenAI from "openai";
 import { withAuth } from "@/lib/api/http";
 import { requireLibraryAccess } from "@/lib/library/library-access";
 import type { User } from "@/generated/prisma/client";
@@ -11,8 +12,24 @@ import {
   type RecallChatSessionSummary,
   type RecallTurn,
 } from "@/lib/recall-chat/recall-chat";
+import {
+  formatToolCallBlock,
+  formatToolResultBlock,
+} from "@/lib/recall-chat/recall-tool-blocks";
+import {
+  collectStreamingToolCalls,
+  executeRecallTool,
+  finalizedToolCalls,
+  MAX_AGENT_TOOL_ITERATIONS,
+  RECALL_OPENAI_TOOLS,
+  recallToolContextFromUser,
+} from "@/lib/recall-chat/recall-tools";
+import {
+  buildRecallAgentSystemPrompt,
+  formatRetrievedContext,
+  recallRetrieve,
+} from "@/lib/recall-chat/recall-retrieve";
 import { getOpenAI, hasOpenAI, OPENAI_MODELS } from "@/lib/search/openai";
-import { recallSearch } from "@/lib/search/search";
 import { assertWithinTokenLimit, recordTokenUsage, UsageLimitError } from "@/lib/billing/usage";
 
 type AgentStreamEvent =
@@ -66,6 +83,7 @@ async function handlePost(req: NextRequest, user: User): Promise<Response> {
   }
 
   const scopeKey = recallScopeKey(scope, scope === "folder" ? folderId : null);
+  const effectiveFolderId = scope === "folder" ? folderId : null;
 
   let activeSessionId = typeof sessionId === "string" ? sessionId : null;
   if (activeSessionId) {
@@ -80,11 +98,11 @@ async function handlePost(req: NextRequest, user: User): Promise<Response> {
 
   const priorTurns = await getRecallChatTurns(activeSessionId, user.id);
 
-  const results = await recallSearch({
+  const results = await recallRetrieve({
     userId: user.id,
     query: question.trim(),
     libraryId,
-    folderId: scope === "folder" ? folderId : null,
+    folderId: effectiveFolderId,
     limit: 12,
   });
 
@@ -92,22 +110,15 @@ async function handlePost(req: NextRequest, user: User): Promise<Response> {
     scope === "folder" && folderId ? "the selected folder" : "the current library";
 
   const hasResults = results.length > 0;
-  const retrievedContext = hasResults
-    ? results
-        .map(
-          (r, i) =>
-            `[${i + 1}] ${r.sourceType.toUpperCase()}: "${r.title}"\n${r.excerpt ?? r.snippet}`
-        )
-        .join("\n\n")
-    : "(no matches found)";
+  const retrievedContext = formatRetrievedContext(results);
 
   const freshSearchNote =
     priorTurns.length > 0 && hasResults
-      ? "Note: Fresh search results are included below. Use them even if earlier turns found nothing.\n\n"
+      ? "Note: Fresh search + grep results are included below. Use them even if earlier turns found nothing.\n\n"
       : "";
 
   const openai = getOpenAI();
-
+  const toolCtx = recallToolContextFromUser(user.id);
   const sessionIdForStream: string = activeSessionId;
   const trimmedQuestion = question.trim();
   const encoder = new TextEncoder();
@@ -126,38 +137,99 @@ async function handlePost(req: NextRequest, user: User): Promise<Response> {
           scope: scope === "folder" ? "folder" : "all",
         });
 
-        const completion = await openai.chat.completions.create({
-          model: OPENAI_MODELS.chat,
-          stream: true,
-          stream_options: { include_usage: true },
-          messages: [
-            {
-              role: "system",
-              content: hasResults
-                ? `You are Recall, an AI assistant that answers over the files and notes stored in ${scopeLabel}. Each user message may include retrieved excerpts from their files and notes. When excerpts are present, answer using that material and cite sources by title in brackets. Do not claim nothing was found when excerpts were retrieved.`
-                : `You are Recall, an AI assistant that answers over the files and notes stored in ${scopeLabel}. If no excerpts were retrieved for a question, say you could not find relevant information in the library.`,
-            },
-            ...priorTurns.flatMap((turn) => [
-              { role: "user" as const, content: turn.question },
-              { role: "assistant" as const, content: turn.answer },
-            ]),
-            {
-              role: "user",
-              content: `${freshSearchNote}Question: ${trimmedQuestion}\n\nRetrieved excerpts (${results.length} source${results.length === 1 ? "" : "s"}):\n${retrievedContext}`,
-            },
-          ],
-        });
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+          {
+            role: "system",
+            content: buildRecallAgentSystemPrompt({
+              scopeLabel,
+              libraryId,
+              folderId: effectiveFolderId,
+              hasRetrievedExcerpts: hasResults,
+            }),
+          },
+          ...priorTurns.flatMap((turn) => [
+            { role: "user" as const, content: turn.question },
+            { role: "assistant" as const, content: turn.answer },
+          ]),
+          {
+            role: "user",
+            content: `${freshSearchNote}Question: ${trimmedQuestion}\n\nRetrieved excerpts + grep hits (${results.length} source${results.length === 1 ? "" : "s"}):\n${retrievedContext}`,
+          },
+        ];
 
         let answer = "";
         let tokensUsed = 0;
-        for await (const chunk of completion) {
-          const delta = chunk.choices[0]?.delta?.content;
-          if (delta) {
-            answer += delta;
-            send({ type: "delta", text: delta });
+
+        for (let iteration = 0; iteration < MAX_AGENT_TOOL_ITERATIONS; iteration++) {
+          const completion = await openai.chat.completions.create({
+            model: OPENAI_MODELS.chat,
+            messages,
+            tools: RECALL_OPENAI_TOOLS,
+            stream: true,
+            stream_options: { include_usage: true },
+          });
+
+          let iterationText = "";
+          let toolCallAccum = new Map<
+            number,
+            { id: string; name: string; arguments: string }
+          >();
+
+          for await (const chunk of completion) {
+            const choice = chunk.choices[0];
+            const delta = choice?.delta;
+            if (delta?.content) {
+              iterationText += delta.content;
+              answer += delta.content;
+              send({ type: "delta", text: delta.content });
+            }
+            toolCallAccum = collectStreamingToolCalls(toolCallAccum, delta?.tool_calls);
+            if (chunk.usage?.total_tokens) {
+              tokensUsed = chunk.usage.total_tokens;
+            }
           }
-          if (chunk.usage?.total_tokens) {
-            tokensUsed = chunk.usage.total_tokens;
+
+          const toolCalls = finalizedToolCalls(toolCallAccum);
+          if (toolCalls.length === 0) break;
+
+          messages.push({
+            role: "assistant",
+            content: iterationText || null,
+            tool_calls: toolCalls.map((call) => ({
+              id: call.id,
+              type: "function" as const,
+              function: {
+                name: call.name,
+                arguments: JSON.stringify(call.arguments),
+              },
+            })),
+          });
+
+          for (const call of toolCalls) {
+            const callBlock = formatToolCallBlock({
+              id: call.id,
+              name: call.name,
+              arguments: call.arguments,
+            });
+            answer += callBlock;
+            send({ type: "delta", text: callBlock });
+
+            const outcome = await executeRecallTool(call.name, call.arguments, toolCtx);
+            const resultBlock = formatToolResultBlock({
+              id: call.id,
+              result: outcome.result,
+              isError: outcome.isError,
+            });
+            answer += resultBlock;
+            send({ type: "delta", text: resultBlock });
+
+            messages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: JSON.stringify(
+                outcome.isError ? { error: outcome.result } : outcome.result
+              ),
+            });
           }
         }
 
@@ -172,11 +244,7 @@ async function handlePost(req: NextRequest, user: User): Promise<Response> {
           createdAt: new Date().toISOString(),
         };
 
-        const { session } = await appendRecallChatTurn(
-          sessionIdForStream,
-          user.id,
-          turn
-        );
+        const { session } = await appendRecallChatTurn(sessionIdForStream, user.id, turn);
 
         send({
           type: "done",
@@ -186,8 +254,7 @@ async function handlePost(req: NextRequest, user: User): Promise<Response> {
         });
         controller.close();
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Recall failed";
+        const message = error instanceof Error ? error.message : "Recall failed";
         send({ type: "error", error: message });
         controller.close();
       }

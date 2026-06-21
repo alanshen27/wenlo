@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { badRequest, withAuth } from "@/lib/api/http";
-import { isNativeKind } from "@/lib/native/native-types";
+import { resolveNativeKind } from "@/lib/native/native-types";
 import { listRecents } from "@/lib/native/recents";
 
 export async function GET(req: NextRequest) {
   return withAuth(undefined, async ({ user }) => {
-    const kind = req.nextUrl.searchParams.get("kind");
-    if (!kind || !isNativeKind(kind)) throw badRequest("Unknown kind");
+    const rawKind = req.nextUrl.searchParams.get("kind");
+    const kind = rawKind ? resolveNativeKind(rawKind) : null;
+    if (!kind) throw badRequest("Unknown kind");
 
     const rawLimit = Number(req.nextUrl.searchParams.get("limit"));
     const limit =

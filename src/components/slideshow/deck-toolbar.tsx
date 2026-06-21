@@ -1,19 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
+  ArrowUpRight,
   Ban,
-  Bold,
   BringToFront,
   Copy,
   Image as ImageIcon,
-  Italic,
   MousePointer2,
   Play,
   SendToBack,
+  Spline,
   Trash2,
   Type,
 } from "lucide-react";
@@ -24,15 +21,16 @@ import {
 } from "@/components/blocknote-ui/tooltip";
 import { cn } from "@/lib/core/utils";
 import { ShapePicker } from "@/components/canvas/shape-picker";
+import { CaptionField, TextFormatControls } from "@/components/canvas/text-format-controls";
 import type { ShapeKind } from "@/lib/canvas/shapes";
-import type { DeckElement, TextAlign } from "@/lib/decks/deck-schema";
+import type { DeckElement } from "@/lib/decks/deck-schema";
 
 const NO_FILL = "transparent";
 
-/** Drawing tools for the deck canvas. `select` is the default; `text` and any
- *  shape are drag-to-create (a plain click falls back to a default size).
- *  Images are added through a one-shot file picker, so they are not tools. */
-export type DeckTool = "select" | "text" | ShapeKind;
+/** Drawing tools for the deck canvas. */
+export type DeckTool = "select" | "text" | "arrow" | "connector" | ShapeKind;
+
+const NON_SHAPE_TOOLS = new Set<DeckTool>(["select", "text", "arrow", "connector"]);
 
 const activeTool =
   "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary";
@@ -79,62 +77,6 @@ function TipButton({
 const iconBtn =
   "flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40";
 
-const MIN_FONT = 4;
-const MAX_FONT = 400;
-
-/** Free-entry font-size field. Mirrors the selected element's *actual* size
- *  (rounded), so a transformer-resized text always shows its true size instead
- *  of snapping to a fixed preset. Presets are offered via a datalist. */
-function FontSizeField({
-  value,
-  disabled,
-  onChange,
-}: {
-  value: number;
-  disabled?: boolean;
-  onChange: (size: number) => void;
-}) {
-  const rounded = Math.round(value);
-  const [text, setText] = useState(String(rounded));
-  const focused = useRef(false);
-
-  useEffect(() => {
-    if (!focused.current) setText(String(rounded));
-  }, [rounded]);
-
-  return (
-    <input
-      type="number"
-      inputMode="numeric"
-      aria-label="Font size"
-      title="Font size"
-      min={MIN_FONT}
-      max={MAX_FONT}
-      disabled={disabled}
-      value={text}
-      onFocus={(e) => {
-        focused.current = true;
-        e.currentTarget.select();
-      }}
-      onChange={(e) => {
-        setText(e.target.value);
-        const n = Number(e.target.value);
-        if (Number.isFinite(n) && n >= 1) {
-          onChange(Math.min(MAX_FONT, Math.round(n)));
-        }
-      }}
-      onBlur={() => {
-        focused.current = false;
-        const n = Math.round(Number(text));
-        const clamped = Math.max(MIN_FONT, Math.min(MAX_FONT, Number.isFinite(n) && n > 0 ? n : rounded));
-        onChange(clamped);
-        setText(String(clamped));
-      }}
-      className="h-9 w-12 rounded-lg border border-border bg-background text-center text-sm tabular-nums outline-none focus:border-primary disabled:opacity-40 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-    />
-  );
-}
-
 export function DeckToolbar({
   selected,
   disabled,
@@ -162,6 +104,11 @@ export function DeckToolbar({
 }) {
   const isText = selected?.type === "text";
   const isShape = selected?.type === "shape";
+  const isImage = selected?.type === "image";
+  const isStroke =
+    selected?.type === "arrow" ||
+    selected?.type === "connector" ||
+    (selected?.type === "shape" && selected.shape === "line");
   const sep = <span className="mx-1 h-6 w-px bg-border" aria-hidden />;
 
   return (
@@ -185,10 +132,28 @@ export function DeckToolbar({
         <Type className="size-4" />
       </TipButton>
       <ShapePicker
-        value={tool === "select" || tool === "text" ? null : tool}
+        value={NON_SHAPE_TOOLS.has(tool) ? null : (tool as ShapeKind)}
         onSelect={(shape) => onToolChange(shape)}
         disabled={disabled}
       />
+      <TipButton
+        label="Arrow (A)"
+        disabled={disabled}
+        aria-pressed={tool === "arrow"}
+        onClick={() => onToolChange("arrow")}
+        className={cn(iconBtn, tool === "arrow" && activeTool)}
+      >
+        <ArrowUpRight className="size-4" />
+      </TipButton>
+      <TipButton
+        label="Connector (C)"
+        disabled={disabled}
+        aria-pressed={tool === "connector"}
+        onClick={() => onToolChange("connector")}
+        className={cn(iconBtn, tool === "connector" && activeTool)}
+      >
+        <Spline className="size-4" />
+      </TipButton>
       <TipButton label="Add image" disabled={disabled} onClick={onAddImage} className={iconBtn}>
         <ImageIcon className="size-4" />
       </TipButton>
@@ -196,64 +161,32 @@ export function DeckToolbar({
       {isText && (
         <>
           {sep}
-          <FontSizeField
-            value={selected.type === "text" ? selected.fontSize : 24}
+          <TextFormatControls
+            fontSize={selected.fontSize}
+            fontWeight={selected.fontWeight}
+            italic={selected.italic}
+            underline={selected.underline}
+            align={selected.align}
+            link={selected.link ?? ""}
+            listStyle={selected.listStyle ?? "none"}
             disabled={disabled}
-            onChange={(size) => onUpdate({ fontSize: size } as Partial<DeckElement>)}
+            onChange={(patch) => onUpdate(patch as Partial<DeckElement>)}
           />
-          <TipButton
-            label="Bold"
-            disabled={disabled}
-            aria-pressed={selected.type === "text" && (selected.fontWeight ?? 400) >= 600}
-            onClick={() =>
-              onUpdate({
-                fontWeight:
-                  selected.type === "text" && (selected.fontWeight ?? 400) >= 600 ? 400 : 700,
-              } as Partial<DeckElement>)
-            }
-            className={cn(
-              iconBtn,
-              selected.type === "text" && (selected.fontWeight ?? 400) >= 600 && "bg-accent text-foreground"
-            )}
-          >
-            <Bold className="size-4" />
-          </TipButton>
-          <TipButton
-            label="Italic"
-            disabled={disabled}
-            aria-pressed={selected.type === "text" && Boolean(selected.italic)}
-            onClick={() =>
-              onUpdate({ italic: !(selected.type === "text" && selected.italic) } as Partial<DeckElement>)
-            }
-            className={cn(
-              iconBtn,
-              selected.type === "text" && selected.italic && "bg-accent text-foreground"
-            )}
-          >
-            <Italic className="size-4" />
-          </TipButton>
-          {(["left", "center", "right"] as TextAlign[]).map((a) => {
-            const Icon = a === "left" ? AlignLeft : a === "center" ? AlignCenter : AlignRight;
-            return (
-              <TipButton
-                key={a}
-                label={`Align ${a}`}
-                disabled={disabled}
-                aria-pressed={selected.type === "text" && (selected.align ?? "left") === a}
-                onClick={() => onUpdate({ align: a } as Partial<DeckElement>)}
-                className={cn(
-                  iconBtn,
-                  selected.type === "text" && (selected.align ?? "left") === a && "bg-accent text-foreground"
-                )}
-              >
-                <Icon className="size-4" />
-              </TipButton>
-            );
-          })}
         </>
       )}
 
-      {(isText || isShape) && (
+      {isImage && (
+        <>
+          {sep}
+          <CaptionField
+            value={selected.caption ?? ""}
+            disabled={disabled}
+            onChange={(caption) => onUpdate({ caption } as Partial<DeckElement>)}
+          />
+        </>
+      )}
+
+      {(isText || isShape || isStroke) && (
         <>
           {sep}
           <span className="px-0.5 text-[10px] font-medium uppercase text-muted-foreground">
@@ -266,9 +199,12 @@ export function DeckToolbar({
               title={c}
               aria-label={`Color ${c}`}
               disabled={disabled}
-              onClick={() =>
-                onUpdate((isText ? { color: c } : { stroke: c }) as Partial<DeckElement>)
-              }
+              onClick={() => {
+                if (isText) onUpdate({ color: c } as Partial<DeckElement>);
+                else if (isShape) onUpdate({ stroke: c } as Partial<DeckElement>);
+                else if (selected?.type === "arrow" || selected?.type === "connector")
+                  onUpdate({ stroke: c } as Partial<DeckElement>);
+              }}
               className="size-6 rounded-full border border-border transition-transform hover:scale-110 disabled:opacity-40"
               style={{ backgroundColor: c }}
             />

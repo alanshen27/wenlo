@@ -6,7 +6,8 @@ import "@blocknote/shadcn/style.css";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { BlockNoteEditorView } from "@/components/editor/blocknote-editor-view";
 import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/editor/blocknote-schema";
-import { blocksToPlainText, normalizeEditorContent } from "@/lib/editor/editor-content";
+import { blocksToPlainText, extractDocumentHeadings, normalizeEditorContent } from "@/lib/editor/editor-content";
+import type { DocumentHeading } from "@/lib/editor/editor-content";
 import { apiUpload, getApiErrorMessage } from "@/lib/client/api";
 import { debounce } from "@/lib/core/utils";
 import { useEditorSaveGuard } from "@/hooks/use-editor-save-guard";
@@ -25,6 +26,7 @@ type Props = {
   onChange: (content: unknown, plainText: string) => void;
   onLocalEdit?: () => void;
   onEditorReady?: (editor: RecallEditor | null) => void;
+  onHeadingsChange?: (headings: DocumentHeading[]) => void;
   syncedContent?: unknown;
   syncKey?: number;
 };
@@ -36,17 +38,24 @@ export function BlockEditor({
   onChange,
   onLocalEdit,
   onEditorReady,
+  onHeadingsChange,
   syncedContent,
   syncKey = 0,
 }: Props) {
   const onChangeRef = useRef(onChange);
-  const onLocalEditRef = useRef(onLocalEdit);
+  const onHeadingsChangeRef = useRef(onHeadingsChange);
   onChangeRef.current = onChange;
+  onHeadingsChangeRef.current = onHeadingsChange;
+  const onLocalEditRef = useRef(onLocalEdit);
   onLocalEditRef.current = onLocalEdit;
   const applyingRemoteRef = useRef(false);
   const { shouldPersist, markPersisted } = useEditorSaveGuard(pageId, content, syncKey);
 
   const initialBlocks = useMemo(() => normalizeEditorContent(content), [content]);
+
+  useEffect(() => {
+    onHeadingsChangeRef.current?.(extractDocumentHeadings(initialBlocks));
+  }, [pageId, initialBlocks]);
 
   const debouncedSave = useMemo(
     () =>
@@ -96,6 +105,7 @@ export function BlockEditor({
     applyingRemoteRef.current = true;
     const blocks = normalizeEditorContent(syncedContent);
     editor.replaceBlocks(editor.document, blocks);
+    onHeadingsChangeRef.current?.(extractDocumentHeadings(blocks));
     window.setTimeout(() => {
       applyingRemoteRef.current = false;
     }, 0);
@@ -109,7 +119,9 @@ export function BlockEditor({
         onChange={() => {
           if (applyingRemoteRef.current) return;
           onLocalEditRef.current?.();
-          debouncedSave(editor.document);
+          const blocks = editor.document;
+          onHeadingsChangeRef.current?.(extractDocumentHeadings(blocks));
+          debouncedSave(blocks);
         }}
       />
     </div>

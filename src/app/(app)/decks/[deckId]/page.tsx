@@ -1,9 +1,9 @@
 import { StandaloneShell } from "@/components/native/standalone-shell";
 import { DeckView } from "@/components/slideshow/deck-view";
 
-export default function SlideEditorRoute() {
+export default function DeckEditorRoute() {
   return (
-    <StandaloneShell kind="slides">
+    <StandaloneShell kind="decks">
       <DeckView />
     </StandaloneShell>
   );

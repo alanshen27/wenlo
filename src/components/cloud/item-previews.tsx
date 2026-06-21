@@ -12,6 +12,10 @@ import type { Slide } from "@/lib/decks/deck-schema";
 import type { DatabaseScene } from "@/lib/databases/database-schema";
 import type { FlowDoc } from "@/lib/flowcharts/flowchart-schema";
 import { cn } from "@/lib/core/utils";
+import {
+  normalizeEditorContent,
+  type RecallPartialBlock,
+} from "@/lib/editor/editor-content";
 
 const pageExcerptCache = new Map<string, string>();
 
@@ -95,12 +99,120 @@ export function PagePreviewContent({
   title: string;
   text: string | null;
 }) {
+  const lines = (text ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 9);
+
   return (
-    <div className="absolute inset-0 overflow-hidden bg-white px-4 pt-3.5 dark:bg-zinc-50">
+    <div className="absolute inset-0 overflow-hidden bg-white px-3.5 pt-3 dark:bg-zinc-50">
       <p className="line-clamp-1 text-[9px] font-semibold leading-tight text-slate-800">{title}</p>
-      <p className="mt-1.5 line-clamp-6 whitespace-pre-wrap text-[7.5px] leading-[1.7] text-slate-500">
+      {lines.length > 0 ? (
+        <div className="mt-1.5 space-y-0.5">
+          {lines.map((line, index) => (
+            <p
+              key={`${index}-${line.slice(0, 24)}`}
+              className={cn(
+                "line-clamp-2 text-[7.5px] leading-[1.55]",
+                index === 0
+                  ? "font-semibold text-slate-700"
+                  : line.length < 42 && !line.startsWith("•")
+                    ? "font-medium text-slate-600"
+                    : "text-slate-500"
+              )}
+            >
+              {line}
+            </p>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-[7.5px] italic text-slate-400">Empty page</p>
+      )}
+    </div>
+  );
+}
+
+const PREVIEW_BLOCK_LIMIT = 11;
+
+function inlinePreviewText(content: unknown): string {
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object" && "text" in item) {
+        return String((item as { text?: string }).text ?? "");
+      }
+      return "";
+    })
+    .join("");
+}
+
+function flattenPreviewBlocks(blocks: RecallPartialBlock[]): RecallPartialBlock[] {
+  const flat: RecallPartialBlock[] = [];
+  function walk(list: RecallPartialBlock[]) {
+    for (const block of list) {
+      flat.push(block);
+      if (block.children?.length) walk(block.children);
+    }
+  }
+  walk(blocks);
+  return flat;
+}
+
+function PreviewBlockLine({ block }: { block: RecallPartialBlock }) {
+  const text = inlinePreviewText(block.content).trim();
+  if (!text) return null;
+
+  if (block.type === "heading") {
+    const level = Number((block.props as { level?: number } | undefined)?.level ?? 1);
+    return (
+      <p
+        className={cn(
+          "line-clamp-2 leading-tight text-slate-800",
+          level === 1 && "text-[8.5px] font-bold",
+          level === 2 && "text-[8px] font-semibold",
+          level >= 3 && "text-[7.5px] font-medium text-slate-700"
+        )}
+      >
         {text}
       </p>
+    );
+  }
+
+  if (block.type === "bulletListItem") {
+    return (
+      <p className="flex gap-1 text-[7px] leading-[1.5] text-slate-500">
+        <span className="shrink-0 text-slate-400">•</span>
+        <span className="line-clamp-2 min-w-0">{text}</span>
+      </p>
+    );
+  }
+
+  return <p className="line-clamp-2 text-[7px] leading-[1.5] text-slate-500">{text}</p>;
+}
+
+/** Miniature doc preview from BlockNote JSON — shows real heading/list structure. */
+export function PageStructuredPreview({
+  title,
+  blocks,
+}: {
+  title: string;
+  blocks: unknown;
+}) {
+  const visible = flattenPreviewBlocks(normalizeEditorContent(blocks)).slice(
+    0,
+    PREVIEW_BLOCK_LIMIT
+  );
+
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-white px-3.5 pt-3 dark:bg-zinc-50">
+      <p className="line-clamp-1 text-[9px] font-semibold leading-tight text-slate-800">{title}</p>
+      <div className="mt-1.5 space-y-0.5">
+        {visible.map((block, index) => (
+          <PreviewBlockLine key={block.id ?? `${block.type}-${index}`} block={block} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -290,6 +402,7 @@ export function FileTypePreview({ type }: { type: string }) {
 export type ItemPreviewSource =
   | { mode: "page"; pageId: string; title: string }
   | { mode: "page-static"; title: string; text: string }
+  | { mode: "page-blocks"; title: string; blocks: unknown }
   | { mode: "deck"; deckId?: string; slide?: Slide }
   | { mode: "board"; boardId?: string; scene?: BoardDoc }
   | { mode: "flow"; flowId?: string; scene?: FlowDoc }
@@ -303,6 +416,8 @@ export function ItemPreviewBody({ source }: { source: ItemPreviewSource }) {
       return <PagePreview pageId={source.pageId} title={source.title} />;
     case "page-static":
       return <PagePreviewContent title={source.title} text={source.text} />;
+    case "page-blocks":
+      return <PageStructuredPreview title={source.title} blocks={source.blocks} />;
     case "deck":
       return <DeckPreview deckId={source.deckId} slide={source.slide} />;
     case "board":

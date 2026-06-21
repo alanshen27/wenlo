@@ -7,5 +7,5 @@ export type RecallResult = {
   excerpt?: string;
   score: number;
   folderId: string | null;
-  matchType: "keyword" | "semantic" | "both";
+  matchType: "keyword" | "semantic" | "both" | "grep";
 };

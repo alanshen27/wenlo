@@ -1,6 +1,7 @@
 import type { BoardDoc, BoardElement, ConnectorElement } from "@/lib/boards/board-schema";
 import { localBounds, resolveConnector } from "./board-geometry";
 import { shapePolygonSvgPoints } from "@/lib/canvas/shapes";
+import { BULLET_CHAR, splitTextLines } from "@/lib/scene/text-list";
 import { cn } from "@/lib/core/utils";
 
 const FONT = "Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -308,7 +309,11 @@ function PreviewElement({ el }: { el: BoardElement }) {
         </g>
       );
     }
-    case "text":
+    case "text": {
+      const snippet =
+        el.listStyle === "bullet"
+          ? `${BULLET_CHAR} ${splitTextLines(el.text)[0] ?? ""}`
+          : el.text;
       return (
         <text
           fontSize={el.fontSize}
@@ -318,20 +323,28 @@ function PreviewElement({ el }: { el: BoardElement }) {
           transform={transform}
           opacity={opacity}
         >
-          {el.text.slice(0, 80)}
+          {snippet.slice(0, 80)}
         </text>
       );
-    case "image":
+    }
+    case "image": {
+      const caption = el.caption?.trim();
       return (
-        <image
-          href={el.src}
-          width={el.w}
-          height={el.h}
-          transform={transform}
-          opacity={opacity}
-          preserveAspectRatio="xMidYMid slice"
-        />
+        <g transform={transform} opacity={opacity}>
+          <image
+            href={el.src}
+            width={el.w}
+            height={el.h}
+            preserveAspectRatio="xMidYMid slice"
+          />
+          {caption && (
+            <text x={el.w / 2} y={el.h + 18} fontSize={12} fontFamily={FONT} fill="#64748b" textAnchor="middle">
+              {caption}
+            </text>
+          )}
+        </g>
       );
+    }
     default:
       return null;
   }

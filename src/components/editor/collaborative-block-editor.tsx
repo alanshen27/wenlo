@@ -21,7 +21,8 @@ import {
   type PusherYjsProvider,
 } from "@/lib/collab/pusher-yjs-provider";
 import { blockNoteSchema, multiColumnEditorOptions } from "@/lib/editor/blocknote-schema";
-import { blocksToPlainText } from "@/lib/editor/editor-content";
+import { blocksToPlainText, extractDocumentHeadings } from "@/lib/editor/editor-content";
+import type { DocumentHeading } from "@/lib/editor/editor-content";
 import { apiUpload, getApiErrorMessage } from "@/lib/client/api";
 import { debounce } from "@/lib/core/utils";
 import { useEditorSaveGuard } from "@/hooks/use-editor-save-guard";
@@ -43,6 +44,7 @@ type Props = {
   onChange: (content: unknown, plainText: string) => void;
   onLocalEdit?: () => void;
   onEditorReady?: (editor: RecallEditor | null) => void;
+  onHeadingsChange?: (headings: DocumentHeading[]) => void;
 };
 
 export function CollaborativeBlockEditor(props: Props) {
@@ -83,12 +85,15 @@ function CollaborativeBlockEditorMounted({
   onChange,
   onLocalEdit,
   onEditorReady,
+  onHeadingsChange,
 }: Props) {
   const onChangeRef = useRef(onChange);
   const onLocalEditRef = useRef(onLocalEdit);
   const onEditorReadyRef = useRef(onEditorReady);
+  const onHeadingsChangeRef = useRef(onHeadingsChange);
   onChangeRef.current = onChange;
   onLocalEditRef.current = onLocalEdit;
+  onHeadingsChangeRef.current = onHeadingsChange;
   useEffect(() => {
     onEditorReadyRef.current = onEditorReady;
   });
@@ -148,6 +153,7 @@ function CollaborativeBlockEditorMounted({
 
   useEffect(() => {
     onEditorReadyRef.current?.(editor);
+    onHeadingsChangeRef.current?.(extractDocumentHeadings(editor.document));
     return () => onEditorReadyRef.current?.(null);
   }, [editor]);
 
@@ -169,6 +175,7 @@ function CollaborativeBlockEditorMounted({
         editable={!readOnly}
         onChange={() => {
           onLocalEditRef.current?.();
+          onHeadingsChangeRef.current?.(extractDocumentHeadings(editor.document));
           debouncedSave(editor);
         }}
       />

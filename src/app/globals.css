@@ -17,6 +17,30 @@
   }
 }
 
+/* Thin scrollbar that stays at the container edge — thumb appears on hover. */
+@utility scrollbar-subtle {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+
+  &:hover {
+    scrollbar-color: color-mix(in oklch, var(--border) 80%, transparent) transparent;
+  }
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+  }
+
+  &:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--border) 80%, transparent);
+  }
+}
+
 :root {
   --card: oklch(1 0.0015 262);
   --card-foreground: oklch(0.21 0.016 262);
@@ -109,6 +133,41 @@
 
 .notion-page-title::placeholder {
   color: var(--muted-foreground);
+}
+
+/* Document chrome — section labels and side nav (Notion-like). */
+.notion-sidebar-label {
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--muted-foreground);
+}
+
+.notion-nav-pill {
+  display: block;
+  width: 100%;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.375;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  text-align: left;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.notion-nav-pill:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.notion-nav-pill:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--ring) 50%, transparent);
+  outline-offset: 1px;
 }
 
 .notion-editor .bn-root {
@@ -454,77 +513,6 @@ html.dark .notion-editor .bn-block-content[data-content-type="codeBlock"] .shiki
   --sidebar-accent-foreground: oklch(0.96 0.006 262);
   --sidebar-border: oklch(0.94 0.012 262 / 13%);
   --sidebar-ring: oklch(0.66 0.16 256);
-}
-
-@keyframes landing-drift-1 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(3%, 4%) scale(1.05);
-  }
-}
-
-@keyframes landing-drift-2 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-4%, 2%) scale(1.08);
-  }
-}
-
-@keyframes landing-drift-3 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(2%, -3%) scale(1.04);
-  }
-}
-
-@keyframes landing-drift-4 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-2%, -4%) scale(1.06);
-  }
-}
-
-.landing-page .landing-orb {
-  animation-duration: 22s;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-}
-
-.landing-page .landing-orb-1 {
-  animation-name: landing-drift-1;
-}
-
-.landing-page .landing-orb-2 {
-  animation-name: landing-drift-2;
-  animation-duration: 26s;
-}
-
-.landing-page .landing-orb-3 {
-  animation-name: landing-drift-3;
-  animation-duration: 24s;
-}
-
-.landing-page .landing-orb-4 {
-  animation-name: landing-drift-4;
-  animation-duration: 20s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .landing-page .landing-orb {
-    animation: none;
-  }
 }
 
 @layer base {

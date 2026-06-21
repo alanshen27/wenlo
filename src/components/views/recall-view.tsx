@@ -4,18 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Search, Sparkles } from "lucide-react";
-import { useLibrary } from "@/components/library/library-shell";
+import { useLibraryScope, useLibraryTree } from "@/components/library/context";
 import { useRecallChat } from "@/components/recall/recall-chat-context";
 import { ScopeSelect } from "@/components/search/scope-select";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { Button } from "@/components/ui/button";
 import type { RecallResult } from "@/lib/core/types";
 import { notifyUsageUpdated } from "@/lib/billing/usage-events";
-import { documentRoute, pageRoute, searchRoute } from "@/lib/client/routes";
+import { documentRoute, pageRoute, recallChatRoute, searchRoute } from "@/lib/client/routes";
 import { apiGet, getApiErrorMessage } from "@/lib/client/api";
 import type { RecallChatSessionSummary, RecallTurn } from "@/lib/recall-chat/recall-chat-shared";
 import { cn } from "@/lib/core/utils";
-import MarkdownRenderer from "../recall/markdown-renderer";
+import { RecallAnswerContent } from "@/components/recall/recall-answer-content";
 
 type AgentStreamEvent =
   | { type: "meta"; sessionId: string; sources: RecallResult[]; scope: "all" | "folder" }
@@ -36,7 +36,8 @@ const EXAMPLE_PROMPTS = [
 
 export function RecallView() {
   const router = useRouter();
-  const { libraryId, activeLibrary, folders, contextFolderId } = useLibrary();
+  const { libraryId, activeLibrary, contextFolderId } = useLibraryScope();
+  const { folders } = useLibraryTree();
   const {
     activeSessionId,
     scope,
@@ -46,6 +47,7 @@ export function RecallView() {
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const loadedSessionRef = useRef<string | null>(null);
 
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
@@ -67,17 +69,30 @@ export function RecallView() {
   }, [activeSessionId]);
 
   useEffect(() => {
-    if (!activeSessionId) return;
+    if (!activeSessionId) {
+      setTurns([]);
+      setLoadingHistory(false);
+      loadedSessionRef.current = null;
+      return;
+    }
+
+    // Don't refetch while a stream is in flight — the server may not have the turn yet.
+    if (loading) return;
+
+    const sessionChanged = loadedSessionRef.current !== activeSessionId;
+    if (!sessionChanged) return;
 
     let cancelled = false;
+    const sessionId = activeSessionId;
     setLoadingHistory(true);
     setError(null);
+    setTurns([]);
 
     apiGet<{ session: RecallChatSessionSummary; turns: RecallTurn[] }>(
-      `/api/libraries/${libraryId}/recall-chat/${activeSessionId}`
+      `/api/libraries/${libraryId}/recall-chat/${sessionId}`
     )
       .then((data) => {
-        if (cancelled) return;
+        if (cancelled || loadedSessionRef.current !== sessionId) return;
         setTurns(data.turns);
       })
       .catch((e) => {
@@ -87,10 +102,12 @@ export function RecallView() {
         if (!cancelled) setLoadingHistory(false);
       });
 
+    loadedSessionRef.current = sessionId;
+
     return () => {
       cancelled = true;
     };
-  }, [libraryId, activeSessionId]);
+  }, [libraryId, activeSessionId, loading]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -151,6 +168,10 @@ export function RecallView() {
           setTurns((prev) => [...prev, event.turn]);
           setStreamingTurn(null);
           updateSessionMeta(event.session);
+          loadedSessionRef.current = event.sessionId;
+          if (activeSessionId !== event.sessionId) {
+            router.replace(recallChatRoute(libraryId, event.sessionId));
+          }
           notifyUsageUpdated();
         } else if (event.type === "error") {
           streamError = event.error;
@@ -193,6 +214,7 @@ export function RecallView() {
     effectiveFolderId,
     scope,
     activeSessionId,
+    router,
     updateSessionMeta,
   ]);
 
@@ -201,7 +223,7 @@ export function RecallView() {
     else router.push(documentRoute(libraryId, result.id));
   }
 
-  const displayTurns = activeSessionId ? turns : [];
+  const displayTurns = turns;
   const showWelcome = !loadingHistory && displayTurns.length === 0 && !loading;
 
   return (
@@ -277,7 +299,7 @@ export function RecallView() {
               </div>
               <div className="space-y-3">
                 <div className="max-w-[95%] rounded-2xl rounded-bl-sm bg-muted/60 px-4 py-3">
-                  <MarkdownRenderer content={turn.answer} />
+                  <RecallAnswerContent content={turn.answer} />
                 </div>
                 {turn.sources.length > 0 && (
                   <div className="space-y-2 pl-1">
@@ -309,7 +331,7 @@ export function RecallView() {
               </div>
               <div className="max-w-[95%] rounded-2xl rounded-bl-sm bg-muted/60 px-4 py-3">
                 {streamingTurn.answer ? (
-                  <MarkdownRenderer content={streamingTurn.answer} />
+                  <RecallAnswerContent content={streamingTurn.answer} streaming />
                 ) : (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="size-4 animate-spin" />

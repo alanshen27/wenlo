@@ -1,6 +1,9 @@
 # PRD — Slideshows (Deck Editor)
 
 **Status:** Draft · **Owner:** Alan · **Last updated:** 2026-06-14
+**Sibling docs:** `docs/prd-whiteboard.md`, `docs/prd-pdf-annotations.md` (fixed-surface profiles
+on the unified scene stack)
+
 **Tracking:** Phase 1 (MVP editor) → Phase 2 (real-time collaboration)
 
 ---

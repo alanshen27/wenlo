@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { ComponentProps } from "react";
-import { useLibrary } from "@/components/library/library-shell";
+import { useLibraryScope, useLibraryTree } from "@/components/library/context";
 import { EditorBodySkeleton } from "@/components/editor/editor-skeleton";
 import type { CollabSession } from "@/hooks/use-collab-session";
 
@@ -35,8 +35,9 @@ type PageEditorProps = BlockEditorProps & {
   collab?: CollabSession & { user: { name: string; color: string } };
 };
 
-export function PageEditor({ readOnly, collab, onEditorReady, ...props }: PageEditorProps) {
-  const { libraryId, tree } = useLibrary();
+export function PageEditor({ readOnly, collab, onEditorReady, onHeadingsChange, ...props }: PageEditorProps) {
+  const { libraryId } = useLibraryScope();
+  const { tree } = useLibraryTree();
   const pageLink = {
     libraryId,
     tree,
@@ -55,6 +56,7 @@ export function PageEditor({ readOnly, collab, onEditorReady, ...props }: PageEd
       onChange: readOnly ? () => {} : props.onChange,
       onLocalEdit: readOnly ? undefined : props.onLocalEdit,
       onEditorReady,
+      onHeadingsChange,
     };
     return <CollaborativeBlockEditor {...collabProps} />;
   }
@@ -67,9 +69,17 @@ export function PageEditor({ readOnly, collab, onEditorReady, ...props }: PageEd
         onChange={() => {}}
         onLocalEdit={undefined}
         onEditorReady={onEditorReady}
+        onHeadingsChange={onHeadingsChange}
       />
     );
   }
 
-  return <BlockEditor {...props} pageLink={pageLink} onEditorReady={onEditorReady} />;
+  return (
+    <BlockEditor
+      {...props}
+      pageLink={pageLink}
+      onEditorReady={onEditorReady}
+      onHeadingsChange={onHeadingsChange}
+    />
+  );
 }

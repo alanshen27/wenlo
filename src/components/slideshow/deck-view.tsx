@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Download, Loader2, Play } from "lucide-react";
-import { useLibrary } from "@/components/library/library-shell";
-import type { SaveStatus } from "@/components/library/main-header";
+import { useLibraryHeader, useLibraryScope, useLibraryTree } from "@/components/library/context";
+import { useDocumentHeader } from "@/hooks/use-document-header";
+import { useDebouncedPersist } from "@/hooks/use-debounced-persist";
+import { useDeckDocument } from "@/hooks/use-native-documents";
+import { useSaveStatus } from "@/hooks/use-save-status";
 import { Button } from "@/components/ui/button";
 import {
   createEmptyDeck,
@@ -15,19 +18,14 @@ import {
   type DeckElement,
   type Slide,
 } from "@/lib/decks/deck-schema";
+import { applyScenePatch } from "@/lib/scene/scene-schema";
+import { DECK_SCENE_CONFIG } from "@/lib/scene/scene-config";
 import { createSlideFromTemplate } from "@/lib/decks/deck-templates";
-import {
-  apiGet,
-  apiPatch,
-  getApiErrorMessage,
-  isCanceledError,
-  isNotFoundError,
-} from "@/lib/client/api";
+import { apiPatch } from "@/lib/client/api";
 import { ViewError } from "@/components/ui/view";
-import { deckRoute, libraryHome } from "@/lib/client/routes";
 
-const DeckCanvas = dynamic(
-  () => import("@/components/slideshow/deck-canvas").then((m) => m.DeckCanvas),
+const SceneCanvasLazy = dynamic(
+  () => import("@/components/canvas/scene-canvas").then((m) => m.SceneCanvas),
   {
     ssr: false,
     loading: () => (
@@ -48,116 +46,62 @@ const SlideRail = dynamic(
   { ssr: false }
 );
 
-type DeckData = {
-  id: string;
-  title: string;
-  folderId: string | null;
-  libraryId: string;
-  deck: DeckDoc;
-};
-
 const SAVE_DEBOUNCE_MS = 600;
 
 export function DeckView() {
-  const router = useRouter();
   const { deckId } = useParams<{ deckId: string }>();
-  const { libraryId, canEdit, setHeader, refreshTree } = useLibrary();
+  const { libraryId, canEdit } = useLibraryScope();
+  const { refreshTree } = useLibraryTree();
+  const { setHeader } = useLibraryHeader();
+  const { saveStatus, markSaving, markSaved, markError } = useSaveStatus();
+  const { data: meta, isLoading, loadError, reload } = useDeckDocument(deckId, libraryId);
 
-  const [meta, setMeta] = useState<DeckData | null>(null);
   const [deck, setDeck] = useState<DeckDoc>(createEmptyDeck());
   const [activeSlideId, setActiveSlideId] = useState<string>("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [presentFrom, setPresentFrom] = useState<number | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
 
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDeck = useRef<DeckDoc>(deck);
-  const dirty = useRef(false);
 
   const readOnly = !canEdit;
 
-  // --- Load ---
   useEffect(() => {
-    let cancelled = false;
-    setMeta(null);
-    setDeck(createEmptyDeck());
-    setSaveStatus("idle");
-    setLoadError(null);
-    void (async () => {
-      try {
-        const data = await apiGet<DeckData>(`/api/decks/${deckId}`);
-        if (cancelled) return;
-        if (data.libraryId && data.libraryId !== libraryId) {
-          router.replace(deckRoute(data.libraryId, data.id));
-          return;
-        }
-        const normalized = normalizeDeck(data.deck);
-        setMeta(data);
-        setDeck(normalized);
-        latestDeck.current = normalized;
-        setActiveSlideId(normalized.slideOrder[0]);
-        setTitle(data.title);
-      } catch (err) {
-        if (cancelled || isCanceledError(err)) return;
-        if (isNotFoundError(err)) {
-          router.replace(libraryHome(libraryId));
-          return;
-        }
-        setLoadError(getApiErrorMessage(err, "We couldn't load this deck."));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [deckId, libraryId, router, reloadKey]);
+    if (!meta) return;
+    const normalized = normalizeDeck(meta.deck as DeckDoc);
+    setDeck(normalized);
+    latestDeck.current = normalized;
+    setActiveSlideId(normalized.slideOrder[0] ?? "");
+    setTitle(meta.title);
+  }, [meta?.id]);
 
-  // --- Save ---
-  const flush = useCallback(() => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    if (!dirty.current) return;
-    dirty.current = false;
-    setSaveStatus("saving");
-    void apiPatch(`/api/decks/${deckId}`, { deck: latestDeck.current })
-      .then(() => {
-        setSaveStatus("saved");
-        if (savedTimer.current) clearTimeout(savedTimer.current);
-        savedTimer.current = setTimeout(() => setSaveStatus("idle"), 1500);
-      })
-      .catch(() => setSaveStatus("error"));
-  }, [deckId]);
+  const { markDirty, flushNow } = useDebouncedPersist({
+    debounceMs: SAVE_DEBOUNCE_MS,
+    shouldPersist: () => !readOnly && Boolean(meta),
+    getPayload: () => latestDeck.current,
+    persist: async (payload) => {
+      await apiPatch(`/api/decks/${deckId}`, { deck: payload });
+    },
+    markSaving,
+    markSaved,
+    markError,
+  });
 
   const mutate = useCallback(
     (next: DeckDoc) => {
       latestDeck.current = next;
-      dirty.current = true;
       setDeck(next);
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+      markDirty();
     },
-    [flush]
+    [markDirty]
   );
 
-  useEffect(() => {
-    const onBeforeUnload = () => flush();
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      flush();
-      if (savedTimer.current) clearTimeout(savedTimer.current);
-    };
-  }, [flush]);
+  const headerState = useMemo(() => {
+    if (!meta) return undefined;
+    return { saveStatus, titleOverride: title, folderIdFallback: meta.folderId };
+  }, [meta, saveStatus, title]);
 
-  useEffect(() => {
-    if (!meta) return;
-    setHeader({ saveStatus, titleOverride: title, folderIdFallback: meta.folderId });
-  }, [meta, saveStatus, title, setHeader]);
+  useDocumentHeader(setHeader, headerState);
 
   // --- Slide helpers ---
   const updateActiveSlide = useCallback(
@@ -170,43 +114,20 @@ export function DeckView() {
     [deck, activeSlideId, mutate]
   );
 
-  const addElement = useCallback(
-    (el: DeckElement) => {
-      updateActiveSlide((s) => ({
-        ...s,
-        elements: { ...s.elements, [el.id]: el },
-        elementOrder: [...s.elementOrder.filter((i) => i !== el.id), el.id],
-      }));
-    },
-    [updateActiveSlide]
-  );
-
-  const updateElement = useCallback(
-    (el: DeckElement) => {
-      updateActiveSlide((s) => ({
-        ...s,
-        elements: { ...s.elements, [el.id]: el },
-        elementOrder: s.elementOrder.includes(el.id)
-          ? s.elementOrder
-          : [...s.elementOrder, el.id],
-      }));
-    },
-    [updateActiveSlide]
-  );
-
-  const deleteElement = useCallback(
-    (id: string) => {
-      updateActiveSlide((s) => {
-        const elements = { ...s.elements };
-        delete elements[id];
-        return { ...s, elements, elementOrder: s.elementOrder.filter((i) => i !== id) };
+  const handleScenePatch = useCallback(
+    (patch: Parameters<typeof applyScenePatch>[1]) => {
+      updateActiveSlide((slide) => {
+        const merged = applyScenePatch(
+          { version: 2, elementOrder: slide.elementOrder, elements: slide.elements },
+          patch
+        );
+        return {
+          ...slide,
+          elementOrder: merged.elementOrder,
+          elements: merged.elements as Record<string, DeckElement>,
+        };
       });
     },
-    [updateActiveSlide]
-  );
-
-  const reorderElements = useCallback(
-    (order: string[]) => updateActiveSlide((s) => ({ ...s, elementOrder: order })),
     [updateActiveSlide]
   );
 
@@ -286,7 +207,6 @@ export function DeckView() {
     if (!meta || !canEdit || title === meta.title) return;
     try {
       const updated = await apiPatch<{ title: string }>(`/api/documents/${meta.id}`, { title });
-      setMeta((prev) => (prev ? { ...prev, title: updated.title } : prev));
       setTitle(updated.title);
       refreshTree();
     } catch {
@@ -295,29 +215,33 @@ export function DeckView() {
   }, [meta, canEdit, title, refreshTree]);
 
   const handleExport = useCallback(() => {
-    flush();
+    flushNow();
     const link = document.createElement("a");
     link.href = `/api/decks/${deckId}/export`;
     link.download = `${title || "deck"}.pptx`;
     link.click();
-  }, [deckId, title, flush]);
+  }, [deckId, title, flushNow]);
 
   const activeSlide = deck.slides[activeSlideId];
 
   const canvas = useMemo(() => {
     if (!meta || !activeSlide) return null;
     return (
-      <DeckCanvas
-        slide={activeSlide}
+      <SceneCanvasLazy
+        config={DECK_SCENE_CONFIG}
+        scene={{
+          version: 2,
+          elementOrder: activeSlide.elementOrder,
+          elements: activeSlide.elements,
+        }}
+        background={activeSlide.background}
+        sceneKey={activeSlide.id}
         readOnly={readOnly}
         libraryId={meta.libraryId}
         folderId={meta.folderId}
         selectedId={selectedId}
         onSelect={setSelectedId}
-        onAddElement={addElement}
-        onUpdateElement={updateElement}
-        onDeleteElement={deleteElement}
-        onReorder={reorderElements}
+        onPatch={handleScenePatch}
         onPresent={() => setPresentFrom(deck.slideOrder.indexOf(activeSlideId))}
       />
     );
@@ -326,10 +250,7 @@ export function DeckView() {
     activeSlide,
     readOnly,
     selectedId,
-    addElement,
-    updateElement,
-    deleteElement,
-    reorderElements,
+    handleScenePatch,
     deck.slideOrder,
     activeSlideId,
   ]);
@@ -339,12 +260,12 @@ export function DeckView() {
       <ViewError
         title="Couldn't load this deck"
         message={loadError}
-        onRetry={() => setReloadKey((k) => k + 1)}
+        onRetry={reload}
       />
     );
   }
 
-  if (!meta) {
+  if (isLoading || !meta) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />

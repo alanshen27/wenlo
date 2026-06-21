@@ -422,6 +422,7 @@ export type PresentationTemplate = {
   id: string;
   label: string;
   title: string;
+  description: string;
   build: () => Slide[];
 };
 
@@ -436,6 +437,7 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
     id: "pitch",
     label: "Pitch deck",
     title: "Pitch deck",
+    description: "12-slide investor narrative: problem, solution, traction, and the ask.",
     build: () => [
       coverSlide(PITCH, "Pitch deck · 2026", "Acme", "Reimagining how teams capture and recall knowledge"),
       agendaSlide(PITCH, "Agenda", [
@@ -494,6 +496,7 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
     id: "project-update",
     label: "Project update",
     title: "Project update",
+    description: "Status deck with highlights, metrics, risks, and decisions needed.",
     build: () => [
       coverSlide(UPDATE, "Project update", "Q2 Platform Update", "Platform team · June 2026"),
       agendaSlide(UPDATE, "What we'll cover", [
@@ -536,6 +539,7 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
     id: "lesson",
     label: "Lesson",
     title: "Lesson",
+    description: "Teaching deck with objectives, do/don't columns, and takeaways.",
     build: () => [
       coverSlide(LESSON, "Lesson", "Intro to Product Discovery", "A practical guide for builders"),
       sectionSlide(LESSON, "Before we start", "Learning objectives"),
@@ -580,6 +584,7 @@ export const PRESENTATION_TEMPLATES: PresentationTemplate[] = [
     id: "photo-story",
     label: "Photo story",
     title: "Photo story",
+    description: "Event recap with day-by-day story slides and highlight stats.",
     build: () => [
       coverSlide(STORY, "Photo story", "Summer Retreat 2026", "Lake Tahoe · June 12–14"),
       titleImageSlide(

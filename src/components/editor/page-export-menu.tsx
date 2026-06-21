@@ -110,11 +110,11 @@ export function PageExportMenu({ editorRef, title }: Props) {
             type="button"
             variant="ghost"
             size="sm"
-            className="mb-2 h-8 gap-1.5 text-muted-foreground"
+            className="h-8 gap-1.5 text-sm text-muted-foreground"
           />
         }
       >
-        <Download className="size-3.5" />
+        <Download className="size-4" />
         Export
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">

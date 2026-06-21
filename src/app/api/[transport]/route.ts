@@ -2,18 +2,14 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { resolveGatewayFolderId } from "@/lib/auth/gateway-auth";
-import { authorizeLibrary, getMcpAuthExtra, verifyRecallApiKey } from "@/lib/auth/mcp-auth";
-import { prisma } from "@/lib/db/prisma";
-import { applyTextPatch } from "@/lib/documents/text-patch";
-import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
-import { indexDocument, recallSearch } from "@/lib/search/search";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getMcpAuthExtra, verifyRecallApiKey } from "@/lib/auth/mcp-auth";
+import {
+  buildMcpDownloadResult,
+  executeRecallTool,
+  recallToolContextFromMcp,
+} from "@/lib/recall-chat/recall-tools";
 
 export const maxDuration = 60;
-
-/** Hard cap on inline base64 file downloads to avoid blowing up model context. */
-const MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024; // 8 MB
 
 function jsonResult(data: unknown): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
@@ -27,6 +23,25 @@ function toAuth(extra: { authInfo?: unknown }) {
   return getMcpAuthExtra(extra.authInfo as Parameters<typeof getMcpAuthExtra>[0]);
 }
 
+async function runTool(
+  name: string,
+  args: unknown,
+  extra: { authInfo?: unknown }
+): Promise<CallToolResult> {
+  try {
+    const auth = toAuth(extra);
+    const ctx = recallToolContextFromMcp(auth);
+    if (name === "download_file") {
+      return buildMcpDownloadResult(args, ctx);
+    }
+    const outcome = await executeRecallTool(name, args, ctx);
+    if (outcome.isError) return errorResult(String(outcome.result));
+    return jsonResult(outcome.result);
+  } catch (error) {
+    return errorResult(error instanceof Error ? error.message : "Tool failed");
+  }
+}
+
 const baseHandler = createMcpHandler(
   (server: McpServer) => {
     server.registerTool(
@@ -38,22 +53,7 @@ const baseHandler = createMcpHandler(
         inputSchema: {},
         annotations: { readOnlyHint: true, openWorldHint: false },
       },
-      async (_args, extra) => {
-        try {
-          const auth = toAuth(extra);
-          const libraries = await prisma.library.findMany({
-            where: {
-              ...(auth.scopedLibraryId ? { id: auth.scopedLibraryId } : {}),
-              OR: [{ userId: auth.userId }, { members: { some: { userId: auth.userId } } }],
-            },
-            select: { id: true, name: true, icon: true, updatedAt: true },
-            orderBy: { createdAt: "asc" },
-          });
-          return jsonResult({ libraries });
-        } catch (error) {
-          return errorResult(error instanceof Error ? error.message : "Failed to list libraries");
-        }
-      }
+      async (_args, extra) => runTool("list_libraries", {}, extra)
     );
 
     server.registerTool(
@@ -73,26 +73,36 @@ const baseHandler = createMcpHandler(
         },
         annotations: { readOnlyHint: true, openWorldHint: false },
       },
-      async ({ libraryId, query, folderId, limit }, extra) => {
-        try {
-          const auth = toAuth(extra);
-          await authorizeLibrary(auth, libraryId);
-          const resolvedFolderId =
-            folderId === undefined
-              ? null
-              : await resolveGatewayFolderId(auth.userId, libraryId, folderId);
-          const results = await recallSearch({
-            userId: auth.userId,
-            libraryId,
-            folderId: resolvedFolderId,
-            query,
-            limit: Math.min(limit ?? 20, 50),
-          });
-          return jsonResult({ query, count: results.length, results });
-        } catch (error) {
-          return errorResult(error instanceof Error ? error.message : "Search failed");
-        }
-      }
+      async (args, extra) => runTool("search_library", args, extra)
+    );
+
+    server.registerTool(
+      "grep_library",
+      {
+        title: "Grep library",
+        description:
+          "Exact literal or regex grep across page and note text. Returns line numbers and surrounding context. Best for precise strings, identifiers, and code symbols.",
+        inputSchema: {
+          libraryId: z.string().describe("Library id to search within"),
+          pattern: z.string().min(1).describe("Literal text or regex pattern to find"),
+          folderId: z
+            .string()
+            .optional()
+            .describe("Restrict to a folder id (omit or 'root' for the whole library)"),
+          caseSensitive: z.boolean().optional().describe("Case-sensitive match (default false)"),
+          regex: z.boolean().optional().describe("Treat pattern as a regex (default false)"),
+          limit: z.number().int().min(1).max(50).optional().describe("Max files with hits (default 20)"),
+          contextLines: z
+            .number()
+            .int()
+            .min(0)
+            .max(5)
+            .optional()
+            .describe("Lines of context before/after each hit (default 1)"),
+        },
+        annotations: { readOnlyHint: true, openWorldHint: false },
+      },
+      async (args, extra) => runTool("grep_library", args, extra)
     );
 
     server.registerTool(
@@ -111,34 +121,7 @@ const baseHandler = createMcpHandler(
         },
         annotations: { readOnlyHint: true, openWorldHint: false },
       },
-      async ({ libraryId, folderId, limit }, extra) => {
-        try {
-          const auth = toAuth(extra);
-          await authorizeLibrary(auth, libraryId);
-          const folderFilter =
-            folderId === undefined
-              ? {}
-              : { folderId: await resolveGatewayFolderId(auth.userId, libraryId, folderId) };
-          const documents = await prisma.document.findMany({
-            where: { userId: auth.userId, libraryId, ...folderFilter },
-            orderBy: { updatedAt: "desc" },
-            take: Math.min(limit ?? 50, 200),
-            select: {
-              id: true,
-              title: true,
-              type: true,
-              status: true,
-              mimeType: true,
-              sizeBytes: true,
-              folderId: true,
-              updatedAt: true,
-            },
-          });
-          return jsonResult({ count: documents.length, documents });
-        } catch (error) {
-          return errorResult(error instanceof Error ? error.message : "Failed to list documents");
-        }
-      }
+      async (args, extra) => runTool("list_documents", args, extra)
     );
 
     server.registerTool(
@@ -153,31 +136,7 @@ const baseHandler = createMcpHandler(
         },
         annotations: { readOnlyHint: true, openWorldHint: false },
       },
-      async ({ libraryId, documentId }, extra) => {
-        try {
-          const auth = toAuth(extra);
-          await authorizeLibrary(auth, libraryId);
-          const document = await prisma.document.findFirst({
-            where: { id: documentId, userId: auth.userId, libraryId },
-            select: {
-              id: true,
-              title: true,
-              type: true,
-              status: true,
-              mimeType: true,
-              sizeBytes: true,
-              language: true,
-              folderId: true,
-              content: true,
-              updatedAt: true,
-            },
-          });
-          if (!document) return errorResult("Document not found");
-          return jsonResult(document);
-        } catch (error) {
-          return errorResult(error instanceof Error ? error.message : "Failed to get document");
-        }
-      }
+      async (args, extra) => runTool("get_document", args, extra)
     );
 
     server.registerTool(
@@ -192,68 +151,7 @@ const baseHandler = createMcpHandler(
         },
         annotations: { readOnlyHint: true, openWorldHint: false },
       },
-      async ({ libraryId, documentId }, extra) => {
-        try {
-          const auth = toAuth(extra);
-          await authorizeLibrary(auth, libraryId);
-          const document = await prisma.document.findFirst({
-            where: { id: documentId, userId: auth.userId, libraryId },
-            select: { id: true, title: true, mimeType: true, storagePath: true },
-          });
-          if (!document) return errorResult("Document not found");
-          if (!document.storagePath) {
-            return errorResult("This document has no stored file (text-only). Use get_document.");
-          }
-
-          const supabase = createAdminClient();
-          const { data, error } = await supabase.storage
-            .from("documents")
-            .download(document.storagePath);
-          if (error || !data) return errorResult("File could not be retrieved from storage");
-
-          const arrayBuffer = await data.arrayBuffer();
-          if (arrayBuffer.byteLength > MAX_DOWNLOAD_BYTES) {
-            return errorResult(
-              `File is ${arrayBuffer.byteLength} bytes which exceeds the ${MAX_DOWNLOAD_BYTES} byte inline limit. Use get_document for the extracted text.`
-            );
-          }
-
-          const base64 = Buffer.from(arrayBuffer).toString("base64");
-          const mimeType = document.mimeType || data.type || "application/octet-stream";
-          const summary = {
-            id: document.id,
-            title: document.title,
-            mimeType,
-            sizeBytes: arrayBuffer.byteLength,
-            encoding: "base64",
-          };
-
-          if (mimeType.startsWith("image/")) {
-            return {
-              content: [
-                { type: "text", text: JSON.stringify(summary, null, 2) },
-                { type: "image", data: base64, mimeType },
-              ],
-            };
-          }
-
-          return {
-            content: [
-              { type: "text", text: JSON.stringify(summary, null, 2) },
-              {
-                type: "resource",
-                resource: {
-                  uri: `recall://documents/${document.id}`,
-                  mimeType,
-                  blob: base64,
-                },
-              },
-            ],
-          };
-        } catch (error) {
-          return errorResult(error instanceof Error ? error.message : "Failed to download file");
-        }
-      }
+      async (args, extra) => runTool("download_file", args, extra)
     );
 
     server.registerTool(
@@ -273,44 +171,7 @@ const baseHandler = createMcpHandler(
         },
         annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       },
-      async ({ libraryId, title, content, folderId }, extra) => {
-        try {
-          const auth = toAuth(extra);
-          await authorizeLibrary(auth, libraryId);
-          await requireLibraryAccess(auth.userId, libraryId, "EDITOR");
-
-          const ownerId = await contentOwnerId(libraryId);
-          const resolvedFolderId =
-            folderId === undefined
-              ? null
-              : await resolveGatewayFolderId(auth.userId, libraryId, folderId);
-          const body = (content ?? "").trim();
-
-          const document = await prisma.document.create({
-            data: {
-              title: title.trim() || "Untitled note",
-              type: "NOTE",
-              status: "READY",
-              content: body,
-              userId: ownerId,
-              libraryId,
-              folderId: resolvedFolderId,
-            },
-            select: { id: true, title: true, folderId: true },
-          });
-
-          if (body) await indexDocument(document.id, document.title, body, auth.userId);
-
-          return jsonResult({
-            id: document.id,
-            title: document.title,
-            libraryId,
-            folderId: document.folderId,
-          });
-        } catch (error) {
-          return errorResult(error instanceof Error ? error.message : "Failed to create note");
-        }
-      }
+      async (args, extra) => runTool("create_note", args, extra)
     );
 
     server.registerTool(
@@ -326,33 +187,7 @@ const baseHandler = createMcpHandler(
         },
         annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       },
-      async ({ libraryId, documentId, text }, extra) => {
-        try {
-          const auth = toAuth(extra);
-          await authorizeLibrary(auth, libraryId);
-          await requireLibraryAccess(auth.userId, libraryId, "EDITOR");
-
-          const document = await prisma.document.findFirst({
-            where: { id: documentId, libraryId },
-            select: { id: true, title: true, content: true, storagePath: true },
-          });
-          if (!document) return errorResult("Document not found");
-          if (document.storagePath) {
-            return errorResult(
-              "This document is an uploaded file; its extracted text can't be edited. Use create_note for editable notes."
-            );
-          }
-
-          const existing = document.content ?? "";
-          const next = existing.length > 0 ? `${existing}\n\n${text}` : text;
-          await prisma.document.update({ where: { id: document.id }, data: { content: next } });
-          await indexDocument(document.id, document.title, next, auth.userId);
-
-          return jsonResult({ id: document.id, length: next.length });
-        } catch (error) {
-          return errorResult(error instanceof Error ? error.message : "Failed to append to note");
-        }
-      }
+      async (args, extra) => runTool("append_to_note", args, extra)
     );
 
     server.registerTool(
@@ -375,44 +210,13 @@ const baseHandler = createMcpHandler(
         },
         annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
       },
-      async ({ libraryId, documentId, oldString, newString, occurrence }, extra) => {
-        try {
-          const auth = toAuth(extra);
-          await authorizeLibrary(auth, libraryId);
-          await requireLibraryAccess(auth.userId, libraryId, "EDITOR");
-
-          const document = await prisma.document.findFirst({
-            where: { id: documentId, libraryId },
-            select: { id: true, title: true, content: true, storagePath: true },
-          });
-          if (!document) return errorResult("Document not found");
-          if (document.storagePath) {
-            return errorResult(
-              "This document is an uploaded file; its extracted text can't be edited. Use create_note for editable notes."
-            );
-          }
-
-          const { content: next, replaced } = applyTextPatch(
-            document.content ?? "",
-            oldString,
-            newString,
-            occurrence ?? 1
-          );
-          await prisma.document.update({ where: { id: document.id }, data: { content: next } });
-          await indexDocument(document.id, document.title, next, auth.userId);
-
-          return jsonResult({ id: document.id, replaced, length: next.length });
-        } catch (error) {
-          return errorResult(error instanceof Error ? error.message : "Failed to edit note");
-        }
-      }
+      async (args, extra) => runTool("edit_note", args, extra)
     );
   },
   {
     serverInfo: { name: "recall", version: "1.0.0" },
   },
   {
-    // Route lives at /api/[transport] → streamable HTTP endpoint is /api/mcp.
     basePath: "/api",
     disableSse: true,
     maxDuration: 60,

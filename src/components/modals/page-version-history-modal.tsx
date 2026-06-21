@@ -243,9 +243,9 @@ export function PageVersionHistoryButton({
       variant="ghost"
       size="sm"
       onClick={onClick}
-      className="mb-2 h-8 gap-1.5 text-muted-foreground"
+      className="h-8 gap-1.5 text-sm text-muted-foreground"
     >
-      <History className="size-3.5" />
+      <History className="size-4" />
       History
     </Button>
   );

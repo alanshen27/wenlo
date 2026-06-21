@@ -11,6 +11,7 @@ import {
   locales as multiColumnLocales,
 } from "@blocknote/xl-multi-column";
 import { PageLink } from "@/components/editor/page-link-inline";
+import { NativeEmbed } from "@/components/editor/native-embed-block";
 import { codeBlockOptions as baseCodeBlockOptions } from "@blocknote/code-block";
 import { createParser } from "prosemirror-highlight/shiki";
 
@@ -45,6 +46,7 @@ export const blockNoteSchema = withMultiColumn(
   }).extend({
     blockSpecs: {
       codeBlock: createCodeBlockSpec(codeBlockOptions),
+      nativeEmbed: NativeEmbed(),
     },
   })
 );

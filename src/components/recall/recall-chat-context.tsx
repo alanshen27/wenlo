@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiDelete, apiGet, apiPost, getApiErrorMessage } from "@/lib/client/api";
+import { toastError } from "@/lib/client/toast";
 import {
   recallChatQuery,
   type RecallChatSessionSummary,
@@ -38,6 +39,11 @@ export function useRecallChat() {
   const ctx = useContext(RecallChatContext);
   if (!ctx) throw new Error("useRecallChat must be used within RecallChatProvider");
   return ctx;
+}
+
+/** Safe variant for sidebar UI that renders outside the provider on non-recall routes. */
+export function useRecallChatOptional() {
+  return useContext(RecallChatContext);
 }
 
 type ProviderProps = {
@@ -69,9 +75,12 @@ export function RecallChatProvider({
 
   const selectSession = useCallback(
     (sessionId: string | null) => {
-      router.push(recallChatRoute(libraryId, sessionId));
+      const next = recallChatRoute(libraryId, sessionId);
+      const current = recallChatRoute(libraryId, activeSessionId);
+      if (next === current) return;
+      router.replace(next);
     },
-    [libraryId, router]
+    [libraryId, router, activeSessionId]
   );
 
   const loadSessions = useCallback(async () => {
@@ -92,7 +101,9 @@ export function RecallChatProvider({
         selectSession(null);
       }
     } catch (e) {
-      setSessionError(getApiErrorMessage(e, "Failed to load chats"));
+      const message = getApiErrorMessage(e, "Failed to load chats");
+      setSessionError(message);
+      toastError(e, message);
       setSessions([]);
     } finally {
       setLoadingSessions(false);
@@ -113,7 +124,9 @@ export function RecallChatProvider({
       setSessions((prev) => [data.session, ...prev]);
       selectSession(data.session.id);
     } catch (e) {
-      setSessionError(getApiErrorMessage(e, "Failed to create chat"));
+      const message = getApiErrorMessage(e, "Failed to create chat");
+      setSessionError(message);
+      toastError(e, message);
     }
   }, [libraryId, historyQuery, selectSession]);
 
@@ -124,27 +137,25 @@ export function RecallChatProvider({
         setSessions((prev) => prev.filter((session) => session.id !== sessionId));
         if (activeSessionId === sessionId) selectSession(null);
       } catch (e) {
-        setSessionError(getApiErrorMessage(e, "Failed to delete chat"));
+        const message = getApiErrorMessage(e, "Failed to delete chat");
+        setSessionError(message);
+        toastError(e, message);
       }
     },
     [libraryId, activeSessionId, selectSession]
   );
 
-  const updateSessionMeta = useCallback(
-    (session: RecallChatSessionSummary) => {
-      setSessions((prev) => {
-        const idx = prev.findIndex((item) => item.id === session.id);
-        if (idx === -1) return [session, ...prev];
-        const next = [...prev];
-        next[idx] = { ...next[idx], ...session };
-        return next.sort(
-          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        );
-      });
-      selectSession(session.id);
-    },
-    [selectSession]
-  );
+  const updateSessionMeta = useCallback((session: RecallChatSessionSummary) => {
+    setSessions((prev) => {
+      const idx = prev.findIndex((item) => item.id === session.id);
+      if (idx === -1) return [session, ...prev];
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...session };
+      return next.sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+    });
+  }, []);
 
   const value = useMemo(
     () => ({

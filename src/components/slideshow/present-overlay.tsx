@@ -10,7 +10,51 @@ import {
   type DeckDoc,
   type DeckElement,
 } from "@/lib/decks/deck-schema";
-import { ElementContent } from "@/components/slideshow/slide-konva";
+import { resolveConnector } from "@/lib/scene/scene-geometry";
+import { SceneElementContent, SceneConnectorNode } from "@/components/canvas/scene-element-content";
+
+function PresentElement({ el, elements }: { el: DeckElement; elements: Record<string, DeckElement> }) {
+  if (el.type === "connector") {
+    return (
+      <SceneConnectorNode
+        connector={el}
+        points={resolveConnector(el, elements)}
+        lockedBy={null}
+        listening={false}
+      />
+    );
+  }
+
+  const hasLink = el.type === "text" && Boolean(el.link?.trim());
+
+  return (
+    <Group
+      x={el.x}
+      y={el.y}
+      rotation={el.rotation ?? 0}
+      opacity={el.opacity ?? 1}
+      listening={hasLink}
+      onClick={
+        hasLink
+          ? () => {
+              const url = (el as Extract<DeckElement, { type: "text" }>).link!.trim();
+              window.open(url.startsWith("http") ? url : `https://${url}`, "_blank", "noopener");
+            }
+          : undefined
+      }
+      onTap={
+        hasLink
+          ? () => {
+              const url = (el as Extract<DeckElement, { type: "text" }>).link!.trim();
+              window.open(url.startsWith("http") ? url : `https://${url}`, "_blank", "noopener");
+            }
+          : undefined
+      }
+    >
+      <SceneElementContent el={el} />
+    </Group>
+  );
+}
 
 /** Fullscreen, keyboard-navigable presentation of the deck. */
 export function PresentOverlay({
@@ -67,6 +111,7 @@ export function PresentOverlay({
         .map((id) => slide.elements[id])
         .filter((el): el is DeckElement => Boolean(el))
     : [];
+  const elementMap = slide?.elements ?? {};
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
@@ -81,16 +126,7 @@ export function PresentOverlay({
               fill={slide?.background ?? deck.theme?.background ?? DEFAULT_SLIDE_BG}
             />
             {elements.map((el) => (
-              <Group
-                key={el.id}
-                x={el.x}
-                y={el.y}
-                rotation={el.rotation ?? 0}
-                opacity={el.opacity ?? 1}
-                listening={false}
-              >
-                <ElementContent el={el} />
-              </Group>
+              <PresentElement key={el.id} el={el} elements={elementMap} />
             ))}
           </Layer>
         </Stage>

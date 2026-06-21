@@ -45,10 +45,10 @@ export function DatabaseTable({ controller }: { controller: DatabaseController }
   }
 
   return (
-    <div className="flex-1 overflow-auto p-4">
+    <div className="flex-1 overflow-auto">
       <div className="inline-block min-w-full align-top">
         {/* Header */}
-        <div className="flex border-b border-border">
+        <div className="sticky top-0 z-10 flex border-b border-border bg-background">
           {scene.properties.map((property, index) => (
             <PropertyHeader
               key={property.id}

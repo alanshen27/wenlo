@@ -33,7 +33,11 @@ import {
   FolderArtwork,
   getDocumentLabel,
 } from "@/lib/client/file-icons";
-import { folderDropId, itemDragId, type SidebarDragItem } from "@/lib/client/sidebar-dnd";
+import {
+  folderDropId,
+  itemDragId,
+} from "@/lib/client/sidebar-dnd";
+import type { FolderItem } from "@/lib/library/folders";
 import {
   cloudItemPreviewSource,
   FileTypePreview,
@@ -44,19 +48,7 @@ import { cn, formatBytes } from "@/lib/core/utils";
 
 export type CloudItem =
   | { kind: "folder"; id: string; title: string; color: string; count: number }
-  | { kind: "page"; id: string; title: string; pinned?: boolean }
-  | {
-      kind: "document";
-      id: string;
-      title: string;
-      type: string;
-      sizeBytes?: number | null;
-      pending?: boolean;
-      processing?: boolean;
-      pinned?: boolean;
-      /** Indexing/embedding status: PROCESSING | READY | FAILED. */
-      status?: string;
-    };
+  | FolderItem;
 
 /** Per-item selection wiring passed down to a card or row. */
 export type SelectionState = {
@@ -139,14 +131,6 @@ function SelectBox({
   );
 }
 
-/** A page or document can be dragged into a folder; folders are drop targets only. */
-function toDragItem(item: CloudItem): SidebarDragItem | null {
-  if (item.kind === "page") return { type: "page", id: item.id, title: item.title };
-  if (item.kind === "document")
-    return { type: "document", id: item.id, title: item.title, docType: item.type };
-  return null;
-}
-
 function itemLabel(item: CloudItem) {
   if (item.kind === "folder") return `${item.count} item${item.count === 1 ? "" : "s"}`;
   if (item.kind === "page") return "Page";
@@ -161,7 +145,7 @@ function DraggableWrapper({
   className,
   children,
 }: {
-  item: SidebarDragItem;
+  item: FolderItem;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -229,10 +213,9 @@ function DndShell({
       </DroppableWrapper>
     );
   }
-  const drag = toDragItem(item);
-  if (!drag) return <>{children}</>;
+  if (item.kind !== "page" && item.kind !== "document") return <>{children}</>;
   return (
-    <DraggableWrapper item={drag} className={className}>
+    <DraggableWrapper item={item} className={className}>
       {children}
     </DraggableWrapper>
   );

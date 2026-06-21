@@ -28,6 +28,18 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+
+  if (pathname.startsWith("/docs")) {
+    const target = pathname.replace(/^\/docs/, "/pages");
+    const url = new URL(`${target}${request.nextUrl.search}`, request.url);
+    return NextResponse.redirect(url);
+  }
+  if (pathname.startsWith("/slides")) {
+    const target = pathname.replace(/^\/slides/, "/decks");
+    const url = new URL(`${target}${request.nextUrl.search}`, request.url);
+    return NextResponse.redirect(url);
+  }
+
   const isPublic =
     pathname === "/" ||
     pathname.startsWith("/login") ||

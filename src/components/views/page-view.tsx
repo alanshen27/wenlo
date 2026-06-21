@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useLibrary } from "@/components/library/library-shell";
-import type { SaveStatus } from "@/components/library/main-header";
+import { useParams } from "next/navigation";
+import { useLibraryHeader, useLibraryScope, useLibraryTree } from "@/components/library/context";
+import { useDocumentHeader } from "@/hooks/use-document-header";
 import { PageEditor } from "@/components/editor/page-editor";
+import { DocumentOutline } from "@/components/editor/document-outline";
 import { EditorBodySkeleton, PageSkeleton } from "@/components/editor/editor-skeleton";
 import { PageExportMenu } from "@/components/editor/page-export-menu";
 import {
@@ -14,18 +15,18 @@ import {
 import type { RecallEditor } from "@/lib/editor/blocknote-schema";
 import { useCollabSession } from "@/hooks/use-collab-session";
 import { usePageCollaboration } from "@/hooks/use-page-collaboration";
+import { useMe } from "@/hooks/use-me";
+import { usePageDocument } from "@/hooks/use-native-documents";
+import { useSaveStatus } from "@/hooks/use-save-status";
 import { isCollabClientConfigured } from "@/lib/collab/config";
 import { colorForUser } from "@/lib/collab/user-colors";
+import { apiPatch, apiPost } from "@/lib/client/api";
 import {
-  apiGet,
-  apiPatch,
-  apiPost,
-  getApiErrorMessage,
-  isCanceledError,
-  isNotFoundError,
-} from "@/lib/client/api";
+  extractDocumentHeadings,
+  scrollToDocumentHeading,
+  type DocumentHeading,
+} from "@/lib/editor/editor-content";
 import { ViewError, ViewScroll } from "@/components/ui/view";
-import { libraryHome, pageRoute } from "@/lib/client/routes";
 
 type Page = {
   id: string;
@@ -36,40 +37,33 @@ type Page = {
   updatedAt: string;
 };
 
-type Me = {
-  id: string;
-  email: string;
-  name: string | null;
-};
-
 export function PageView() {
-  const router = useRouter();
   const { pageId } = useParams<{ pageId: string }>();
-  const { libraryId, refreshTree, setHeader, canEdit } = useLibrary();
+  const { libraryId, canEdit } = useLibraryScope();
+  const { refreshTree } = useLibraryTree();
+  const { setHeader } = useLibraryHeader();
+  const { data: me } = useMe();
+  const { saveStatus, markSaving, markSaved, markError } = useSaveStatus(2000);
+  const {
+    data: page,
+    isLoading,
+    loadError,
+    reload,
+    setData: setPageData,
+  } = usePageDocument(pageId, libraryId);
 
-  const [page, setPage] = useState<Page | null>(null);
-  const [me, setMe] = useState<Me | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [syncKey, setSyncKey] = useState(0);
   const [syncedContent, setSyncedContent] = useState<unknown>(null);
   const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editorEpoch, setEditorEpoch] = useState(0);
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [headings, setHeadings] = useState<DocumentHeading[]>([]);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleFromRemoteRef = useRef(false);
   const editorRef = useRef<RecallEditor | null>(null);
 
   const collabEnabled = isCollabClientConfigured();
-
-  const markSaved = useCallback(() => {
-    setSaveStatus("saved");
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-    savedTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
-  }, []);
 
   const showRemoteNotice = useCallback((message: string) => {
     setRemoteNotice(message);
@@ -81,7 +75,7 @@ export function PageView() {
     (title: string) => {
       titleFromRemoteRef.current = true;
       setTitleDraft(title);
-      setPage((prev) => (prev ? { ...prev, title } : prev));
+      setPageData((prev) => (prev ? { ...prev, title } : prev));
       showRemoteNotice(`Title updated`);
     },
     [showRemoteNotice]
@@ -119,7 +113,9 @@ export function PageView() {
       setTitleDraft(payload.title);
       setSyncedContent(payload.content);
       setSyncKey((k) => k + 1);
-      setPage((prev) => (prev ? { ...prev, title: payload.title, content: payload.content } : prev));
+      setPageData((prev) =>
+        prev ? { ...prev, title: payload.title, content: payload.content } : prev
+      );
 
       const by = payload.updatedBy?.name || payload.updatedBy?.email;
       if (by) showRemoteNotice(`Updated by ${by}`);
@@ -141,95 +137,62 @@ export function PageView() {
 
   useEffect(() => {
     return () => {
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     };
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await apiGet<Me>("/api/me");
-        if (!cancelled) setMe(data);
-      } catch {
-        /* no-op */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (page) setTitleDraft(page.title);
+  }, [page?.id, page?.title]);
 
   useEffect(() => {
-    let cancelled = false;
-    setPage(null);
-    setTitleDraft("");
-    setSaveStatus("idle");
-    setRemoteNotice(null);
-    setLoadError(null);
-    (async () => {
-      try {
-        const data = await apiGet<Page>(`/api/pages/${pageId}`);
-        if (cancelled) return;
-        if (data.libraryId && data.libraryId !== libraryId) {
-          router.replace(pageRoute(data.libraryId, data.id));
-          return;
-        }
-        setPage(data);
-        setTitleDraft(data.title);
-        if (!collabEnabled) noteSaved(data.updatedAt);
-      } catch (err) {
-        if (cancelled || isCanceledError(err)) return;
-        if (isNotFoundError(err)) {
-          router.replace(libraryHome(libraryId));
-          return;
-        }
-        setLoadError(getApiErrorMessage(err, "We couldn't load this page."));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pageId, libraryId, router, noteSaved, collabEnabled, reloadKey]);
+    if (page) setHeadings(extractDocumentHeadings(page.content));
+  }, [page?.id, page?.content]);
 
   useEffect(() => {
-    if (!page || page.id !== pageId) return;
-    setHeader({
+    if (page && !collabEnabled) noteSaved(page.updatedAt);
+  }, [page?.id, page?.updatedAt, collabEnabled, noteSaved]);
+
+  const headerState = useMemo(() => {
+    if (!page || page.id !== pageId) return undefined;
+    return {
       saveStatus,
       titleOverride: titleDraft,
       folderIdFallback: page.folderId,
       collaborators,
       remoteNotice: collabError ?? remoteNotice,
-    });
-  }, [page, pageId, saveStatus, titleDraft, setHeader, collaborators, remoteNotice, collabError]);
+    };
+  }, [page, pageId, saveStatus, titleDraft, collaborators, remoteNotice, collabError]);
+
+  useDocumentHeader(setHeader, headerState);
 
   const savePage = useCallback(
     async (_content: unknown, _plainText: string) => {
       if (!page || !canEdit) return;
-      setSaveStatus("saving");
+      markSaving();
       try {
         const updated = await apiPatch<Page>(`/api/pages/${page.id}`, {
           content: _content,
           title: titleDraft,
         });
-        setPage(updated);
+        setPageData(() => updated);
         if (!collabEnabled) noteSaved(updated.updatedAt);
         markSaved();
       } catch {
-        setSaveStatus("error");
+        markError();
       }
     },
-    [page, titleDraft, canEdit, markSaved, noteSaved, collabEnabled]
+    [page, titleDraft, canEdit, markSaved, markSaving, markError, noteSaved, collabEnabled]
   );
 
   const handleRestore = useCallback(
     (restored: { id: string; title: string; content: unknown; updatedAt: string }) => {
-      setPage((prev) => (prev ? { ...prev, ...restored } : prev));
+      setPageData((prev) => (prev ? { ...prev, ...restored } : prev));
       setTitleDraft(restored.title);
       setSyncedContent(restored.content);
       setSyncKey((k) => k + 1);
       setEditorEpoch((n) => n + 1);
+      setHeadings(extractDocumentHeadings(restored.content));
       refreshTree();
       markSaved();
       showRemoteNotice("Version restored");
@@ -245,17 +208,17 @@ export function PageView() {
     }
 
     if (!collabEnabled) markLocalEdit();
-    setSaveStatus("saving");
+    markSaving();
     try {
       const updated = collabEnabled
         ? await apiPost<Page>(`/api/pages/${page.id}/yjs/title`, { title: titleDraft })
         : await apiPatch<Page>(`/api/pages/${page.id}`, { title: titleDraft });
-      setPage(updated);
+      setPageData(() => updated);
       if (!collabEnabled) noteSaved(updated.updatedAt);
       refreshTree();
       markSaved();
     } catch {
-      setSaveStatus("error");
+      markError();
     }
   }, [
     page,
@@ -263,6 +226,8 @@ export function PageView() {
     canEdit,
     refreshTree,
     markSaved,
+    markSaving,
+    markError,
     markLocalEdit,
     noteSaved,
     collabEnabled,
@@ -274,13 +239,13 @@ export function PageView() {
         <ViewError
           title="Couldn't load this page"
           message={loadError}
-          onRetry={() => setReloadKey((k) => k + 1)}
+          onRetry={reload}
         />
       </ViewScroll>
     );
   }
 
-  if (!page) {
+  if (isLoading || !page) {
     return <PageSkeleton />;
   }
 
@@ -293,58 +258,60 @@ export function PageView() {
       : undefined;
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl px-8 py-12 md:px-16">
-        <div className="mb-2 flex items-start justify-between gap-4">
-          <input
-            value={titleDraft}
-            onChange={(e) => {
-              if (!collabEnabled) markLocalEdit();
-              titleFromRemoteRef.current = false;
-              setTitleDraft(e.target.value);
-            }}
-            onBlur={saveTitle}
-            readOnly={!canEdit}
-            className="notion-page-title min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground read-only:cursor-default"
-            placeholder="Untitled"
-          />
-          <div className="flex shrink-0 items-center gap-0.5">
-            <PageExportMenu editorRef={editorRef} title={titleDraft} />
-            <PageVersionHistoryButton onClick={() => setHistoryOpen(true)} />
-          </div>
-        </div>
-        <PageVersionHistoryModal
-          open={historyOpen}
-          pageId={page.id}
-          canEdit={canEdit}
-          onOpenChange={setHistoryOpen}
-          onRestore={handleRestore}
-        />
-        {collabEnabled && !collabReady ? (
-          collabError ? (
-            <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
-              {collabError}
+    <div className="relative flex-1 overflow-x-hidden overflow-y-auto scrollbar-subtle">
+      <div className="mx-auto w-full max-w-3xl px-8 py-12 md:px-16">
+          <div className="mb-2 flex items-center justify-between gap-4">
+            <input
+              value={titleDraft}
+              onChange={(e) => {
+                if (!collabEnabled) markLocalEdit();
+                titleFromRemoteRef.current = false;
+                setTitleDraft(e.target.value);
+              }}
+              onBlur={saveTitle}
+              readOnly={!canEdit}
+              className="notion-page-title min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground read-only:cursor-default"
+              placeholder="Untitled"
+            />
+            <div className="flex shrink-0 items-center gap-1">
+              <PageExportMenu editorRef={editorRef} title={titleDraft} />
+              <PageVersionHistoryButton onClick={() => setHistoryOpen(true)} />
             </div>
-          ) : (
-            <EditorBodySkeleton />
-          )
-        ) : (
-          <PageEditor
-            key={collabReady ? `${page.id}-collab-${editorEpoch}` : `${page.id}-${editorEpoch}`}
+          </div>
+          <PageVersionHistoryModal
+            open={historyOpen}
             pageId={page.id}
-            content={page.content}
-            onChange={savePage}
-            onLocalEdit={collabEnabled ? undefined : markLocalEdit}
-            onEditorReady={(editor) => {
-              editorRef.current = editor;
-            }}
-            syncedContent={syncedContent ?? page.content}
-            syncKey={syncKey}
-            readOnly={!canEdit}
-            collab={collabReady}
+            canEdit={canEdit}
+            onOpenChange={setHistoryOpen}
+            onRestore={handleRestore}
           />
-        )}
+          {collabEnabled && !collabReady ? (
+            collabError ? (
+              <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
+                {collabError}
+              </div>
+            ) : (
+              <EditorBodySkeleton />
+            )
+          ) : (
+            <PageEditor
+              key={collabReady ? `${page.id}-collab-${editorEpoch}` : `${page.id}-${editorEpoch}`}
+              pageId={page.id}
+              content={page.content}
+              onChange={savePage}
+              onLocalEdit={collabEnabled ? undefined : markLocalEdit}
+              onEditorReady={(editor) => {
+                editorRef.current = editor;
+              }}
+              onHeadingsChange={setHeadings}
+              syncedContent={syncedContent ?? page.content}
+              syncKey={syncKey}
+              readOnly={!canEdit}
+              collab={collabReady}
+            />
+          )}
       </div>
+      <DocumentOutline headings={headings} onSelect={scrollToDocumentHeading} />
     </div>
   );
 }

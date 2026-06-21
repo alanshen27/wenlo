@@ -1,11 +1,4 @@
-import type { FolderNode } from "@/lib/library/folders";
-
-export type TreeItemRef = {
-  type: "page" | "document";
-  id: string;
-  title: string;
-  docType?: string;
-};
+import type { FolderItem, FolderItemRef, FolderNode } from "@/lib/library/folders";
 
 export type OptimisticDocument = {
   id: string;
@@ -57,7 +50,7 @@ function ensureRootNode(tree: FolderNode[]): FolderNode[] {
 
 export function findItemFolderId(
   tree: FolderNode[],
-  item: Pick<TreeItemRef, "type" | "id">
+  item: FolderItemRef
 ): string | null | undefined {
   const found = findItemInTree(tree, item);
   return found?.folderId;
@@ -65,19 +58,19 @@ export function findItemFolderId(
 
 export function findItemInTree(
   tree: FolderNode[],
-  item: Pick<TreeItemRef, "type" | "id">
-): { title: string; docType?: string; folderId: string | null } | null {
-  let result: { title: string; docType?: string; folderId: string | null } | null = null;
+  item: FolderItemRef
+): { title: string; type?: string; folderId: string | null } | null {
+  let result: { title: string; type?: string; folderId: string | null } | null = null;
   walkNodes(tree, (node) => {
     if (result) return;
     const inFolder = node.id === "__root__" ? null : node.id;
-    if (item.type === "page") {
+    if (item.kind === "page") {
       const page = node.pages.find((p) => p.id === item.id);
       if (page) result = { title: page.title, folderId: inFolder };
     }
-    if (item.type === "document") {
+    if (item.kind === "document") {
       const doc = node.documents.find((d) => d.id === item.id);
-      if (doc) result = { title: doc.title, docType: doc.type, folderId: inFolder };
+      if (doc) result = { title: doc.title, type: doc.type, folderId: inFolder };
     }
   });
   return result;
@@ -85,13 +78,13 @@ export function findItemInTree(
 
 export function moveItemInTree(
   tree: FolderNode[],
-  item: TreeItemRef,
+  item: FolderItem,
   targetFolderId: string | null
 ): FolderNode[] {
   let next = cloneTree(tree);
 
   walkNodes(next, (node) => {
-    if (item.type === "page") {
+    if (item.kind === "page") {
       node.pages = node.pages.filter((p) => p.id !== item.id);
     } else {
       node.documents = node.documents.filter((d) => d.id !== item.id);
@@ -101,13 +94,13 @@ export function moveItemInTree(
   if (targetFolderId === null) {
     next = ensureRootNode(next);
     const root = next.find((n) => n.id === "__root__")!;
-    if (item.type === "page") {
+    if (item.kind === "page") {
       root.pages.push({ id: item.id, title: item.title });
     } else {
       root.documents.push({
         id: item.id,
         title: item.title,
-        type: item.docType ?? "OTHER",
+        type: item.type,
       });
     }
     return next;
@@ -116,13 +109,13 @@ export function moveItemInTree(
   const target = findFolderNode(next, targetFolderId);
   if (!target) return tree;
 
-  if (item.type === "page") {
+  if (item.kind === "page") {
     target.pages.push({ id: item.id, title: item.title });
   } else {
     target.documents.push({
       id: item.id,
       title: item.title,
-      type: item.docType ?? "OTHER",
+      type: item.type,
     });
   }
 

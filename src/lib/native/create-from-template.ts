@@ -33,7 +33,7 @@ export async function createFromNativeTemplate(
   };
 
   switch (kind) {
-    case "slides": {
+    case "decks": {
       const meta = getPresentationTemplate(templateId);
       body.title = meta.title;
       body.deckContent = createPresentationFromTemplate(templateId);

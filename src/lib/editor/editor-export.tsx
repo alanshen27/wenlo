@@ -1,5 +1,19 @@
 import type { RecallEditor } from "@/lib/editor/blocknote-schema";
 
+function nativeEmbedExportLabel(props: { embedKind: string; title: string }): string {
+  const name = props.title?.trim() || "Untitled";
+  switch (props.embedKind) {
+    case "DECK":
+      return `Embedded deck: ${name}`;
+    case "DATABASE":
+      return `Embedded database: ${name}`;
+    case "FLOWCHART":
+      return `Embedded flowchart: ${name}`;
+    default:
+      return `Embedded content: ${name}`;
+  }
+}
+
 /** Turn a page title into a safe, lowercase filename stem. */
 export function slugifyFilename(title: string): string {
   const base = title
@@ -55,9 +69,16 @@ export async function editorToDocxBlob(editor: RecallEditor): Promise<Blob> {
   const { DOCXExporter, docxDefaultSchemaMappings } = await import(
     "@blocknote/xl-docx-exporter"
   );
-  const { TextRun } = await import("docx");
+  const { TextRun, Paragraph } = await import("docx");
   const exporter = new DOCXExporter(editor.schema, {
     ...docxDefaultSchemaMappings,
+    blockMapping: {
+      ...docxDefaultSchemaMappings.blockMapping,
+      nativeEmbed: (block) =>
+        new Paragraph({
+          children: [new TextRun({ text: nativeEmbedExportLabel(block.props) })],
+        }),
+    },
     inlineContentMapping: {
       ...docxDefaultSchemaMappings.inlineContentMapping,
       pageLink: (inlineContent) =>
@@ -75,6 +96,12 @@ export async function editorToPdfBlob(editor: RecallEditor): Promise<Blob> {
   const { pdf, Text } = await import("@react-pdf/renderer");
   const exporter = new PDFExporter(editor.schema, {
     ...pdfDefaultSchemaMappings,
+    blockMapping: {
+      ...pdfDefaultSchemaMappings.blockMapping,
+      nativeEmbed: (block) => (
+        <Text>{nativeEmbedExportLabel(block.props)}</Text>
+      ),
+    },
     inlineContentMapping: {
       ...pdfDefaultSchemaMappings.inlineContentMapping,
       pageLink: (inlineContent) => (

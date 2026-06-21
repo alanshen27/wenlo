@@ -11,12 +11,28 @@ export type DatabaseTemplate = {
   id: DatabaseTemplateId;
   label: string;
   title: string;
+  description: string;
 };
 
 export const DATABASE_TEMPLATES: DatabaseTemplate[] = [
-  { id: "tasks", label: "Task tracker", title: "Tasks" },
-  { id: "contacts", label: "Contacts", title: "Contacts" },
-  { id: "roadmap", label: "Roadmap", title: "Roadmap" },
+  {
+    id: "tasks",
+    label: "Task tracker",
+    title: "Tasks",
+    description: "Name, status, and due date — with todo, in progress, blocked, and done rows.",
+  },
+  {
+    id: "contacts",
+    label: "Contacts",
+    title: "Contacts",
+    description: "People directory with name, email, and company columns pre-filled.",
+  },
+  {
+    id: "roadmap",
+    label: "Roadmap",
+    title: "Roadmap",
+    description: "Features by quarter with planned, in progress, and shipped statuses.",
+  },
 ];
 
 export function getDatabaseTemplate(id: string) {
@@ -170,22 +186,27 @@ export function buildDatabaseTemplatePreviewScene(id: DatabaseTemplateId): Datab
         {
           id: "r1",
           position: 0,
-          cells: { name: "Polish template thumbnails", status: "ip" },
+          cells: { name: "Polish template thumbnails", status: "ip", due: "2026-06-20" },
         },
         {
           id: "r2",
           position: 1,
-          cells: { name: "Write launch checklist", status: "todo" },
+          cells: { name: "Write launch checklist", status: "todo", due: "2026-06-22" },
         },
         {
           id: "r3",
           position: 2,
-          cells: { name: "Billing integration QA", status: "todo" },
+          cells: { name: "Billing integration QA", status: "todo", due: "2026-06-25" },
         },
         {
           id: "r4",
           position: 3,
-          cells: { name: "Send beta invites", status: "blocked" },
+          cells: { name: "Send beta invites", status: "blocked", due: "2026-06-18" },
+        },
+        {
+          id: "r5",
+          position: 4,
+          cells: { name: "Migration guide for library URLs", status: "done", due: "2026-06-14" },
         },
       ]);
     }

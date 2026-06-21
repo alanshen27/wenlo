@@ -11,6 +11,7 @@ export type BoardTemplate = {
   id: string;
   label: string;
   title: string;
+  description: string;
   build: () => BoardDoc;
 };
 
@@ -31,14 +32,16 @@ function columnBg(x: number, y: number, w: number, h: number, fill: string) {
 }
 function label(x: number, y: number, text: string, color = "#64748b") {
   const id = newId();
+  const fontSize = 22;
   return {
     id,
     type: "text" as const,
     x,
     y,
     w: 200,
+    h: fontSize * 1.4,
     text,
-    fontSize: 22,
+    fontSize,
     color,
   };
 }
@@ -63,6 +66,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "brainstorm",
     label: "Brainstorm",
     title: "Brainstorm",
+    description: "Yellow canvas with seven color-coded idea stickies ready to sort.",
     build: () => {
       const canvas = columnBg(0, 0, 780, 560, "#fffbeb");
       const title = label(80, 24, "Brainstorm — Q3 feature ideas", "#b45309");
@@ -94,6 +98,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "retro",
     label: "Retro board",
     title: "Retro",
+    description: "Three columns: went well, to improve, and concrete action items.",
     build: () => {
       const col1 = columnBg(20, 56, 230, 420, "#ecfdf5");
       const col2 = columnBg(270, 56, 230, 420, "#fffbeb");
@@ -125,6 +130,7 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
     id: "kanban",
     label: "Kanban",
     title: "Kanban board",
+    description: "To do, in progress, and done columns with sample tasks filled in.",
     build: () => {
       const col1 = columnBg(20, 56, 230, 420, "#f1f5f9");
       const col2 = columnBg(270, 56, 230, 420, "#eff6ff");

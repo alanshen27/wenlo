@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Sparkles } from "lucide-react";
-import { useLibrary } from "@/components/library/library-shell";
+import { useLibraryScope, useLibraryTree } from "@/components/library/context";
 import { ScopeSelect } from "@/components/search/scope-select";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import { apiPost, getApiErrorMessage } from "@/lib/client/api";
 
 export function SearchView() {
   const router = useRouter();
-  const { libraryId, activeLibrary, folders, contextFolderId } = useLibrary();
+  const { libraryId, activeLibrary, contextFolderId } = useLibraryScope();
+  const { folders } = useLibraryTree();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [query, setQuery] = useState("");

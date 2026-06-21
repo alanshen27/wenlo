@@ -1,4 +1,4 @@
-export const USAGE_UPDATED_EVENT = "recall:usage-updated";
+export const USAGE_UPDATED_EVENT = "wenlo:usage-updated";
 
 export function notifyUsageUpdated() {
   if (typeof window !== "undefined") {

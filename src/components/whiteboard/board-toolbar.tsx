@@ -23,7 +23,9 @@ import {
 } from "@/components/blocknote-ui/tooltip";
 import { cn } from "@/lib/core/utils";
 import { ShapePicker } from "@/components/canvas/shape-picker";
+import { CaptionField, TextFormatControls } from "@/components/canvas/text-format-controls";
 import type { ShapeKind } from "@/lib/canvas/shapes";
+import type { SceneElement } from "@/lib/scene/elements";
 
 /** Sentinel for "no fill" (transparent) so shapes can be outline-only. */
 export const NO_FILL = "transparent";
@@ -110,6 +112,8 @@ export function BoardToolbar({
   onFillChange,
   strokeWidth,
   onStrokeChange,
+  selected,
+  onUpdateSelected,
   hasSelection,
   onBringToFront,
   onSendToBack,
@@ -124,14 +128,19 @@ export function BoardToolbar({
   onFillChange: (fill: string) => void;
   strokeWidth: number;
   onStrokeChange: (width: number) => void;
+  selected: SceneElement | null;
+  onUpdateSelected: (patch: Partial<SceneElement>) => void;
   hasSelection: boolean;
   onBringToFront: () => void;
   onSendToBack: () => void;
   onDelete: () => void;
   disabled?: boolean;
 }) {
+  const isText = selected?.type === "text";
+  const isImage = selected?.type === "image";
+  const sep = <span className="mx-1 h-6 w-px bg-border" aria-hidden />;
   return (
-    <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-border bg-popover/95 p-1 shadow-lg backdrop-blur">
+    <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border border-border bg-popover/95 p-1 shadow-lg backdrop-blur">
       {TOOLS_BEFORE.map(({ id, label, icon: Icon }) => (
         <TipButton
           key={id}
@@ -249,6 +258,34 @@ export function BoardToolbar({
           />
         ))}
       </div>
+
+      {isText && (
+        <>
+          {sep}
+          <TextFormatControls
+            fontSize={selected.fontSize}
+            fontWeight={selected.fontWeight}
+            italic={selected.italic}
+            underline={selected.underline}
+            align={selected.align}
+            link={selected.link ?? ""}
+            listStyle={selected.listStyle ?? "none"}
+            disabled={disabled}
+            onChange={(patch) => onUpdateSelected(patch as Partial<SceneElement>)}
+          />
+        </>
+      )}
+
+      {isImage && (
+        <>
+          {sep}
+          <CaptionField
+            value={selected.caption ?? ""}
+            disabled={disabled}
+            onChange={(caption) => onUpdateSelected({ caption } as Partial<SceneElement>)}
+          />
+        </>
+      )}
 
       {hasSelection && (
         <>

@@ -16,6 +16,13 @@ export function formatBytes(bytes?: number | null): string | null {
   return `${rounded} ${units[i]}`;
 }
 
+/** Short calendar date, e.g. "Jun 18, 2026". */
+export function formatShortDate(input: string | number | Date): string {
+  const d = new Date(input);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 /** Compact relative time, e.g. "just now", "5m ago", "3d ago", "Mar 4". */
 export function formatRelativeTime(input: string | number | Date): string {
   const then = new Date(input).getTime();

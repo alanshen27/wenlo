@@ -1,3 +1,32 @@
+/** Page or document that lives in a folder (pages, decks, flowcharts, uploads, etc.). */
+export type FolderPage = { kind: "page"; id: string; title: string; pinned?: boolean };
+
+export type FolderDocument = {
+  kind: "document";
+  id: string;
+  title: string;
+  /** Native or uploaded type: PAGE, DECK, FLOWCHART, PDF, WHITEBOARD, … */
+  type: string;
+  sizeBytes?: number | null;
+  pending?: boolean;
+  processing?: boolean;
+  pinned?: boolean;
+  /** Indexing/embedding status: PROCESSING | READY | FAILED. */
+  status?: string;
+};
+
+export type FolderItem = FolderPage | FolderDocument;
+
+/** Drag id lookup — kind + id only; title/type come from drag data. */
+export type FolderItemRef = Pick<FolderPage, "kind" | "id"> | Pick<FolderDocument, "kind" | "id">;
+
+/** Page, document, or subfolder — anything the library can relocate. */
+export type MovableEntry = FolderItem | { kind: "folder"; id: string };
+
+export function isFolderItem(item: { kind: string }): item is FolderItem {
+  return item.kind === "page" || item.kind === "document";
+}
+
 export type FolderNode = {
   id: string;
   name: string;
@@ -114,6 +143,23 @@ export function flattenPagesFromTree(tree: FolderNode[]): { id: string; title: s
   }
   walk(tree);
   return pages;
+}
+
+export function flattenDocumentsFromTree(
+  tree: FolderNode[],
+  types?: string[]
+): { id: string; title: string; type: string }[] {
+  const documents: { id: string; title: string; type: string }[] = [];
+  function walk(nodes: FolderNode[]) {
+    for (const node of nodes) {
+      for (const doc of node.documents) {
+        if (!types || types.includes(doc.type)) documents.push(doc);
+      }
+      walk(node.children);
+    }
+  }
+  walk(tree);
+  return documents;
 }
 
 export function collectFolderIds(folderId: string, folders: FlatFolder[]): string[] {

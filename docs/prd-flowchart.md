@@ -2,7 +2,7 @@
 
 **Status:** Draft · **Owner:** Alan · **Last updated:** 2026-06-15
 **Sibling docs:** `docs/prd-whiteboard.md` (freehand canvas), `docs/prd-databases.md` (the other new
-native type). The whiteboard PRD's §12 explicitly flagged a "node/flow board" built on React Flow as a
+native type), `docs/prd-pdf-annotations.md` (uploaded PDF markup). The whiteboard PRD's §12 explicitly flagged a "node/flow board" built on React Flow as a
 separate thing from the freehand whiteboard — this is that thing.
 
 ---

@@ -6,11 +6,17 @@
 import type { DocumentType } from "@/generated/prisma/client";
 
 export type NativeKind =
-  | "docs"
-  | "slides"
+  | "pages"
+  | "decks"
   | "whiteboards"
   | "databases"
   | "flowcharts";
+
+/** Legacy URL/API kind segments kept for redirects and bookmarks. */
+export const NATIVE_KIND_ALIASES: Record<string, NativeKind> = {
+  docs: "pages",
+  slides: "decks",
+};
 
 // Where a kind's items live: a dedicated `Page` row, a native `Document`
 // (whiteboard/deck/db/flowchart), or an uploaded file `Document`.
@@ -22,9 +28,9 @@ export type NativeTypeConfig = {
   segment: NativeKind;
   /** Dynamic route param name AND the key the editor view reads via useParams. */
   paramKey: string;
-  /** Singular noun, e.g. "Doc". */
+  /** Singular noun, e.g. "Page". */
   label: string;
-  /** Plural noun used for home titles + tabs, e.g. "Docs". */
+  /** Plural noun used for home titles + tabs, e.g. "Pages". */
   plural: string;
   /** Label for the "create blank" action. */
   newLabel: string;
@@ -42,25 +48,25 @@ export type NativeTypeConfig = {
 };
 
 export const NATIVE_TYPES: Record<NativeKind, NativeTypeConfig> = {
-  docs: {
-    kind: "docs",
-    segment: "docs",
+  pages: {
+    kind: "pages",
+    segment: "pages",
     paramKey: "pageId",
-    label: "Doc",
-    plural: "Docs",
-    newLabel: "Blank doc",
+    label: "Page",
+    plural: "Pages",
+    newLabel: "Blank page",
     defaultTitle: "Untitled",
     source: "page",
     creatable: true,
     artworkType: "PAGE",
     accent: "#2563eb",
   },
-  slides: {
-    kind: "slides",
-    segment: "slides",
+  decks: {
+    kind: "decks",
+    segment: "decks",
     paramKey: "deckId",
-    label: "Slide deck",
-    plural: "Slides",
+    label: "Deck",
+    plural: "Decks",
     newLabel: "Blank deck",
     defaultTitle: "Untitled deck",
     source: "document",
@@ -115,8 +121,8 @@ export const NATIVE_TYPES: Record<NativeKind, NativeTypeConfig> = {
 
 /** Launcher display order. */
 export const NATIVE_KIND_ORDER: NativeKind[] = [
-  "docs",
-  "slides",
+  "pages",
+  "decks",
   "whiteboards",
   "databases",
   "flowcharts",
@@ -132,4 +138,9 @@ export const NATIVE_DOC_TYPES: DocumentType[] = [
 
 export function isNativeKind(value: string): value is NativeKind {
   return value in NATIVE_TYPES;
+}
+
+export function resolveNativeKind(value: string): NativeKind | null {
+  if (isNativeKind(value)) return value;
+  return NATIVE_KIND_ALIASES[value] ?? null;
 }

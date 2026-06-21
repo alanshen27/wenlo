@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiGet, apiPatch, apiPost, getApiErrorMessage } from "@/lib/client/api";
 import { libraryHome } from "@/lib/client/routes";
+import { useUpdateMe } from "@/hooks/use-me";
 import {
   ONBOARDING_PAGE,
   ONBOARDING_RECALL_PROMPT,
@@ -41,6 +42,7 @@ type StepId = (typeof STEPS)[number]["id"];
 
 export function OnboardingView() {
   const router = useRouter();
+  const updateMe = useUpdateMe();
   const [step, setStep] = useState<StepId>("library");
   const [library, setLibrary] = useState<Library | null>(null);
   const [libraryName, setLibraryName] = useState("");
@@ -168,7 +170,7 @@ export function OnboardingView() {
     setFinishing(true);
     setError(null);
     try {
-      await apiPatch("/api/me", { completeOnboarding: true });
+      await updateMe.mutateAsync({ completeOnboarding: true });
       if (library) {
         router.push(libraryHome(library.id));
         router.refresh();
@@ -180,7 +182,7 @@ export function OnboardingView() {
       setError(getApiErrorMessage(err));
       setFinishing(false);
     }
-  }, [library, router]);
+  }, [library, router, updateMe]);
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
 
@@ -235,7 +237,7 @@ export function OnboardingView() {
               Your library is home
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Everything lives in a library — files, notes, and slides. Recall
+              Everything lives in a library — files, notes, and decks. Recall
               searches across all of it. Name yours to get started.
             </p>
 

@@ -9,6 +9,7 @@ import {
   type DeckElement,
   type ImageElement,
 } from "@/lib/decks/deck-schema";
+import { resolveConnector } from "@/lib/scene/scene-geometry";
 import type { ShapeKind } from "@/lib/canvas/shapes";
 
 // 16:9 PowerPoint canvas in inches; deck coordinates map onto it uniformly.
@@ -70,17 +71,13 @@ async function imageDataUri(el: ImageElement): Promise<string | null> {
 }
 
 function addElement(pptx: PptxGenJS, slide: PptxGenJS.Slide, el: DeckElement, dataUri: string | null) {
-  const common = {
-    x: inX(el.x),
-    y: inY(el.y),
-    w: inX(el.w),
-    h: inY(el.h),
-    rotate: el.rotation ?? 0,
-  };
-
   if (el.type === "text") {
     slide.addText(el.text || " ", {
-      ...common,
+      x: inX(el.x),
+      y: inY(el.y),
+      w: inX(el.w),
+      h: inY(el.h),
+      rotate: el.rotation ?? 0,
       fontSize: +(el.fontSize * PX_TO_PT).toFixed(1),
       color: hex(el.color, "000000"),
       bold: (el.fontWeight ?? 400) >= 600,
@@ -89,15 +86,64 @@ function addElement(pptx: PptxGenJS, slide: PptxGenJS.Slide, el: DeckElement, da
       valign: "top",
       fontFace: el.fontFamily || "Arial",
       margin: 0,
+      hyperlink: el.link ? { url: el.link } : undefined,
+      bullet: el.listStyle === "bullet",
     });
     return;
   }
 
   if (el.type === "image") {
     if (!dataUri) return;
-    slide.addImage({ ...common, data: dataUri });
+    slide.addImage({
+      x: inX(el.x),
+      y: inY(el.y),
+      w: inX(el.w),
+      h: inY(el.h),
+      rotate: el.rotation ?? 0,
+      data: dataUri,
+    });
+    if (el.caption?.trim()) {
+      slide.addText(el.caption, {
+        x: inX(el.x),
+        y: inY(el.y + el.h + 4),
+        w: inX(el.w),
+        h: inY(24),
+        fontSize: 10,
+        color: "64748B",
+        align: "center",
+        valign: "top",
+        margin: 0,
+      });
+    }
     return;
   }
+
+  if (el.type === "arrow") {
+    const x1 = el.x + el.points[0];
+    const y1 = el.y + el.points[1];
+    const x2 = el.x + el.points[2];
+    const y2 = el.y + el.points[3];
+    slide.addShape(pptx.ShapeType.line, {
+      x: inX(x1),
+      y: inY(y1),
+      w: inX(x2 - x1),
+      h: inY(y2 - y1),
+      line: { color: hex(el.stroke, "000000"), width: (el.strokeWidth ?? 2) * PX_TO_PT, endArrowType: "triangle" },
+    });
+    return;
+  }
+
+  if (el.type === "connector") {
+    return;
+  }
+
+  const common = {
+    x: inX(el.x),
+    y: inY(el.y),
+    w: inX(el.w),
+    h: inY(el.h),
+    rotate: el.rotation ?? 0,
+  };
 
   // Shapes
   const fill = isTransparent(el.fill)

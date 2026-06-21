@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Download } from "lucide-react";
-import { useLibrary } from "@/components/library/library-shell";
+import { useLibraryHeader, useLibraryScope } from "@/components/library/context";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,7 +29,8 @@ type Document = {
 export function DocumentView() {
   const router = useRouter();
   const { documentId } = useParams<{ documentId: string }>();
-  const { libraryId, setHeader } = useLibrary();
+  const { libraryId } = useLibraryScope();
+  const { setHeader } = useLibraryHeader();
 
   const [document, setDocument] = useState<Document | null>(null);
   const [mediaError, setMediaError] = useState(false);

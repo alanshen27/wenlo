@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CreditCard, LogOut, Settings, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/blocknote-ui/avatar";
@@ -13,57 +12,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatTokens } from "@/lib/billing/plans";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { apiGet } from "@/lib/client/api";
 import { settingsPlanRoute, settingsRoute } from "@/lib/client/routes";
-import type { UsageSummary } from "@/lib/billing/usage";
-import { USAGE_UPDATED_EVENT } from "@/lib/billing/usage-events";
+import { userDisplayName, userInitials } from "@/lib/client/user-display";
+import { useMe } from "@/hooks/use-me";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/core/utils";
-
-type MeResponse = {
-  id: string;
-  email: string;
-  name: string | null;
-  avatarUrl: string | null;
-  usage: UsageSummary;
-};
-
-function initials(name: string | null, email: string): string {
-  if (name?.trim()) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    return name.slice(0, 2).toUpperCase();
-  }
-  return email.slice(0, 2).toUpperCase();
-}
-
-function displayName(name: string | null, email: string): string {
-  return name?.trim() || email.split("@")[0];
-}
+import { useState } from "react";
 
 export function SidebarFooter() {
   const router = useRouter();
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: me, isLoading: loading } = useMe();
   const [loggingOut, setLoggingOut] = useState(false);
-
-  const loadMe = useCallback(async () => {
-    try {
-      const data = await apiGet<MeResponse>("/api/me");
-      setMe(data);
-    } catch {
-      setMe(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadMe();
-    const onUsageUpdated = () => void loadMe();
-    window.addEventListener(USAGE_UPDATED_EVENT, onUsageUpdated);
-    return () => window.removeEventListener(USAGE_UPDATED_EVENT, onUsageUpdated);
-  }, [loadMe]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -124,12 +83,12 @@ export function SidebarFooter() {
         <Avatar className="size-7 shrink-0">
           {me.avatarUrl && <AvatarImage src={me.avatarUrl} alt="" />}
           <AvatarFallback className="text-[10px] font-medium">
-            {initials(me.name, me.email)}
+            {userInitials(me.name, me.email)}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium leading-tight">
-            {displayName(me.name, me.email)}
+            {userDisplayName(me.name, me.email)}
           </p>
           <p className="truncate text-[10px] text-muted-foreground">{me.email}</p>
         </div>

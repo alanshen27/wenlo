@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import dagre from "dagre";
 import {
   addEdge,
@@ -23,18 +23,14 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Loader2, Plus, Trash2, Wand2, Maximize } from "lucide-react";
-import { useLibrary } from "@/components/library/library-shell";
-import type { SaveStatus } from "@/components/library/main-header";
+import { useLibraryHeader, useLibraryScope, useLibraryTree } from "@/components/library/context";
+import { useDocumentHeader } from "@/hooks/use-document-header";
+import { useDebouncedFlush } from "@/hooks/use-debounced-persist";
+import { useFlowchartDocument } from "@/hooks/use-native-documents";
+import { useSaveStatus } from "@/hooks/use-save-status";
 import { Button } from "@/components/ui/button";
 import { ViewError } from "@/components/ui/view";
-import {
-  apiGet,
-  apiPatch,
-  getApiErrorMessage,
-  isCanceledError,
-  isNotFoundError,
-} from "@/lib/client/api";
-import { flowchartRoute, libraryHome } from "@/lib/client/routes";
+import { apiPatch } from "@/lib/client/api";
 import {
   createEmptyFlow,
   flowColorStyle,
@@ -312,26 +308,21 @@ function layoutWithDagre(nodes: Node[], edges: Edge[]): Node[] {
 // View
 // ---------------------------------------------------------------------------
 
-type FlowData = {
-  id: string;
-  title: string;
-  folderId: string | null;
-  libraryId: string;
-  scene: FlowDoc;
-};
-
 export function FlowchartView() {
-  const router = useRouter();
   const { flowchartId } = useParams<{ flowchartId: string }>();
-  const { libraryId, canEdit, setHeader, refreshTree } = useLibrary();
+  const { libraryId, canEdit } = useLibraryScope();
+  const { refreshTree } = useLibraryTree();
+  const { setHeader } = useLibraryHeader();
+  const { saveStatus, markSaving, markSaved, markError } = useSaveStatus();
+  const { data: flowData, isLoading, loadError, reload } = useFlowchartDocument(
+    flowchartId,
+    libraryId
+  );
   const readOnly = !canEdit;
 
   const [loaded, setLoaded] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const [title, setTitle] = useState("");
   const [folderId, setFolderId] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [shape, setShape] = useState<NodeShape>("rounded");
   const [color, setColor] = useState<FlowColor>("indigo");
 
@@ -340,11 +331,8 @@ export function FlowchartView() {
 
   const rfRef = useRef<ReactFlowInstance<Node, Edge> | null>(null);
   const lastSavedRef = useRef<FlowDoc>(createEmptyFlow());
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Mirror `loaded` in a ref so `flush` can bail before the scene is in — the
-  // initial empty graph must never be diffed/patched over the real content.
   const loadedRef = useRef(false);
+  const flushRef = useRef<() => void>(() => {});
 
   const onCommitLabel = useCallback(
     (id: string, label: string) => {
@@ -355,67 +343,35 @@ export function FlowchartView() {
     [setNodes]
   );
 
-  // Load the flowchart.
   useEffect(() => {
-    let cancelled = false;
-    setLoaded(false);
-    setLoadError(null);
-    void (async () => {
-      try {
-        const data = await apiGet<FlowData>(`/api/flowcharts/${flowchartId}`);
-        if (cancelled) return;
-        if (data.libraryId && data.libraryId !== libraryId) {
-          router.replace(flowchartRoute(data.libraryId, data.id));
-          return;
-        }
-        const scene = normalizeFlow(data.scene);
-        lastSavedRef.current = scene;
-        setTitle(data.title);
-        setFolderId(data.folderId);
-        setNodes(toRfNodes(scene, !canEdit, onCommitLabel));
-        setEdges(toRfEdges(scene));
-        setLoaded(true);
-      } catch (err) {
-        if (cancelled || isCanceledError(err)) return;
-        if (isNotFoundError(err)) {
-          router.replace(libraryHome(libraryId));
-          return;
-        }
-        setLoadError(getApiErrorMessage(err, "We couldn't load this flowchart."));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [flowchartId, libraryId, canEdit, onCommitLabel, router, setNodes, setEdges, reloadKey]);
+    if (!flowData) {
+      setLoaded(false);
+      return;
+    }
+    const scene = normalizeFlow(flowData.scene as FlowDoc);
+    lastSavedRef.current = scene;
+    setTitle(flowData.title);
+    setFolderId(flowData.folderId);
+    setNodes(toRfNodes(scene, !canEdit, onCommitLabel));
+    setEdges(toRfEdges(scene));
+    setLoaded(true);
+  }, [flowData?.id, canEdit, onCommitLabel, setNodes, setEdges]);
 
   const flush = useCallback(() => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    // Never persist until the scene has loaded (avoids patching the empty
-    // initial graph) and never from a read-only session.
     if (!loadedRef.current || readOnly) return;
     const next = fromRf(rfRef.current?.getNodes() ?? nodes, rfRef.current?.getEdges() ?? edges);
     const patch = diffFlow(lastSavedRef.current, next);
     if (!patch) return;
     lastSavedRef.current = next;
-    setSaveStatus("saving");
+    markSaving();
     void apiPatch(`/api/flowcharts/${flowchartId}`, { patch })
-      .then(() => {
-        setSaveStatus("saved");
-        if (savedTimer.current) clearTimeout(savedTimer.current);
-        savedTimer.current = setTimeout(() => setSaveStatus("idle"), 1500);
-      })
-      .catch(() => setSaveStatus("error"));
-  }, [flowchartId, nodes, edges, readOnly]);
+      .then(() => markSaved())
+      .catch(() => markError());
+  }, [flowchartId, nodes, edges, readOnly, markSaving, markSaved, markError]);
 
-  const scheduleSave = useCallback(() => {
-    if (readOnly) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
-  }, [flush, readOnly]);
+  flushRef.current = flush;
+
+  const { schedule: scheduleSave } = useDebouncedFlush(() => flushRef.current(), SAVE_DEBOUNCE_MS);
 
   // Keep the ref in lock-step with the loaded flag for `flush`'s guard.
   useEffect(() => {
@@ -428,28 +384,12 @@ export function FlowchartView() {
     scheduleSave();
   }, [nodes, edges, loaded, readOnly, scheduleSave]);
 
-  // Flush on real unmount / tab close only. Reading `flush` via a ref keeps
-  // this effect from re-subscribing (and flushing a stale closure) on every
-  // graph change.
-  const flushRef = useRef(flush);
-  useEffect(() => {
-    flushRef.current = flush;
-  }, [flush]);
+  const headerState = useMemo(() => {
+    if (!loaded) return undefined;
+    return { saveStatus, titleOverride: title, folderIdFallback: folderId };
+  }, [loaded, saveStatus, title, folderId]);
 
-  useEffect(() => {
-    const onBeforeUnload = () => flushRef.current();
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      flushRef.current();
-      if (savedTimer.current) clearTimeout(savedTimer.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    setHeader({ saveStatus, titleOverride: title, folderIdFallback: folderId });
-  }, [loaded, saveStatus, title, folderId, setHeader]);
+  useDocumentHeader(setHeader, headerState);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -544,12 +484,12 @@ export function FlowchartView() {
       <ViewError
         title="Couldn't load this flowchart"
         message={loadError}
-        onRetry={() => setReloadKey((k) => k + 1)}
+        onRetry={reload}
       />
     );
   }
 
-  if (!loaded) {
+  if (isLoading || !loaded) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />

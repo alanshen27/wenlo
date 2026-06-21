@@ -20,6 +20,7 @@ export type RecentItem = {
   libraryIcon: string;
   folderId: string | null;
   updatedAt: string;
+  createdAt: string;
   sizeBytes: number | null;
   /** True when the item lives in a library shared with the user (not owned). */
   shared: boolean;
@@ -93,6 +94,7 @@ export async function listRecents(
       libraryId: p.libraryId,
       folderId: p.folderId,
       updatedAt: p.updatedAt.toISOString(),
+      createdAt: p.createdAt.toISOString(),
       sizeBytes: null,
       pinned: pinned.pageIds.has(p.id),
       ...libMeta(p.libraryId),
@@ -130,6 +132,7 @@ export async function listRecents(
     libraryId: d.libraryId,
     folderId: d.folderId,
     updatedAt: d.updatedAt.toISOString(),
+    createdAt: d.createdAt.toISOString(),
     sizeBytes: d.sizeBytes,
     pinned: pinned.documentIds.has(d.id),
     ...libMeta(d.libraryId),
@@ -142,6 +145,7 @@ const pageSelect = {
   plainText: true,
   libraryId: true,
   folderId: true,
+  createdAt: true,
   updatedAt: true,
 } as const;
 
@@ -151,6 +155,7 @@ const docSelect = {
   type: true,
   libraryId: true,
   folderId: true,
+  createdAt: true,
   updatedAt: true,
   sizeBytes: true,
 } as const;

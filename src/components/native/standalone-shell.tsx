@@ -1,44 +1,28 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import { Loader2 } from "lucide-react";
-import {
-  LibraryContext,
-  type LibraryContextValue,
-} from "@/components/library/library-shell";
-import { StandaloneTopBar } from "@/components/native/standalone-top-bar";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { LibraryProviders, type HeaderState } from "@/components/library/context";
+import { NativeAppShell } from "@/components/native/native-app-shell";
+import { NativeTopBar } from "@/components/native/native-top-bar";
 import { FileArtwork } from "@/lib/client/file-icons";
-import type { SaveStatus } from "@/components/library/main-header";
 import { apiGet } from "@/lib/client/api";
 import { NATIVE_TYPES, type NativeKind } from "@/lib/native/native-types";
 import { nativeHomeRoute } from "@/lib/client/routes";
 import type { LibraryRole } from "@/lib/library/library-access";
-import type { PageCollaborator } from "@/lib/realtime/page-presence";
-
-type HeaderState = {
-  saveStatus?: SaveStatus;
-  titleOverride?: string;
-  folderIdFallback?: string | null;
-  collaborators?: PageCollaborator[];
-  remoteNotice?: string | null;
-};
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { Loader2 } from "lucide-react";
 
 type Resolved = { libraryId: string; canEdit: boolean };
 
+const noop = () => {};
+const asyncNoop = async () => {};
+
 /**
- * Renders an existing library editor (PageView, DeckView, …) full screen,
- * outside the library sidebar/shell. The editors read `useLibrary()` for the
- * library id + permissions and push title/save state via `setHeader`, so we
- * resolve the item's library, then supply a matching `LibraryContext` and a
- * minimal top bar driven by those header updates.
+ * Renders a native editor full-screen outside the library sidebar.
+ * Provides minimal split library contexts so editors can call
+ * `useLibraryScope`, `useLibraryHeader`, and `useLibraryTree` without the
+ * full shell or a brittle god-context stub.
  */
 export function StandaloneShell({
   kind,
@@ -63,9 +47,7 @@ export function StandaloneShell({
     void (async () => {
       try {
         const endpoint =
-          cfg.source === "page"
-            ? `/api/pages/${itemId}`
-            : `/api/documents/${itemId}`;
+          cfg.source === "page" ? `/api/pages/${itemId}` : `/api/documents/${itemId}`;
         const [item, libraries] = await Promise.all([
           apiGet<{ libraryId: string }>(endpoint),
           apiGet<Array<{ id: string; role?: LibraryRole }>>("/api/libraries"),
@@ -74,8 +56,6 @@ export function StandaloneShell({
         const role = libraries.find((l) => l.id === item.libraryId)?.role ?? "OWNER";
         setResolved({ libraryId: item.libraryId, canEdit: role !== "VIEWER" });
       } catch {
-        // Missing, inaccessible, or transient — show a standalone "not found"
-        // with a path back to the hub rather than bouncing into the library.
         if (!cancelled) setMissing(true);
       }
     })();
@@ -85,43 +65,52 @@ export function StandaloneShell({
   }, [itemId, cfg.source]);
 
   const setHeaderState = useCallback((state: HeaderState) => setHeader(state), []);
-  const asyncNoop = useCallback(async () => {}, []);
-  const noop = useCallback(() => {}, []);
 
-  const contextValue = useMemo<LibraryContextValue | null>(() => {
+  const providers = useMemo(() => {
     if (!resolved) return null;
     const role: LibraryRole = resolved.canEdit ? "OWNER" : "VIEWER";
     return {
-      libraryId: resolved.libraryId,
-      libraries: [],
-      activeLibrary: undefined,
-      libraryRole: role,
-      canEdit: resolved.canEdit,
-      tree: [],
-      treeLoaded: true,
-      folders: [],
-      contextFolderId: header.folderIdFallback ?? null,
-      refreshTree: asyncNoop,
-      uploadToFolder: asyncNoop,
-      reindexDocument: asyncNoop,
-      breadcrumbHref: () => null,
-      setHeader: setHeaderState,
-      createPage: asyncNoop,
-      createBoard: asyncNoop,
-      createDeck: asyncNoop,
-      createDatabase: asyncNoop,
-      createFlowchart: asyncNoop,
-      moveItem: asyncNoop,
-      beginCreateFolder: noop,
-      beginEditFolder: noop,
-      beginDeleteFolder: noop,
-      beginDeletePage: noop,
-      beginDeleteDocument: noop,
-      beginMove: noop,
-      openDocumentPreview: noop,
-      closeDocumentPreview: noop,
+      scope: {
+        libraryId: resolved.libraryId,
+        libraries: [],
+        activeLibrary: undefined,
+        libraryRole: role,
+        canEdit: resolved.canEdit,
+        contextFolderId: header.folderIdFallback ?? null,
+      },
+      tree: {
+        tree: [],
+        treeLoaded: true,
+        folders: [],
+        refreshTree: asyncNoop,
+        uploadToFolder: asyncNoop,
+        reindexDocument: asyncNoop,
+        breadcrumbHref: () => null,
+        moveItem: asyncNoop,
+        moveEntriesToFolder: asyncNoop,
+      },
+      actions: {
+        createPage: asyncNoop,
+        createBoard: asyncNoop,
+        createDeck: asyncNoop,
+        createDatabase: asyncNoop,
+        createFlowchart: asyncNoop,
+        beginCreateFolder: noop,
+        beginEditFolder: noop,
+        beginDeleteFolder: noop,
+        beginDeletePage: noop,
+        beginDeleteDocument: noop,
+        beginMove: noop,
+        openDocumentPreview: noop,
+        closeDocumentPreview: noop,
+        openLibraryCreate: noop,
+        openLibraryEdit: noop,
+        openLibraryDelete: noop,
+        openShareLibrary: noop,
+      },
+      header: { setHeader: setHeaderState },
     };
-  }, [resolved, header.folderIdFallback, asyncNoop, noop, setHeaderState]);
+  }, [resolved, header.folderIdFallback, setHeaderState]);
 
   if (missing) {
     return (
@@ -143,29 +132,50 @@ export function StandaloneShell({
     );
   }
 
-  if (!contextValue) {
+  if (!providers) {
     return (
-      <div className="flex h-screen flex-col bg-background">
-        <StandaloneTopBar kind={kind} title="" />
+      <NativeAppShell
+        kind={kind}
+        topBar={(shell) => (
+          <NativeTopBar
+            mode="editor"
+            kind={kind}
+            workspaceId={itemId}
+            title=""
+            sidebarCollapsed={shell.sidebarCollapsed}
+            onToggleSidebar={shell.toggleSidebar}
+          />
+        )}
+      >
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
         </div>
-      </div>
+      </NativeAppShell>
     );
   }
 
   return (
-    <LibraryContext.Provider value={contextValue}>
-      <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-        <StandaloneTopBar
-          kind={kind}
-          title={header.titleOverride ?? ""}
-          saveStatus={header.saveStatus}
-          collaborators={header.collaborators}
-          remoteNotice={header.remoteNotice}
-        />
-        <main className="flex flex-1 flex-col overflow-hidden">{children}</main>
-      </div>
-    </LibraryContext.Provider>
+    <LibraryProviders {...providers}>
+      <NativeAppShell
+        kind={kind}
+        preferredLibraryId={providers.scope.libraryId}
+        topBar={(shell) => (
+          <NativeTopBar
+            mode="editor"
+            kind={kind}
+            workspaceId={itemId}
+            title={header.titleOverride ?? ""}
+            libraryId={providers.scope.libraryId}
+            saveStatus={header.saveStatus}
+            collaborators={header.collaborators}
+            remoteNotice={header.remoteNotice}
+            sidebarCollapsed={shell.sidebarCollapsed}
+            onToggleSidebar={shell.toggleSidebar}
+          />
+        )}
+      >
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
+      </NativeAppShell>
+    </LibraryProviders>
   );
 }

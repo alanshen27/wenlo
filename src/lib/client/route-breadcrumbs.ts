@@ -26,7 +26,7 @@ export function buildRouteBreadcrumbs(
   const { libraryName, folders, tree } = library;
 
   if (params.pageId) {
-    const inTree = findItemInTree(tree, { type: "page", id: params.pageId });
+    const inTree = findItemInTree(tree, { kind: "page", id: params.pageId });
     const folderId = inTree?.folderId ?? opts?.folderIdFallback ?? null;
     const name = opts?.titleOverride ?? inTree?.title ?? "Untitled";
     return buildBreadcrumbs({
@@ -38,7 +38,7 @@ export function buildRouteBreadcrumbs(
   }
 
   if (params.documentId) {
-    const inTree = findItemInTree(tree, { type: "document", id: params.documentId });
+    const inTree = findItemInTree(tree, { kind: "document", id: params.documentId });
     const folderId = inTree?.folderId ?? opts?.folderIdFallback ?? null;
     const name = opts?.titleOverride ?? inTree?.title ?? "Untitled";
     return buildBreadcrumbs({

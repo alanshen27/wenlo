@@ -84,7 +84,7 @@ describe("applyBoardPatch", () => {
 describe("deriveBoardText", () => {
   it("collects text and sticky content in z-order", () => {
     const scene: BoardDoc = sceneOf([
-      { id: "t", type: "text", x: 0, y: 0, text: "Hello", w: 100, fontSize: 16, color: "#000" },
+      { id: "t", type: "text", x: 0, y: 0, text: "Hello", w: 100, h: 24, fontSize: 16, color: "#000" },
       shape("s"),
       { id: "n", type: "sticky", x: 0, y: 0, text: "Note", w: 50, h: 50, fill: "#ff0", color: "#000" },
     ]);

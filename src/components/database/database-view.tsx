@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import {
   CalendarDays,
   Columns3,
@@ -11,7 +11,8 @@ import {
   Table2,
   Trash2,
 } from "lucide-react";
-import { useLibrary } from "@/components/library/library-shell";
+import { useLibraryHeader, useLibraryScope, useLibraryTree } from "@/components/library/context";
+import { useDocumentHeader } from "@/hooks/use-document-header";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,7 +27,6 @@ import { DatabaseBoard } from "@/components/database/database-board";
 import { DatabaseCalendar } from "@/components/database/database-calendar";
 import { apiPatch } from "@/lib/client/api";
 import { ViewError } from "@/components/ui/view";
-import { libraryHome } from "@/lib/client/routes";
 import { VIEW_TYPE_LABELS, type ViewType } from "@/lib/databases/database-schema";
 import { cn } from "@/lib/core/utils";
 
@@ -37,11 +37,12 @@ const VIEW_ICONS: Record<ViewType, typeof Table2> = {
 };
 
 export function DatabaseView() {
-  const router = useRouter();
   const { databaseId } = useParams<{ databaseId: string }>();
-  const { libraryId, canEdit, setHeader, refreshTree } = useLibrary();
-  const controller = useDatabase(databaseId, !canEdit);
-  const { scene, saveStatus, readOnly, notFound, loadError, reload, activeViewId, setActiveViewId } =
+  const { libraryId, canEdit } = useLibraryScope();
+  const { refreshTree } = useLibraryTree();
+  const { setHeader } = useLibraryHeader();
+  const controller = useDatabase(databaseId, libraryId, !canEdit);
+  const { scene, saveStatus, readOnly, loadError, reload, activeViewId, setActiveViewId } =
     controller;
 
   const [title, setTitle] = useState("");
@@ -50,14 +51,12 @@ export function DatabaseView() {
     if (scene) setTitle(scene.title);
   }, [scene]);
 
-  useEffect(() => {
-    if (notFound) router.replace(libraryHome(libraryId));
-  }, [notFound, libraryId, router]);
+  const headerState = useMemo(() => {
+    if (!scene) return undefined;
+    return { saveStatus, titleOverride: title, folderIdFallback: scene.folderId };
+  }, [scene, saveStatus, title]);
 
-  useEffect(() => {
-    if (!scene) return;
-    setHeader({ saveStatus, titleOverride: title, folderIdFallback: scene.folderId });
-  }, [scene, saveStatus, title, setHeader]);
+  useDocumentHeader(setHeader, headerState);
 
   const saveTitle = useCallback(async () => {
     if (readOnly || !scene || title === scene.title) return;
@@ -92,7 +91,7 @@ export function DatabaseView() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-3 border-b border-border px-4 py-2">
+      <div className="flex items-center gap-3 px-4 py-2">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -109,7 +108,7 @@ export function DatabaseView() {
       </div>
 
       {/* View tabs */}
-      <div className="flex items-center gap-1 border-b border-border px-3 py-1.5">
+      <div className="flex items-center gap-1 px-3 py-1.5">
         {scene.views.map((view) => {
           const Icon = VIEW_ICONS[view.type];
           const active = view.id === activeView?.id;

@@ -46,6 +46,7 @@ export type PageTemplate = {
   id: string;
   label: string;
   title: string;
+  description: string;
   preview: string;
   content: RecallPartialBlock[];
 };
@@ -55,8 +56,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     id: "meeting-notes",
     label: "Meeting notes",
     title: "Meeting notes",
+    description: "Agenda, discussion notes, decisions, and action items with owners.",
     preview:
-      "Product sync · June 15\nAttendees: Alex, Jordan, Sam\nAgenda: Launch timeline, open bugs\nDecision: Ship July 1 soft launch",
+      "Product sync\nAgenda\nLaunch timeline · open bugs\nDecision: Ship July 1 soft launch\nAlex — finalize checklist",
     content: [
       h(1, "Product sync"),
       p("Date: June 15, 2026 · Attendees: Alex, Jordan, Sam · Facilitator: Alex"),
@@ -86,8 +88,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     id: "project-brief",
     label: "Project brief",
     title: "Project brief",
+    description: "Problem, solution, metrics, scope, timeline, and stakeholder map.",
     preview:
-      "Native app homes\nProblem: editors buried in library nav\nGoal: Word-style entry per content type\nSuccess: <90s to first edit",
+      "Native app homes\nExecutive summary\nProblem: editors buried in library nav\nSuccess: <90s to first edit\nWeek 3: home UI + templates",
     content: [
       h(1, "Native app homes"),
       h(2, "Executive summary"),
@@ -125,8 +128,9 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
     id: "weekly-update",
     label: "Weekly update",
     title: "Weekly update",
+    description: "Highlights, metrics, in-progress work, blockers, and next week's plan.",
     preview:
-      "Week of June 9\nShipped: native homes, recents API\nIn progress: template previews\nBlocker: billing QA staffing",
+      "Weekly update\nHighlights\nShipped native homes + recents API\nBlockers: Billing QA staffing\nNext: Template polish + beta",
     content: [
       h(1, "Weekly update"),
       p("Week of June 9, 2026 · Platform team"),
@@ -150,6 +154,73 @@ export const PAGE_TEMPLATES: PageTemplate[] = [
       li("Finish template polish and ship to beta cohort"),
       li("Start migration guide for old library-only URLs"),
       li("Performance pass on recents query at scale"),
+    ],
+  },
+  {
+    id: "prd",
+    label: "Product spec",
+    title: "Product spec",
+    description: "PRD skeleton: user stories, requirements, edge cases, and launch checklist.",
+    preview:
+      "Billing v1\nUser stories\nAs a team admin I can add a card\nRequirements\nStripe Checkout + webhooks\nLaunch checklist",
+    content: [
+      h(1, "Billing v1"),
+      p("DRI: Alex · Target: July 15 · Eng: Jordan, Sam · Design: Morgan"),
+      h(2, "Problem"),
+      p(
+        "Teams on the beta want to pay without leaving wenlo. Today billing is manual — we can't scale past 50 design partners."
+      ),
+      h(2, "User stories"),
+      li("As a team admin, I can add a payment method and see our plan tier"),
+      li("As a team admin, I can invite seats and see per-seat pricing"),
+      li("As finance, I receive invoices by email with line items"),
+      h(2, "Requirements"),
+      h(3, "Must have"),
+      li("Stripe Checkout for card capture"),
+      li("Webhook handling for payment succeeded / failed"),
+      li("Plan limits enforced on seat count"),
+      h(3, "Nice to have"),
+      li("Annual billing toggle"),
+      li("Usage summary on the plan settings page"),
+      h(2, "Edge cases"),
+      li("Card expires mid-cycle — grace period + email"),
+      li("Downgrade with more seats than new tier allows"),
+      li("Failed payment retry for 7 days before read-only"),
+      h(2, "Launch checklist"),
+      li("Legal review of ToS update"),
+      li("QA on downgrade + upgrade paths"),
+      li("Support macro for billing questions"),
+      li("Metrics dashboard: MRR, churn, failed payments"),
+    ],
+  },
+  {
+    id: "one-on-one",
+    label: "1:1 notes",
+    title: "1:1 notes",
+    description: "Recurring manager report sync with talking points, feedback, and follow-ups.",
+    preview:
+      "Alex / Jordan · 1:1\nSince last time\nShipped recents filters\nTalking points\nCareer goals for H2\nAction items",
+    content: [
+      h(1, "Alex / Jordan · 1:1"),
+      p("June 18, 2026 · Bi-weekly · Private"),
+      h(2, "Since last time"),
+      li("Jordan shipped recents filters UI — live in beta"),
+      li("Alex escalated billing QA staffing — slot confirmed for next week"),
+      li("Jordan mentored Sam on the debounced persist hook"),
+      h(2, "Talking points"),
+      h(3, "What's going well"),
+      p("Strong ownership on native home polish. Communication in standup is crisp."),
+      h(3, "Growth areas"),
+      p("Scope on template content — aim for fewer, richer templates vs many thin ones."),
+      h(3, "Career"),
+      p("Jordan wants more system design exposure in H2. Pair on billing architecture review."),
+      h(2, "Feedback"),
+      li("From Jordan: appreciate the clear PRD for billing — made scoping easy"),
+      li("From Alex: push back earlier when timeline feels tight"),
+      h(2, "Action items"),
+      li("Jordan — draft billing webhook sequence diagram by Thu"),
+      li("Alex — schedule architecture review for Fri"),
+      li("Both — revisit career goals doc before next 1:1"),
     ],
   },
 ];

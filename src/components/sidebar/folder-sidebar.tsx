@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -41,52 +42,37 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { FolderNode } from "@/lib/library/folders";
 import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
-import { LibrarySwitcher, type Library } from "@/components/sidebar/library-switcher";
+import { LibrarySwitcher } from "@/components/sidebar/library-switcher";
 import { AppLauncher } from "@/components/native/app-launcher";
 import { SidebarFooter } from "@/components/sidebar/sidebar-footer";
-import { useRecallChat } from "@/components/recall/recall-chat-context";
+import { useRecallChatOptional } from "@/components/recall/recall-chat-context";
+import {
+  useLibraryActions,
+  useLibraryScope,
+  useLibraryTree,
+} from "@/components/library/context";
 import { sessionLabel } from "@/lib/recall-chat/recall-chat-ui";
 import {
+  documentOpenRoute,
+  folderHome,
+  libraryHome,
+  pageRoute,
+  persistActiveLibrary,
+  recallRoute,
+  searchRoute,
+} from "@/lib/client/routes";
+import { findItemInTree } from "@/lib/client/tree-mutations";
+import type { FolderColorId } from "@/lib/library/folder-colors";
+import {
+  dragItemFromData,
   folderDropId,
   itemDragId,
-  parseFolderDropId,
-  parseItemDragId,
-  type SidebarDragItem,
+  resolveFolderDrop,
 } from "@/lib/client/sidebar-dnd";
+import type { FolderItem } from "@/lib/library/folders";
 
 type FolderRef = { id: string; name: string; color: string };
 type ItemRef = { id: string; title: string };
-
-type Props = {
-  libraries: Library[];
-  activeLibraryId: string | null;
-  onSelectLibrary: (id: string) => void;
-  onCreateLibrary: () => void;
-  onShareLibrary?: () => void;
-  onEditLibrary: (library: Library) => void;
-  onDeleteLibrary: (library: Library) => void;
-  canEdit?: boolean;
-  tree: FolderNode[];
-  treeLoading?: boolean;
-  selectedFolderId: string | null;
-  selectedPageId: string | null;
-  selectedDocumentId: string | null;
-  onSelectFolder: (id: string | null) => void;
-  onSelectPage: (id: string) => void;
-  onSelectDocument: (id: string) => void;
-  onCreateFolder: (parentId: string | null) => void;
-  onEditFolder: (folder: FolderRef) => void;
-  onDeleteFolder: (folder: ItemRef) => void;
-  onCreatePage: (folderId: string | null) => void;
-  onDeletePage: (page: ItemRef) => void;
-  onDeleteDocument: (doc: ItemRef) => void;
-  onMoveItem: (item: SidebarDragItem, folderId: string | null) => void | Promise<void>;
-  onUploadToFolder: (folderId: string | null, files: FileList | File[]) => void | Promise<void>;
-  activeNav: "search" | "recall" | "home" | null;
-  onOpenHome: () => void;
-  onOpenSearch: () => void;
-  onOpenRecall: () => void;
-};
 
 function SidebarTreeSkeleton() {
   const rows = [
@@ -114,75 +100,98 @@ function SidebarTreeSkeleton() {
   );
 }
 
-export function FolderSidebar(props: Props) {
-  const {
-    libraries,
-    activeLibraryId,
-    onSelectLibrary,
-    onCreateLibrary,
-    onShareLibrary,
-    onEditLibrary,
-    onDeleteLibrary,
-    canEdit = true,
-    tree,
-    treeLoading = false,
-    selectedFolderId,
-    selectedPageId,
-    selectedDocumentId,
-    onSelectFolder,
-    onSelectPage,
-    onSelectDocument,
-    onCreateFolder,
-    onEditFolder,
-    onDeleteFolder,
-    onCreatePage,
-    onDeletePage,
-    onDeleteDocument,
-    onMoveItem,
-    onUploadToFolder,
-    activeNav,
-    onOpenHome,
-    onOpenSearch,
-    onOpenRecall,
-  } = props;
+/** Library folder tree sidebar — reads split library contexts; route state from URL. */
+export function FolderSidebar() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams<{
+    libraryId: string;
+    folderId?: string;
+    pageId?: string;
+    documentId?: string;
+    boardId?: string;
+  }>();
 
-  const [activeDrag, setActiveDrag] = useState<SidebarDragItem | null>(null);
-  const recallChat = useRecallChat();
+  const libraryId = params.libraryId;
+  const selectedFolderId = params.folderId ?? null;
+  const selectedPageId = params.pageId ?? null;
+  const selectedDocumentId = params.documentId ?? params.boardId ?? null;
+
+  const isSearchPage = pathname.endsWith("/search");
+  const isRecallPage = pathname.endsWith("/recall");
+  const isFilesHome =
+    !isSearchPage && !isRecallPage && !selectedPageId && !selectedDocumentId;
+  const activeNav = isSearchPage
+    ? "search"
+    : isRecallPage
+      ? "recall"
+      : isFilesHome
+        ? "home"
+        : null;
+
+  const { libraries, canEdit } = useLibraryScope();
+  const { tree, treeLoaded, moveItem, uploadToFolder } = useLibraryTree();
+  const {
+    createPage,
+    beginCreateFolder,
+    beginEditFolder,
+    beginDeleteFolder,
+    beginDeletePage,
+    beginDeleteDocument,
+    openLibraryCreate,
+    openLibraryEdit,
+    openLibraryDelete,
+    openShareLibrary,
+  } = useLibraryActions();
+
+  const treeLoading = !treeLoaded;
+  const recallChat = useRecallChatOptional();
+
+  const onSelectLibrary = (id: string) => {
+    persistActiveLibrary(id);
+    router.push(libraryHome(id));
+  };
+
+  const onOpenHome = () => router.push(libraryHome(libraryId));
+  const onOpenSearch = () => router.push(searchRoute(libraryId));
+  const onOpenRecall = () => router.push(recallRoute(libraryId));
+  const onSelectFolder = (id: string | null) => {
+    if (id) router.push(folderHome(libraryId, id));
+    else router.push(libraryHome(libraryId));
+  };
+  const onSelectPage = (id: string) => router.push(pageRoute(libraryId, id));
+  const onSelectDocument = (id: string) => {
+    const found = findItemInTree(tree, { kind: "document", id });
+    router.push(documentOpenRoute(libraryId, id, found?.type));
+  };
+
+  const handleEditFolder = (folder: FolderRef) =>
+    beginEditFolder({
+      id: folder.id,
+      name: folder.name,
+      color: folder.color as FolderColorId,
+    });
+  const handleDeleteFolder = (folder: ItemRef) =>
+    beginDeleteFolder({ id: folder.id, name: folder.title });
+
+  const [activeDrag, setActiveDrag] = useState<FolderItem | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
-  const activeLibrary = libraries.find((l) => l.id === activeLibraryId);
+  const activeLibrary = libraries.find((l) => l.id === libraryId);
 
   async function handleDragEnd(event: DragEndEvent) {
     setActiveDrag(null);
-    const parsed = parseItemDragId(event.active.id);
-    if (!parsed || !event.over) return;
-
-    const data = event.active.data.current as SidebarDragItem | undefined;
-    const item: SidebarDragItem = {
-      ...parsed,
-      title: data?.title,
-      docType: data?.docType,
-    };
-    if (!item.title) return;
-
-    const folderId = parseFolderDropId(event.over.id);
-    if (folderId === undefined) return;
-    await onMoveItem(item, folderId);
+    const drop = resolveFolderDrop(event);
+    if (!drop) return;
+    await moveItem(drop.item, drop.targetFolderId);
   }
 
   function handleDragStart(event: DragStartEvent) {
-    const item = parseItemDragId(event.active.id);
-    if (item) {
-      const data = event.active.data.current as SidebarDragItem | undefined;
-      setActiveDrag({
-        ...item,
-        title: data?.title,
-        docType: data?.docType,
-      });
-    }
+    const item = dragItemFromData(event.active.data.current);
+    if (item) setActiveDrag(item);
   }
 
   return (
@@ -198,10 +207,10 @@ export function FolderSidebar(props: Props) {
           <div className="min-w-0 flex-1">
             <LibrarySwitcher
               libraries={libraries}
-              activeLibraryId={activeLibraryId}
+              activeLibraryId={libraryId}
               onSelect={onSelectLibrary}
-              onCreate={onCreateLibrary}
-              onShare={onShareLibrary}
+              onCreate={openLibraryCreate}
+              onShare={openShareLibrary}
             />
           </div>
           <AppLauncher />
@@ -211,13 +220,13 @@ export function FolderSidebar(props: Props) {
                 {
                   label: "Edit library",
                   icon: Pencil,
-                  onClick: () => onEditLibrary(activeLibrary),
+                  onClick: () => openLibraryEdit(activeLibrary),
                 },
                 {
                   label: "Delete library",
                   icon: Trash2,
                   variant: "destructive" as const,
-                  onClick: () => onDeleteLibrary(activeLibrary),
+                  onClick: () => openLibraryDelete(activeLibrary),
                 },
               ]}
             />
@@ -264,7 +273,7 @@ export function FolderSidebar(props: Props) {
             <Sparkles className="size-4" />
             Recall
           </Button>
-          {activeNav === "recall" && (
+          {activeNav === "recall" && recallChat && (
             <div className="ml-2 space-y-0.5 border-l border-border pl-2">
               {recallChat.sessionError && (
                 <p className="px-2 py-1 text-[11px] leading-snug text-destructive">
@@ -331,7 +340,7 @@ export function FolderSidebar(props: Props) {
         <FolderDropTarget
           folderId={null}
           className="mx-1 flex shrink-0 items-center justify-between rounded-md px-2 py-2"
-          onUpload={onUploadToFolder}
+          onUpload={uploadToFolder}
         >
           <span className="text-xs font-medium text-muted-foreground">
             {canEdit ? "Private" : "Shared"}
@@ -342,7 +351,7 @@ export function FolderSidebar(props: Props) {
                 variant="ghost"
                 size="icon-sm"
                 title="New folder"
-                onClick={() => onCreateFolder(selectedFolderId)}
+                onClick={() => beginCreateFolder(selectedFolderId)}
               >
                 <FolderPlus className="size-3.5" />
               </Button>
@@ -350,7 +359,7 @@ export function FolderSidebar(props: Props) {
                 variant="ghost"
                 size="icon-sm"
                 title="New page"
-                onClick={() => onCreatePage(selectedFolderId)}
+                onClick={() => createPage(selectedFolderId)}
               >
                 <Plus className="size-3.5" />
               </Button>
@@ -372,13 +381,13 @@ export function FolderSidebar(props: Props) {
                 onSelectFolder={onSelectFolder}
                 onSelectPage={onSelectPage}
                 onSelectDocument={onSelectDocument}
-                onCreateFolder={onCreateFolder}
-                onEditFolder={onEditFolder}
-                onDeleteFolder={onDeleteFolder}
-                onCreatePage={onCreatePage}
-                onDeletePage={onDeletePage}
-                onDeleteDocument={onDeleteDocument}
-                onUploadToFolder={onUploadToFolder}
+                onCreateFolder={beginCreateFolder}
+                onEditFolder={handleEditFolder}
+                onDeleteFolder={handleDeleteFolder}
+                onCreatePage={createPage}
+                onDeletePage={beginDeletePage}
+                onDeleteDocument={beginDeleteDocument}
+                onUploadToFolder={uploadToFolder}
                 canEdit={canEdit}
               />
             ))}
@@ -452,7 +461,7 @@ function DraggableItemRow({
   style,
   children,
 }: {
-  item: SidebarDragItem;
+  item: FolderItem;
   className?: string;
   style?: React.CSSProperties;
   children: React.ReactNode;
@@ -677,7 +686,7 @@ function FolderTreeNode({
           {node.pages.map((page) => (
             <DraggableItemRow
               key={page.id}
-              item={{ type: "page", id: page.id, title: page.title }}
+              item={{ kind: "page", id: page.id, title: page.title }}
               className={cn(
                 "group sidebar-item flex cursor-grab items-center gap-1 py-0.5 pr-1 active:cursor-grabbing",
                 selectedPageId === page.id && "sidebar-item-active font-medium"
@@ -772,7 +781,7 @@ function FolderTreeNode({
             return (
               <DraggableItemRow
                 key={doc.id}
-                item={{ type: "document", id: doc.id, title: doc.title, docType: doc.type }}
+                item={{ kind: "document", id: doc.id, title: doc.title, type: doc.type }}
                 className={cn(
                   "group sidebar-item flex cursor-grab items-center gap-1 py-0.5 pr-1 active:cursor-grabbing",
                   selectedDocumentId === doc.id && "sidebar-item-active font-medium"

@@ -1,7 +1,8 @@
 # PRD — Whiteboard
 
 **Status:** Draft · **Owner:** Alan · **Last updated:** 2026-06-14
-**Sibling doc:** `docs/prd-slideshows.md` (shares the "native editable canvas content" pattern)
+**Sibling docs:** `docs/prd-slideshows.md` (shares the "native editable canvas content" pattern),
+`docs/prd-pdf-annotations.md` (fixed-surface overlay; reuses scene element geometry)
 
 ---
 

@@ -2,12 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Download, Loader2 } from "lucide-react";
-import { useLibrary } from "@/components/library/library-shell";
-import type { SaveStatus } from "@/components/library/main-header";
-import { Button } from "@/components/ui/button";
+import { useLibraryHeader, useLibraryScope, useLibraryTree } from "@/components/library/context";
+import { useDocumentHeader } from "@/hooks/use-document-header";
 import { useBoardCollab } from "@/components/whiteboard/use-board-collab";
+import { useDebouncedFlush } from "@/hooks/use-debounced-persist";
+import { useBoardDocument } from "@/hooks/use-native-documents";
+import { useMe } from "@/hooks/use-me";
+import { useSaveStatus } from "@/hooks/use-save-status";
+import { Button } from "@/components/ui/button";
 import type { BoardCanvasHandle } from "@/components/whiteboard/board-canvas";
 import {
   applyBoardPatch,
@@ -17,15 +21,8 @@ import {
   type BoardPatch,
 } from "@/lib/boards/board-schema";
 import { isCollabClientConfigured } from "@/lib/collab/config";
-import {
-  apiGet,
-  apiPatch,
-  getApiErrorMessage,
-  isCanceledError,
-  isNotFoundError,
-} from "@/lib/client/api";
+import { apiPatch } from "@/lib/client/api";
 import { ViewError } from "@/components/ui/view";
-import { boardRoute, libraryHome } from "@/lib/client/routes";
 
 const BoardCanvas = dynamic(
   () => import("@/components/whiteboard/board-canvas").then((m) => m.BoardCanvas),
@@ -38,16 +35,6 @@ const BoardCanvas = dynamic(
     ),
   }
 );
-
-type BoardData = {
-  id: string;
-  title: string;
-  folderId: string | null;
-  libraryId: string;
-  scene: BoardDoc;
-};
-
-type Me = { id: string; email: string; name: string | null };
 
 const SAVE_DEBOUNCE_MS = 600;
 
@@ -77,23 +64,20 @@ function mergePatch(base: BoardPatch | null, next: BoardPatch): BoardPatch {
 }
 
 export function BoardView() {
-  const router = useRouter();
   const { boardId } = useParams<{ boardId: string }>();
-  const { libraryId, canEdit, setHeader, refreshTree } = useLibrary();
+  const { libraryId, canEdit } = useLibraryScope();
+  const { refreshTree } = useLibraryTree();
+  const { setHeader } = useLibraryHeader();
+  const { data: me } = useMe();
+  const { saveStatus, markSaving, markSaved, markError } = useSaveStatus();
+  const { data: board, isLoading, loadError, reload } = useBoardDocument(boardId, libraryId);
 
-  const [board, setBoard] = useState<BoardData | null>(null);
   const [scene, setScene] = useState<BoardDoc>(createEmptyBoard());
   const [title, setTitle] = useState("");
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
-  const [me, setMe] = useState<Me | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
 
   const handleRef = useRef<BoardCanvasHandle | null>(null);
   const pendingRef = useRef<BoardPatch | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const collab = useBoardCollab({
     boardId,
@@ -103,105 +87,48 @@ export function BoardView() {
   });
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await apiGet<Me>("/api/me");
-        if (!cancelled) setMe(data);
-      } catch {
-        /* no-op */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setBoard(null);
-    setScene(createEmptyBoard());
-    setSaveStatus("idle");
-    setLoadError(null);
-    void (async () => {
-      try {
-        const data = await apiGet<BoardData>(`/api/boards/${boardId}`);
-        if (cancelled) return;
-        if (data.libraryId && data.libraryId !== libraryId) {
-          router.replace(boardRoute(data.libraryId, data.id));
-          return;
-        }
-        setBoard(data);
-        setScene(normalizeBoard(data.scene));
-        setTitle(data.title);
-      } catch (err) {
-        if (cancelled || isCanceledError(err)) return;
-        if (isNotFoundError(err)) {
-          router.replace(libraryHome(libraryId));
-          return;
-        }
-        setLoadError(getApiErrorMessage(err, "We couldn't load this whiteboard."));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [boardId, libraryId, router, reloadKey]);
+    if (!board) return;
+    setScene(normalizeBoard(board.scene as BoardDoc));
+    setTitle(board.title);
+  }, [board?.id]);
 
   const flush = useCallback(() => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
     const patch = pendingRef.current;
     pendingRef.current = null;
     if (!patch) return;
-    setSaveStatus("saving");
+    markSaving();
     void apiPatch(`/api/boards/${boardId}`, { patch, socketId: collab.getSocketId() })
-      .then(() => {
-        setSaveStatus("saved");
-        if (savedTimer.current) clearTimeout(savedTimer.current);
-        savedTimer.current = setTimeout(() => setSaveStatus("idle"), 1500);
-      })
-      .catch(() => setSaveStatus("error"));
-  }, [boardId, collab]);
+      .then(() => markSaved())
+      .catch(() => markError());
+  }, [boardId, collab, markSaving, markSaved, markError]);
+
+  const { schedule } = useDebouncedFlush(flush, SAVE_DEBOUNCE_MS);
 
   const handlePatch = useCallback(
     (patch: BoardPatch) => {
       setScene((prev) => applyBoardPatch(prev, patch));
       pendingRef.current = mergePatch(pendingRef.current, patch);
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+      schedule();
     },
-    [flush]
+    [schedule]
   );
 
-  // Flush outstanding edits on unmount and before the tab closes.
-  useEffect(() => {
-    const onBeforeUnload = () => flush();
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      flush();
-      if (savedTimer.current) clearTimeout(savedTimer.current);
-    };
-  }, [flush]);
-
-  useEffect(() => {
-    if (!board) return;
-    setHeader({
+  const headerState = useMemo(() => {
+    if (!board) return undefined;
+    return {
       saveStatus,
       titleOverride: title,
       folderIdFallback: board.folderId,
       collaborators: collab.collaborators,
-    });
-  }, [board, saveStatus, title, collab.collaborators, setHeader]);
+    };
+  }, [board, saveStatus, title, collab.collaborators]);
+
+  useDocumentHeader(setHeader, headerState);
 
   const saveTitle = useCallback(async () => {
     if (!board || !canEdit || title === board.title) return;
     try {
       const updated = await apiPatch<{ title: string }>(`/api/documents/${board.id}`, { title });
-      setBoard((prev) => (prev ? { ...prev, title: updated.title } : prev));
       setTitle(updated.title);
       refreshTree();
     } catch {
@@ -250,12 +177,12 @@ export function BoardView() {
       <ViewError
         title="Couldn't load this whiteboard"
         message={loadError}
-        onRetry={() => setReloadKey((k) => k + 1)}
+        onRetry={reload}
       />
     );
   }
 
-  if (!board) {
+  if (isLoading || !board) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />

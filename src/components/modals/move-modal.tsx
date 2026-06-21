@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FolderIcon } from "@/components/icons/folder-icon";
-import type { SidebarDragItem } from "@/lib/client/sidebar-dnd";
+import type { FolderItem } from "@/lib/library/folders";
 import { cn } from "@/lib/core/utils";
 
 type FlatFolder = { id: string; name: string; color: string; parentId: string | null };
@@ -19,7 +19,7 @@ type FolderOption = FlatFolder & { depth: number };
 
 type Props = {
   open: boolean;
-  item: SidebarDragItem | null;
+  item: FolderItem | null;
   folders: FlatFolder[];
   currentFolderId: string | null;
   libraryName: string;

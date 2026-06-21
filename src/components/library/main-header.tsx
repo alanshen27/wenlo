@@ -1,14 +1,14 @@
 "use client";
 
-import { Check, Loader2, Maximize2, Minimize2, PanelLeftOpen } from "lucide-react";
+import { Maximize2, Minimize2, PanelLeftOpen } from "lucide-react";
 import { PageCollaborators } from "@/components/editor/page-collaborators";
 import { NavBreadcrumb } from "@/components/nav/nav-breadcrumb";
+import { SaveStatusIndicator, type SaveStatus } from "@/components/native/save-status-indicator";
 import { Button } from "@/components/ui/button";
 import type { BreadcrumbItem } from "@/lib/library/folders";
 import type { PageCollaborator } from "@/lib/realtime/page-presence";
-import { cn } from "@/lib/core/utils";
 
-export type SaveStatus = "idle" | "saving" | "saved" | "error";
+export type { SaveStatus };
 
 type Props = {
   breadcrumbs: BreadcrumbItem[];
@@ -51,26 +51,7 @@ export function MainHeader({
           <span className="hidden text-xs text-muted-foreground sm:inline">{remoteNotice}</span>
         )}
         <PageCollaborators collaborators={collaborators} />
-        <div
-          className={cn(
-            "flex items-center gap-1.5 text-xs transition-opacity",
-            saveStatus === "idle" ? "opacity-0" : "opacity-100"
-          )}
-        >
-          {saveStatus === "saving" && (
-            <>
-              <Loader2 className="size-3 animate-spin" />
-              <span className="text-muted-foreground">Saving…</span>
-            </>
-          )}
-          {saveStatus === "saved" && (
-            <>
-              <Check className="size-3 text-emerald-500" />
-              <span className="text-muted-foreground">Saved</span>
-            </>
-          )}
-          {saveStatus === "error" && <span className="text-destructive">Save failed</span>}
-        </div>
+        <SaveStatusIndicator status={saveStatus} />
         {onToggleFocus && (
           <Button
             variant="ghost"

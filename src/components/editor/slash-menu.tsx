@@ -8,14 +8,16 @@ import {
   type DefaultReactSuggestionItem,
 } from "@blocknote/react";
 import { getMultiColumnSlashMenuItems } from "@blocknote/xl-multi-column";
-import { FileText } from "lucide-react";
+import { Columns3, FileText, GitBranch, Presentation } from "lucide-react";
 import { useCallback } from "react";
 import type {
   RecallBlockSchema,
   RecallInlineSchema,
   RecallStyleSchema,
 } from "@/lib/editor/blocknote-schema";
-import { flattenPagesFromTree, type FolderNode } from "@/lib/library/folders";
+import type { NativeEmbedKind } from "@/lib/editor/embed-block-config";
+import type { RecallPartialBlock } from "@/lib/editor/editor-content";
+import { flattenDocumentsFromTree, flattenPagesFromTree, type FolderNode } from "@/lib/library/folders";
 
 type PageLinkConfig = {
   libraryId: string;
@@ -27,13 +29,6 @@ type Props = {
   pageLink?: PageLinkConfig;
 };
 
-/**
- * Reorders items so all items sharing a `group` are contiguous (preserving the
- * order each group first appears). The default suggestion menu keys group
- * sections by their label, so non-contiguous duplicates (e.g. multi-column
- * items appended after the built-in "Basic blocks" group) would otherwise warn
- * about duplicate React keys.
- */
 function groupContiguously(
   items: DefaultReactSuggestionItem[]
 ): DefaultReactSuggestionItem[] {
@@ -50,10 +45,34 @@ function groupContiguously(
   return order.flatMap((key) => byGroup.get(key)!);
 }
 
-/**
- * Replacement for BlockNote's default `/` menu: keeps every built-in block item
- * and adds a "Link to page" group so pages can be linked without the `@` trigger.
- */
+function insertNativeEmbed(
+  editor: ReturnType<
+    typeof useBlockNoteEditor<RecallBlockSchema, RecallInlineSchema, RecallStyleSchema>
+  >,
+  embedKind: NativeEmbedKind,
+  libraryId: string,
+  document: { id: string; title: string },
+  viewId = ""
+) {
+  const cursor = editor.getTextCursorPosition();
+  editor.insertBlocks(
+    [
+      {
+        type: "nativeEmbed",
+        props: {
+          embedKind,
+          documentId: document.id,
+          libraryId,
+          title: document.title.trim() || "Untitled",
+          viewId,
+        },
+      } as RecallPartialBlock,
+    ],
+    cursor.block,
+    "after"
+  );
+}
+
 export function SlashMenu({ pageLink }: Props) {
   const editor = useBlockNoteEditor<
     RecallBlockSchema,
@@ -68,42 +87,81 @@ export function SlashMenu({ pageLink }: Props) {
         ...getMultiColumnSlashMenuItems(editor),
       ];
 
-      const pageItems: DefaultReactSuggestionItem[] = pageLink
-        ? flattenPagesFromTree(pageLink.tree)
-            .filter((page) => page.id !== pageLink.currentPageId)
-            .map((page) => {
-              const title = page.title.trim() || "Untitled";
-              return {
-                title,
-                group: "Link to page",
-                subtext: "Insert a link to this page",
-                icon: (
-                  <FileText
-                    className="size-4 shrink-0 text-muted-foreground"
-                    strokeWidth={2}
-                  />
-                ),
-                onItemClick: () => {
-                  editor.insertInlineContent([
-                    {
-                      type: "pageLink",
-                      props: {
-                        pageId: page.id,
-                        title,
-                        libraryId: pageLink.libraryId,
-                      },
-                    },
-                    " ",
-                  ]);
-                },
-              } satisfies DefaultReactSuggestionItem;
-            })
-        : [];
+      if (!pageLink) {
+        return filterSuggestionItems(groupContiguously(defaultItems), query);
+      }
 
-      // Only surface page links once the user is actually searching, so the
-      // default menu stays compact when first opened.
+      const pageItems: DefaultReactSuggestionItem[] = flattenPagesFromTree(pageLink.tree)
+        .filter((page) => page.id !== pageLink.currentPageId)
+        .map((page) => {
+          const title = page.title.trim() || "Untitled";
+          return {
+            title,
+            group: "Link to page",
+            subtext: "Insert a link to this page",
+            icon: <FileText className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />,
+            onItemClick: () => {
+              editor.insertInlineContent([
+                {
+                  type: "pageLink",
+                  props: {
+                    pageId: page.id,
+                    title,
+                    libraryId: pageLink.libraryId,
+                  },
+                },
+                " ",
+              ]);
+            },
+          } satisfies DefaultReactSuggestionItem;
+        });
+
+      const deckItems: DefaultReactSuggestionItem[] = flattenDocumentsFromTree(
+        pageLink.tree,
+        ["DECK"]
+      ).map((doc) => {
+        const title = doc.title.trim() || "Untitled";
+        return {
+          title,
+          group: "Embed deck",
+          subtext: "Embed a live deck preview",
+          icon: <Presentation className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />,
+          onItemClick: () => insertNativeEmbed(editor, "DECK", pageLink.libraryId, doc),
+        } satisfies DefaultReactSuggestionItem;
+      });
+
+      const databaseItems: DefaultReactSuggestionItem[] = flattenDocumentsFromTree(
+        pageLink.tree,
+        ["DATABASE"]
+      ).map((doc) => {
+        const title = doc.title.trim() || "Untitled";
+        return {
+          title,
+          group: "Embed database",
+          subtext: "Embed a database view",
+          icon: <Columns3 className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />,
+          onItemClick: () => insertNativeEmbed(editor, "DATABASE", pageLink.libraryId, doc),
+        } satisfies DefaultReactSuggestionItem;
+      });
+
+      const flowItems: DefaultReactSuggestionItem[] = flattenDocumentsFromTree(
+        pageLink.tree,
+        ["FLOWCHART"]
+      ).map((doc) => {
+        const title = doc.title.trim() || "Untitled";
+        return {
+          title,
+          group: "Embed flowchart",
+          subtext: "Embed a flowchart preview",
+          icon: <GitBranch className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />,
+          onItemClick: () => insertNativeEmbed(editor, "FLOWCHART", pageLink.libraryId, doc),
+        } satisfies DefaultReactSuggestionItem;
+      });
+
       const items =
-        query.trim().length > 0 ? [...defaultItems, ...pageItems] : defaultItems;
+        query.trim().length > 0
+          ? [...defaultItems, ...pageItems, ...deckItems, ...databaseItems, ...flowItems]
+          : defaultItems;
 
       return filterSuggestionItems(groupContiguously(items), query);
     },

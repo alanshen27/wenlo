@@ -1,3 +1,5 @@
+"use client";
+
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/core/utils";
@@ -84,7 +86,7 @@ const components: Components = {
   ),
 };
 
-export default function MarkdownRenderer({ content }: { content: string }) {
+export default function MarkdownRenderer({ content }: { content: string; streaming?: boolean }) {
   return (
     <div className="recall-markdown text-sm leading-relaxed text-foreground">
       <Markdown remarkPlugins={[remarkGfm]} components={components}>

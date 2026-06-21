@@ -24,7 +24,11 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useLibrary } from "@/components/library/library-shell";
+import {
+  useLibraryActions,
+  useLibraryScope,
+  useLibraryTree,
+} from "@/components/library/context";
 import { CloudToolbar, type SortMode, type ViewMode } from "@/components/cloud/cloud-toolbar";
 import { EntityCard, EntityTable, type CloudItem } from "@/components/cloud/entities";
 import { Button } from "@/components/ui/button";
@@ -38,52 +42,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ViewContainer, ViewHeader, ViewScroll, SectionLabel } from "@/components/ui/view";
 import { ConfirmModal } from "@/components/modals/confirm-modal";
 import { MoveModal } from "@/components/modals/move-modal";
-import { getFolderContents } from "@/lib/library/folders";
+import { getFolderContents, isFolderItem } from "@/lib/library/folders";
 import { FileArtwork, FolderArtwork } from "@/lib/client/file-icons";
 import { LibraryIcon } from "@/components/icons/library-icon";
 import type { FolderColorId } from "@/lib/library/folder-colors";
 import { apiDelete, apiGet } from "@/lib/client/api";
 import { setPin } from "@/lib/client/pins";
-import type { CollaboratorLike } from "@/components/cloud/collaborator-avatars";
+import { STORAGE_KEYS } from "@/lib/client/storage-keys";
+import { useLibraryMembers } from "@/hooks/use-library-members";
 import { documentOpenRoute, folderHome, pageRoute } from "@/lib/client/routes";
 import {
-  parseFolderDropId,
-  parseItemDragId,
-  type SidebarDragItem,
+  dragItemFromData,
+  resolveFolderDrop,
 } from "@/lib/client/sidebar-dnd";
+import type { FolderItem } from "@/lib/library/folders";
+import { usePersistentState } from "@/lib/client/use-persistent-state";
 import { formatBytes } from "@/lib/core/utils";
 
 type Props = {
   folderId?: string | null;
 };
-
-type MembersResponse = {
-  owner: { id: string; email: string; name: string | null; avatarUrl: string | null };
-  currentUserId: string;
-  members: { userId: string; email: string; name: string | null; avatarUrl: string | null }[];
-};
-
-const VIEW_KEY = "recall:cloud-view";
-const SORT_KEY = "recall:cloud-sort";
-
-function usePersistentState<T extends string>(key: string, fallback: T) {
-  const [value, setValue] = useState<T>(fallback);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(key);
-    if (stored) setValue(stored as T);
-  }, [key]);
-
-  const update = useCallback(
-    (next: T) => {
-      setValue(next);
-      window.localStorage.setItem(key, next);
-    },
-    [key]
-  );
-
-  return [value, update] as const;
-}
 
 function sortItems(items: CloudItem[], sort: SortMode): CloudItem[] {
   const byName = (a: CloudItem, b: CloudItem) =>
@@ -101,22 +79,23 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   const params = useParams<{ folderId?: string }>();
   const folderId = folderIdProp !== undefined ? folderIdProp : (params.folderId ?? null);
 
+  const { libraryId, activeLibrary, canEdit } = useLibraryScope();
   const {
-    libraryId,
-    activeLibrary,
     folders,
     tree,
     treeLoaded,
-    canEdit,
     refreshTree,
     uploadToFolder,
     reindexDocument,
+    moveItem,
+    moveEntriesToFolder,
+  } = useLibraryTree();
+  const {
     createPage,
     createBoard,
     createDeck,
     createDatabase,
     createFlowchart,
-    moveItem,
     beginCreateFolder,
     beginEditFolder,
     beginDeleteFolder,
@@ -124,41 +103,14 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     beginDeleteDocument,
     beginMove,
     openDocumentPreview,
-  } = useLibrary();
+  } = useLibraryActions();
 
-  const [view, setView] = usePersistentState<ViewMode>(VIEW_KEY, "grid");
-  const [sort, setSort] = usePersistentState<SortMode>(SORT_KEY, "name-asc");
-  const [collaborators, setCollaborators] = useState<CollaboratorLike[]>([]);
+  const [view, setView] = usePersistentState<ViewMode>(STORAGE_KEYS.cloudView, "grid");
+  const [sort, setSort] = usePersistentState<SortMode>(STORAGE_KEYS.cloudSort, "name-asc");
+  const { data: collaborators = [] } = useLibraryMembers(libraryId);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setCollaborators([]);
-      try {
-        const data = await apiGet<MembersResponse>(`/api/libraries/${libraryId}/members`);
-        if (cancelled) return;
-        const seen = new Set<string>();
-        const list: CollaboratorLike[] = [];
-        const push = (p: { id: string; name: string | null; email: string; avatarUrl: string | null }) => {
-          if (p.id === data.currentUserId || seen.has(p.id)) return;
-          seen.add(p.id);
-          list.push({ userId: p.id, name: p.name, email: p.email, avatarUrl: p.avatarUrl });
-        };
-        push(data.owner);
-        for (const m of data.members) {
-          push({ id: m.userId, name: m.name, email: m.email, avatarUrl: m.avatarUrl });
-        }
-        setCollaborators(list);
-      } catch {
-        if (!cancelled) setCollaborators([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [libraryId]);
   const [dragging, setDragging] = useState(false);
-  const [activeDrag, setActiveDrag] = useState<SidebarDragItem | null>(null);
+  const [activeDrag, setActiveDrag] = useState<FolderItem | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
@@ -172,23 +124,16 @@ export function CloudView({ folderId: folderIdProp }: Props) {
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const parsed = parseItemDragId(event.active.id);
-    if (!parsed) return;
-    const data = event.active.data.current as SidebarDragItem | undefined;
-    setActiveDrag({ ...parsed, title: data?.title, docType: data?.docType });
+    const item = dragItemFromData(event.active.data.current);
+    if (item) setActiveDrag(item);
   }, []);
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       setActiveDrag(null);
-      const parsed = parseItemDragId(event.active.id);
-      if (!parsed || !event.over) return;
-      const data = event.active.data.current as SidebarDragItem | undefined;
-      const item: SidebarDragItem = { ...parsed, title: data?.title, docType: data?.docType };
-      if (!item.title) return;
-      const target = parseFolderDropId(event.over.id);
-      if (target === undefined) return;
-      await moveItem(item, target);
+      const drop = resolveFolderDrop(event);
+      if (!drop) return;
+      await moveItem(drop.item, drop.targetFolderId);
     },
     [moveItem]
   );
@@ -309,9 +254,14 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     lastClickedKey.current = null;
   }, []);
 
-  const selectableCount = selectedItems.filter(
-    (i) => i.kind === "page" || i.kind === "document"
-  ).length;
+  const handleBulkMove = useCallback(
+    async (targetFolderId: string | null) => {
+      await moveEntriesToFolder(selectedItems, targetFolderId);
+      clearSelection();
+      setBulkMoveOpen(false);
+    },
+    [selectedItems, moveEntriesToFolder, clearSelection]
+  );
 
   const handleBulkDelete = useCallback(async () => {
     setBulkBusy(true);
@@ -334,27 +284,6 @@ export function CloudView({ folderId: folderIdProp }: Props) {
       setBulkBusy(false);
     }
   }, [selectedItems, refreshTree, clearSelection]);
-
-  const handleBulkMove = useCallback(
-    async (targetFolderId: string | null) => {
-      const movable = selectedItems.filter(
-        (i) => i.kind === "page" || i.kind === "document"
-      );
-      await Promise.all(
-        movable.map((item) =>
-          moveItem(
-            item.kind === "page"
-              ? { type: "page", id: item.id, title: item.title }
-              : { type: "document", id: item.id, title: item.title, docType: item.type },
-            targetFolderId
-          )
-        )
-      );
-      clearSelection();
-      setBulkMoveOpen(false);
-    },
-    [selectedItems, moveItem, clearSelection]
-  );
 
   const tableSelection = canEdit
     ? {
@@ -390,7 +319,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
 
   const togglePin = useCallback(
     async (item: CloudItem) => {
-      if (item.kind !== "page" && item.kind !== "document") return;
+      if (!isFolderItem(item)) return;
       const target =
         item.kind === "page" ? { pageId: item.id } : { documentId: item.id };
       try {
@@ -418,10 +347,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
         : undefined;
 
     // Pins are personal, so viewers can pin too (pages + documents only).
-    const onTogglePin =
-      item.kind === "page" || item.kind === "document"
-        ? () => togglePin(item)
-        : undefined;
+    const onTogglePin = isFolderItem(item) ? () => togglePin(item) : undefined;
 
     if (!canEdit) return { onOpen, onTogglePin };
     if (item.kind === "folder") {
@@ -434,15 +360,14 @@ export function CloudView({ folderId: folderIdProp }: Props) {
     if (item.kind === "page") {
       return {
         onTogglePin,
-        onMove: () => beginMove({ type: "page", id: item.id, title: item.title }),
+        onMove: () => beginMove(item),
         onDelete: () => beginDeletePage({ id: item.id, title: item.title }),
       };
     }
     return {
       onOpen,
       onTogglePin,
-      onMove: () =>
-        beginMove({ type: "document", id: item.id, title: item.title, docType: item.type }),
+      onMove: () => beginMove(item),
       onReindex: () => reindexDocument(item.id),
       onDelete: () => beginDeleteDocument({ id: item.id, title: item.title }),
     };
@@ -675,7 +600,6 @@ export function CloudView({ folderId: folderIdProp }: Props) {
               variant="ghost"
               size="sm"
               onClick={() => setBulkMoveOpen(true)}
-              disabled={selectableCount === 0}
             >
               <FolderInput className="size-4" />
               Move
@@ -712,7 +636,7 @@ export function CloudView({ folderId: folderIdProp }: Props) {
 
       <MoveModal
         open={bulkMoveOpen}
-        item={{ type: "document", id: "", title: `${selectableCount} item${selectableCount === 1 ? "" : "s"}` }}
+        item={{ kind: "document", id: "", title: `${selectedItems.length} item${selectedItems.length === 1 ? "" : "s"}`, type: "OTHER" }}
         folders={folders}
         currentFolderId={folderId}
         libraryName={activeLibrary?.name ?? "Library"}

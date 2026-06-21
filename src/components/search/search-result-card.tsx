@@ -31,7 +31,13 @@ export function SearchResultCard({ result, onOpen, compact }: Props) {
 
 function MatchBadge({ matchType }: { matchType: RecallResult["matchType"] }) {
   const label =
-    matchType === "both" ? "keyword + semantic" : matchType === "semantic" ? "semantic" : "keyword";
+    matchType === "both"
+      ? "keyword + semantic"
+      : matchType === "grep"
+        ? "grep"
+        : matchType === "semantic"
+          ? "semantic"
+          : "keyword";
   return (
     <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">
       {label}
