@@ -19,6 +19,7 @@ import { cn, formatBytes } from "@/lib/core/utils";
 import { BoardPreview } from "@/components/whiteboard/board-preview";
 import type { BoardDoc } from "@/lib/boards/board-schema";
 import { DeckSlideSvg } from "@/components/slideshow/deck-slide-svg";
+import { PdfPagePreview } from "@/components/pdf/pdf-page-preview";
 import type { DeckDoc } from "@/lib/decks/deck-schema";
 
 export type PreviewTarget = { id: string; title: string; type: string };
@@ -108,7 +109,9 @@ export function FilePreviewPanel({
   const isImage = !mediaError && (type === "IMAGE" || mime.startsWith("image/"));
   const isVideo = !mediaError && (type === "VIDEO" || mime.startsWith("video/"));
   const isAudio = !mediaError && (type === "AUDIO" || mime.startsWith("audio/"));
-  const isPdf = !mediaError && mime === "application/pdf";
+  const isPdf =
+    !mediaError &&
+    (target.type === "PDF" || type === "PDF" || mime === "application/pdf");
 
   const extractedText = doc?.content && !doc.content.trimStart().startsWith("[") ? doc.content : null;
   const added = formatDate(doc?.createdAt);
@@ -172,7 +175,10 @@ export function FilePreviewPanel({
               onError={() => setMediaError(true)}
             />
           ) : hasFile && doc && isPdf ? (
-            <iframe src={rawUrl} title={target.title} className="h-[50vh] w-full rounded-lg" />
+            <PdfPagePreview
+              documentId={target.id}
+              className="max-h-[50vh] w-full rounded-lg border border-border"
+            />
           ) : hasFile && doc && isAudio ? (
             <div className="flex w-full flex-col items-center gap-4 py-6">
               <FileArtwork type="AUDIO" className="size-20" />

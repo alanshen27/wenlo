@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DatabasePreview } from "@/components/database/database-preview";
 import { FlowPreview } from "@/components/flowcharts/flow-preview";
+import { PdfPreviewThumb } from "@/components/pdf/pdf-page-preview";
 import { DeckSlideSvg } from "@/components/slideshow/deck-slide-svg";
 import { BoardPreview } from "@/components/whiteboard/board-preview";
 import { FileArtwork } from "@/lib/client/file-icons";
@@ -407,6 +408,7 @@ export type ItemPreviewSource =
   | { mode: "board"; boardId?: string; scene?: BoardDoc }
   | { mode: "flow"; flowId?: string; scene?: FlowDoc }
   | { mode: "database"; databaseId?: string; scene?: DatabaseScene }
+  | { mode: "pdf"; documentId: string }
   | { mode: "file"; type: string };
 
 /** Inner preview — pick page, deck, board, flow, database, or file glyph. */
@@ -426,6 +428,8 @@ export function ItemPreviewBody({ source }: { source: ItemPreviewSource }) {
       return <FlowPreviewThumb flowId={source.flowId} scene={source.scene} />;
     case "database":
       return <DatabasePreviewThumb databaseId={source.databaseId} scene={source.scene} />;
+    case "pdf":
+      return <PdfPreviewThumb documentId={source.documentId} />;
     case "file":
       return <FileTypePreview type={source.type} />;
   }
@@ -462,6 +466,8 @@ export function cloudItemPreviewSource(
       return { mode: "flow", flowId: item.id };
     case "DATABASE":
       return { mode: "database", databaseId: item.id };
+    case "PDF":
+      return { mode: "pdf", documentId: item.id };
     default:
       return { mode: "file", type: item.type };
   }
@@ -484,6 +490,8 @@ export function recentItemPreviewSource(item: {
       return { mode: "flow", flowId: item.id };
     case "DATABASE":
       return { mode: "database", databaseId: item.id };
+    case "PDF":
+      return { mode: "pdf", documentId: item.id };
     default:
       return { mode: "file", type: item.type };
   }
