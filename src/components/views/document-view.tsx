@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ViewContainer, ViewError, ViewScroll } from "@/components/ui/view";
-import { documentRoute, libraryHome } from "@/lib/client/routes";
+import { documentRoute, libraryHome, pdfRoute } from "@/lib/client/routes";
 import { apiGet, getApiErrorMessage, isCanceledError, isNotFoundError } from "@/lib/client/api";
 import { FileArtwork, getDocumentLabel } from "@/lib/client/file-icons";
 import { cn, formatBytes } from "@/lib/core/utils";
@@ -48,6 +48,10 @@ export function DocumentView() {
         if (cancelled) return;
         if (data.libraryId && data.libraryId !== libraryId) {
           router.replace(documentRoute(data.libraryId, data.id));
+          return;
+        }
+        if (data.mimeType === "application/pdf" && data.storagePath) {
+          router.replace(pdfRoute(data.libraryId, data.id));
           return;
         }
         setDocument(data);
@@ -114,7 +118,7 @@ export function DocumentView() {
   const isVideo = hasFile && (document.type === "VIDEO" || mime.startsWith("video/"));
   const isAudio = hasFile && (document.type === "AUDIO" || mime.startsWith("audio/"));
   const isPdf = hasFile && mime === "application/pdf";
-  const hasInlineMedia = isImage || isVideo || isAudio || isPdf;
+  const hasInlineMedia = isImage || isVideo || isAudio;
 
   return (
     <ViewScroll>
@@ -139,6 +143,7 @@ export function DocumentView() {
             <a
               href={`${rawUrl}?download=1`}
               download={document.title}
+              title="Download original PDF (without annotations)"
               className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
             >
               <Download className="size-4" />
@@ -164,8 +169,6 @@ export function DocumentView() {
                 className="max-h-[70vh] w-full"
                 onError={() => setMediaError(true)}
               />
-            ) : isPdf ? (
-              <iframe src={rawUrl} title={document.title} className="h-[80vh] w-full" />
             ) : (
               <div className="flex flex-col items-center gap-4 p-6">
                 <FileArtwork type="AUDIO" className="size-16" />

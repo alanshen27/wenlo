@@ -46,12 +46,17 @@ export function flowchartRoute(libraryId: string, flowchartId: string) {
   return `/library/${libraryId}/flowcharts/${flowchartId}`;
 }
 
+export function pdfRoute(libraryId: string, pdfId: string) {
+  return `/library/${libraryId}/pdfs/${pdfId}`;
+}
+
 /** Type-aware open target for a document row/card. */
 export function documentOpenRoute(libraryId: string, documentId: string, type?: string) {
   if (type === "WHITEBOARD") return boardRoute(libraryId, documentId);
   if (type === "DECK") return deckRoute(libraryId, documentId);
   if (type === "DATABASE") return databaseRoute(libraryId, documentId);
   if (type === "FLOWCHART") return flowchartRoute(libraryId, documentId);
+  if (type === "PDF") return pdfRoute(libraryId, documentId);
   return documentRoute(libraryId, documentId);
 }
 

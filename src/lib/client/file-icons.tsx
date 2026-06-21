@@ -89,6 +89,15 @@ const FLOW_PATHS = (
   </>
 );
 
+const PDF_PATHS = (
+  <>
+    <path d="M14 2 H6 a2 2 0 0 0 -2 2 v16 a2 2 0 0 0 2 2 h12 a2 2 0 0 0 2 -2 V8 Z" />
+    <path d="M14 2 v6 h6" />
+    <path d="M8 13 h8" />
+    <path d="M8 17 h6" />
+  </>
+);
+
 /** Slide deck: two stacked cards. */
 export const DeckIcon = makeIcon("DeckIcon", () => DECK_PATHS);
 
@@ -103,6 +112,9 @@ export const DatabaseGlyph = makeIcon("DatabaseGlyph", () => DATABASE_PATHS);
 
 /** Flowchart: two nodes joined by a connector. */
 export const FlowGlyph = makeIcon("FlowGlyph", () => FLOW_PATHS);
+
+/** Annotatable PDF: document sheet with text lines. */
+export const PdfGlyph = makeIcon("PdfGlyph", () => PDF_PATHS);
 
 // Sheet + fold use the exact same outline as the generic file glyph so docs and
 // slides share the regular icons' aspect ratio and visual size.
@@ -192,6 +204,17 @@ function nativeArtwork(type: string, p: ArtPalette): ReactNode | null {
           />
         </>
       );
+    case "PDF":
+      // Red sheet with a yellow highlighter stripe over text lines.
+      return (
+        <>
+          <path d={DOC_SHEET} fill={p.accent} />
+          <path d={DOC_FOLD} fill="#ffffff" fillOpacity={0.45} />
+          <rect x="12" y="22" width="24" height="4.5" rx="1" fill="#ffeb3b" fillOpacity={0.9} />
+          <rect x="14" y="29" width="18" height="2.4" rx="1.2" fill="#ffffff" fillOpacity={0.75} />
+          <rect x="14" y="34" width="14" height="2.4" rx="1.2" fill="#ffffff" fillOpacity={0.75} />
+        </>
+      );
     default:
       return null;
   }
@@ -200,7 +223,7 @@ function nativeArtwork(type: string, p: ArtPalette): ReactNode | null {
 export function getDocumentIcon(type: string): LucideIcon {
   switch (type) {
     case "PDF":
-      return FileType;
+      return PdfGlyph;
     case "CODE":
       return FileCode;
     case "SLIDES":

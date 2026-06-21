@@ -33,6 +33,8 @@ export function templateItemPreviewSource(
         mode: "database",
         scene: buildDatabaseTemplatePreviewScene(template.id as DatabaseTemplateId),
       };
+    case "pdfs":
+      return { mode: "file", type: "PDF" };
     default: {
       const _exhaustive: never = kind;
       return _exhaustive;

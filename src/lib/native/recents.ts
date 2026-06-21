@@ -102,9 +102,16 @@ export async function listRecents(
   }
 
   const where =
-    cfg.source === "document" && cfg.docType
-      ? { libraryId: { in: libraryIds }, type: cfg.docType }
-      : { libraryId: { in: libraryIds }, type: { notIn: NATIVE_DOC_TYPES } };
+    cfg.source === "file" && cfg.docType
+      ? {
+          libraryId: { in: libraryIds },
+          type: cfg.docType,
+          mimeType: "application/pdf",
+          storagePath: { not: null },
+        }
+      : cfg.source === "document" && cfg.docType
+        ? { libraryId: { in: libraryIds }, type: cfg.docType }
+        : { libraryId: { in: libraryIds }, type: { notIn: NATIVE_DOC_TYPES } };
 
   const pinnedDocIds = [...pinned.documentIds];
   const [recent, pinnedDocs] = await Promise.all([

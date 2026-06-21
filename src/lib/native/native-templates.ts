@@ -54,6 +54,8 @@ export function listNativeTemplates(kind: NativeKind): NativeTemplateEntry[] {
         title: t.title,
         description: t.description,
       }));
+    case "pdfs":
+      return [];
     default:
       return [];
   }

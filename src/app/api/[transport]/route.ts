@@ -175,6 +175,36 @@ const baseHandler = createMcpHandler(
     );
 
     server.registerTool(
+      "create_library_item",
+      {
+        title: "Create library item",
+        description:
+          "Create a note, page, whiteboard, deck, database, or flowchart in a library (requires EDITOR access).",
+        inputSchema: {
+          libraryId: z.string().describe("Library id"),
+          kind: z
+            .enum(["note", "page", "whiteboard", "deck", "database", "flowchart"])
+            .describe("Item type to create"),
+          title: z.string().optional().describe("Title (default varies by kind)"),
+          folderId: z
+            .string()
+            .optional()
+            .describe("Folder id (omit or 'root' for the library root)"),
+          content: z
+            .string()
+            .optional()
+            .describe("Plain text body for note or page"),
+          databaseTemplate: z
+            .enum(["tasks", "contacts", "roadmap"])
+            .optional()
+            .describe("Starter template when kind is database"),
+        },
+        annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      },
+      async (args, extra) => runTool("create_library_item", args, extra)
+    );
+
+    server.registerTool(
       "append_to_note",
       {
         title: "Append to note",

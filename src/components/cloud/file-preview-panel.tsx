@@ -13,6 +13,7 @@ import {
   deckRoute,
   documentRoute,
   flowchartRoute,
+  pdfRoute,
 } from "@/lib/client/routes";
 import { cn, formatBytes } from "@/lib/core/utils";
 import { BoardPreview } from "@/components/whiteboard/board-preview";
@@ -270,6 +271,14 @@ export function FilePreviewPanel({
           >
             <ExternalLink className="size-4" />
             Open flowchart
+          </Link>
+        ) : isPdf ? (
+          <Link
+            href={pdfRoute(libraryId, target.id)}
+            className={cn(buttonVariants({ variant: "default", size: "sm" }), "flex-1")}
+          >
+            <ExternalLink className="size-4" />
+            Annotate
           </Link>
         ) : (
           <>

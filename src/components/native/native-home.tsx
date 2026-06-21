@@ -175,8 +175,9 @@ function NativeHomeMain({
               <RecentsSkeleton />
             ) : items.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No {cfg.plural.toLowerCase()} in this library yet — create blank or browse
-                templates.
+                {kind === "pdfs"
+                  ? "No PDFs yet — upload a file to annotate it here."
+                  : `No ${cfg.plural.toLowerCase()} in this library yet — create blank or browse templates.`}
               </p>
             ) : (
           <div className="space-y-8">

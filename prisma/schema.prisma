@@ -249,6 +249,9 @@ model Document {
   // Native flowchart scene (FLOWCHART type): node/edge maps for React Flow.
   // See src/lib/flowcharts/flowchart-schema.ts.
   flowContent  Json?
+  // Per-page annotation overlay for PDF documents. Null for non-PDFs and unmarked PDFs.
+  // See src/lib/pdfs/pdf-annotation-schema.ts.
+  pdfAnnotations Json?
   language     String?
   userId       String
   libraryId    String

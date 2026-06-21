@@ -188,12 +188,13 @@ export function NativeHomeSidebar({
             ) : (
               <Upload className="size-4" />
             )}
-            Import files
+            {cfg.uploadAccept ? cfg.newLabel : "Import files"}
           </Button>
           <input
             ref={inputRef}
             type="file"
-            multiple
+            multiple={!cfg.uploadAccept}
+            accept={cfg.uploadAccept}
             className="hidden"
             onChange={(e) => void handleImport(e.target.files)}
           />

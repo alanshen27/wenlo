@@ -7,6 +7,11 @@ import { authorizeLibrary } from "@/lib/auth/mcp-auth";
 import { prisma } from "@/lib/db/prisma";
 import { applyTextPatch } from "@/lib/documents/text-patch";
 import { contentOwnerId, requireLibraryAccess } from "@/lib/library/library-access";
+import {
+  createLibraryItem,
+  LIBRARY_ITEM_KINDS,
+  type LibraryItemKind,
+} from "@/lib/library/create-items";
 import { indexDocument, recallSearch } from "@/lib/search/search";
 import { grepLibrary } from "@/lib/search/grep";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -21,6 +26,7 @@ export const RECALL_TOOL_NAMES = [
   "get_document",
   "download_file",
   "create_note",
+  "create_library_item",
   "append_to_note",
   "edit_note",
 ] as const;
@@ -80,6 +86,17 @@ const createNoteSchema = z.object({
   content: z.string().optional(),
   folderId: z.string().optional(),
 });
+const createLibraryItemSchema = z.object({
+  libraryId: z.string(),
+  kind: z.enum(LIBRARY_ITEM_KINDS),
+  title: z.string().optional(),
+  folderId: z.string().optional(),
+  content: z.string().optional().describe("Plain text body for note or page"),
+  databaseTemplate: z
+    .string()
+    .optional()
+    .describe("Database starter template: tasks, contacts, or roadmap"),
+});
 const appendNoteSchema = z.object({
   libraryId: z.string(),
   documentId: z.string(),
@@ -101,6 +118,7 @@ const TOOL_SCHEMAS: Record<RecallToolName, z.ZodTypeAny> = {
   get_document: documentRefSchema,
   download_file: documentRefSchema,
   create_note: createNoteSchema,
+  create_library_item: createLibraryItemSchema,
   append_to_note: appendNoteSchema,
   edit_note: editNoteSchema,
 };
@@ -151,6 +169,8 @@ async function runRecallTool(
       return downloadFile(args as z.infer<typeof documentRefSchema>, ctx);
     case "create_note":
       return createNote(args as z.infer<typeof createNoteSchema>, ctx);
+    case "create_library_item":
+      return createLibraryItemTool(args as z.infer<typeof createLibraryItemSchema>, ctx);
     case "append_to_note":
       return appendNote(args as z.infer<typeof appendNoteSchema>, ctx);
     case "edit_note":
@@ -445,31 +465,43 @@ async function createNote(
     { userId: ctx.userId, apiKeyId: "", scopedLibraryId: ctx.scopedLibraryId },
     libraryId
   );
-  await requireLibraryAccess(ctx.userId, libraryId, "EDITOR");
-
-  const ownerId = await contentOwnerId(libraryId);
   const resolvedFolderId =
     folderId === undefined
       ? null
       : await resolveGatewayFolderId(ctx.userId, libraryId, folderId);
-  const body = (content ?? "").trim();
-
-  const document = await prisma.document.create({
-    data: {
-      title: title.trim() || "Untitled note",
-      type: "NOTE",
-      status: "READY",
-      content: body,
-      userId: ownerId,
-      libraryId,
-      folderId: resolvedFolderId,
-    },
-    select: { id: true, title: true, folderId: true },
+  return createLibraryItem({
+    userId: ctx.userId,
+    libraryId,
+    kind: "note",
+    title,
+    content,
+    folderId: resolvedFolderId,
   });
+}
 
-  if (body) await indexDocument(document.id, document.title, body, ctx.userId);
-
-  return { id: document.id, title: document.title, libraryId, folderId: document.folderId };
+async function createLibraryItemTool(
+  { libraryId, kind, title, folderId, content, databaseTemplate }: z.infer<
+    typeof createLibraryItemSchema
+  >,
+  ctx: RecallToolContext
+) {
+  await authorizeLibrary(
+    { userId: ctx.userId, apiKeyId: "", scopedLibraryId: ctx.scopedLibraryId },
+    libraryId
+  );
+  const resolvedFolderId =
+    folderId === undefined
+      ? null
+      : await resolveGatewayFolderId(ctx.userId, libraryId, folderId);
+  return createLibraryItem({
+    userId: ctx.userId,
+    libraryId,
+    kind: kind as LibraryItemKind,
+    title,
+    folderId: resolvedFolderId,
+    content,
+    databaseTemplate,
+  });
 }
 
 async function appendNote(
@@ -660,6 +692,34 @@ export const RECALL_OPENAI_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] =
           folderId: { type: "string", description: "Folder id (omit for library root)" },
         },
         required: ["libraryId", "title"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_library_item",
+      description:
+        "Create a new library item. kind: note (plain text doc), page (BlockNote doc), whiteboard, deck, database, or flowchart. Requires EDITOR access.",
+      parameters: {
+        type: "object",
+        properties: {
+          libraryId: { type: "string" },
+          kind: {
+            type: "string",
+            enum: [...LIBRARY_ITEM_KINDS],
+            description: "note | page | whiteboard | deck | database | flowchart",
+          },
+          title: { type: "string", description: "Item title" },
+          folderId: { type: "string", description: "Folder id (omit for library root)" },
+          content: { type: "string", description: "Plain text for note or page body" },
+          databaseTemplate: {
+            type: "string",
+            description: "For database kind: tasks, contacts, or roadmap",
+          },
+        },
+        required: ["libraryId", "kind"],
         additionalProperties: false,
       },
     },

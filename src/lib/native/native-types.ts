@@ -10,7 +10,8 @@ export type NativeKind =
   | "decks"
   | "whiteboards"
   | "databases"
-  | "flowcharts";
+  | "flowcharts"
+  | "pdfs";
 
 /** Legacy URL/API kind segments kept for redirects and bookmarks. */
 export const NATIVE_KIND_ALIASES: Record<string, NativeKind> = {
@@ -41,6 +42,8 @@ export type NativeTypeConfig = {
   docType?: DocumentType;
   /** Whether the home page exposes a "create new" action. */
   creatable: boolean;
+  /** When set, the home sidebar upload input uses this accept string. */
+  uploadAccept?: string;
   /** `FileArtwork`/icon key used to render thumbnails for this kind's items. */
   artworkType: string;
   /** Accent color (hex) for home accents + create card. */
@@ -117,6 +120,21 @@ export const NATIVE_TYPES: Record<NativeKind, NativeTypeConfig> = {
     artworkType: "FLOWCHART",
     accent: "#db2777",
   },
+  pdfs: {
+    kind: "pdfs",
+    segment: "pdfs",
+    paramKey: "pdfId",
+    label: "PDF",
+    plural: "PDFs",
+    newLabel: "Upload PDF",
+    defaultTitle: "Untitled PDF",
+    source: "file",
+    docType: "PDF",
+    creatable: false,
+    uploadAccept: "application/pdf,.pdf",
+    artworkType: "PDF",
+    accent: "#dc2626",
+  },
 };
 
 /** Launcher display order. */
@@ -126,6 +144,7 @@ export const NATIVE_KIND_ORDER: NativeKind[] = [
   "whiteboards",
   "databases",
   "flowcharts",
+  "pdfs",
 ];
 
 /** Native document types (everything else counts as an uploaded "file"). */

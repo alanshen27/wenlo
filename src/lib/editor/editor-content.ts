@@ -78,6 +78,16 @@ export function extractPlainText(content: unknown): string {
   return blocksToPlainText(normalizeEditorContent(content));
 }
 
+/** Simple plain-text → BlockNote paragraphs for agent-created pages. */
+export function plainTextToBlocks(text: string): RecallPartialBlock[] {
+  const trimmed = text.trim();
+  if (!trimmed) return EMPTY_BLOCKS;
+  return trimmed.split(/\n{2,}/).map((paragraph) => ({
+    type: "paragraph" as const,
+    content: paragraph.trim(),
+  }));
+}
+
 export type DocumentHeading = {
   id: string;
   level: 1 | 2 | 3;
